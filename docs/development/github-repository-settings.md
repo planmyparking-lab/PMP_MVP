@@ -37,5 +37,5 @@ Status of each item must be recorded by the administrator in the "Applied (date 
 - Code owner review needs every handle in `.github/CODEOWNERS` to be a real user with write access.
   GitHub shows a red "CODEOWNERS file contains errors" banner otherwise.
 - With a team this small, a PR in a path where the author is the only code owner cannot be approved by
-  anyone else. Add a second owner for shared paths (open item C-1/C-3 in `docs/team/README.md`) or use the
+  anyone else. Shared paths (`packages/domain`, `supabase/migrations`) now have two owners each; for single-owner paths add a second owner or use the
   bypass setting deliberately.

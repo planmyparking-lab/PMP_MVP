@@ -19,10 +19,10 @@ GitHub handles come from `.github/CODEOWNERS`, as supplied by the repository own
 
 | Member | Responsibilities | Owned repo paths (per CODEOWNERS) | Main deliverables |
 | --- | --- | --- | --- |
-| Afzal | Event contracts, upload outbox and idempotent ingest, download sync, occupancy computation, conflict detection, health signals, simulation harness, repo and release rules, partner pipeline | `packages/contracts`, `packages/sync-rules`, `packages/domain` (see conflict C-1), `supabase/migrations`, `docs/team`; fallback owner for everything (`*`) | Contracts package, sync client, `ingest_events`, sync spike decision record, `tools/sim` reports, `docs/release.md`, pilot agreements |
-| Nikhil | Gate app: entry, exit, fare engine, payments, passes, shifts, overrides, zone counts, login and enrollment, printer, backfill, app shell | `apps/gate` | Android app and APK, fare function with the 60-case table, gate-side tests |
+| Afzal | Event contracts, upload outbox and idempotent ingest, download sync, occupancy computation, conflict detection, health signals, simulation harness, repo and release rules, partner pipeline | `packages/contracts`, `packages/sync-rules`, `supabase/migrations` (co-owner), `docs/team`; fallback owner for everything (`*`) | Contracts package, sync client, `ingest_events`, sync spike decision record, `tools/sim` reports, `docs/release.md`, pilot agreements |
+| Nikhil | Gate app: entry, exit, fare engine, payments, passes, shifts, overrides, zone counts, login and enrollment, printer, backfill, app shell | `apps/gate`, `packages/domain` (Afzal co-owns) | Android app and APK, fare function with the 60-case table, gate-side tests |
 | Anamika | Operator Console: setup wizard, staff and devices, login, occupancy board, dashboard, shift review, conflicts inbox, reports, overstay, pilot health, seed data, baseline study and ROI | `apps/console` | Console app, report render route, seed and demo data, baseline study and ROI statements |
-| Akanksha | Supabase environments, schema (non-sync), RLS and device auth, heartbeat, KPI views, report scheduler, alerts, retention, CI/CD, monitoring and backups, pilot measurement | `supabase/functions`, `.github` | Environments, migrations 0001..0011 deployment, RLS suite, KPI views, pipelines, monitoring, weekly metrics pack |
+| Akanksha | Supabase environments, schema (non-sync), RLS and device auth, heartbeat, KPI views, report scheduler, alerts, retention, CI/CD, monitoring and backups, pilot measurement | `supabase/functions`, `supabase/migrations` (co-owner), `.github` | Environments, migrations 0001..0011 deployment, RLS suite, KPI views, pipelines, monitoring, weekly metrics pack |
 
 ### Dependencies and handoffs between members
 
@@ -51,9 +51,9 @@ Wave 0 to 7 in section 6 (dependency-ordered, no dates). Critical path: `SYNC-01
 
 | ID | Issue | Status |
 | --- | --- | --- |
-| C-1 | `packages/domain` holds the fare function (IC-04, feature `GATE-03`, owner Nikhil), but CODEOWNERS maps `/packages/domain/` to Afzal. | TBD: decide the owner. Until then Afzal reviews and Nikhil authors. |
+| C-1 | `packages/domain` holds the fare function (IC-04, feature `GATE-03`, owner Nikhil). | **Resolved (owner decision):** Nikhil owns, Afzal co-owns. CODEOWNERS lists both. |
 | C-2 | `docs/team/README.md` section 2 notes that the earlier Phase 2 plan assigned roles differently (OQ-18). | TBD: team confirms. |
-| C-3 | `supabase/migrations` is owned by Afzal in CODEOWNERS, but `CLD-02` (schema migrations) is Akanksha's feature. | TBD: agree who authors and who approves. |
+| C-3 | `supabase/migrations`: Afzal writes sync SQL, `CLD-02` (schema migrations and deploys) is Akanksha's feature. | **Resolved (owner decision):** Afzal and Akanksha co-own. Either may approve the other's migration; forward-only rule unchanged. |
 | C-4 | Weekly hours per member unknown (OQ-17), so no dates exist. | TBD |
 | C-5 | `apps/gate`, `apps/console` and `supabase/functions` have no initialized projects yet. | Open: owners initialize them. |
 
