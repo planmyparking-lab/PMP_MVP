@@ -3,8 +3,8 @@
 Operator-first parking operations: an offline-first Android gate app, a Next.js operator console, and a
 Supabase backend, in one pnpm monorepo.
 
-> **Status: scaffold.** Structure, tooling, CI and the shared `contracts` package exist. The apps and
-> database are not implemented yet. Plans live in `docs/team/`.
+> **Status: scaffold.** Structure, tooling, CI, the shared `contracts` package and placeholder app shells
+> exist. No product features or database schema are implemented yet. Plans live in `docs/team/`.
 
 ## Layout
 
@@ -36,7 +36,7 @@ pnpm install
 pnpm check        # repo structure, format, lint, typecheck, tests
 ```
 
-There is no app to run yet (`apps/*` are not initialized). Full workflow, branch and commit rules:
+Run the console shell with `pnpm --filter @pmp/console dev`. Full workflow, branch and commit rules:
 [CONTRIBUTING.md](CONTRIBUTING.md). Environment variables: `.env.example` (nothing reads them yet).
 Tests: `docs/testing/strategy.md`. GitHub settings an admin must apply: `docs/development/github-repository-settings.md`.
 

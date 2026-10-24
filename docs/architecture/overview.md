@@ -1,7 +1,7 @@
 # Architecture overview
 
 **Implemented:** a pnpm monorepo with a shared contracts package (`packages/contracts`: event schemas,
-money in paise, reason codes, schema version). Nothing else runs yet.
+money in paise, reason codes, schema version), plus placeholder shells: `apps/gate` (Expo, shows the schema version, has the version-gate helper) and `apps/console` (Next.js, one page). Supabase has only a generated `config.toml`. No feature is built.
 
 **Planned (specified in `docs/team`, not built):**
 

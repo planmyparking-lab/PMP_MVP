@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ReasonCode } from "./reasonCodes.js";
+import { ReasonCode } from "./reasonCodes";
 
 export const EVENT_TYPES = [
   "ENTRY",

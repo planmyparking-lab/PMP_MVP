@@ -19,3 +19,7 @@ supabase/.temp/
 *.tmp
 .cache/
 .turbo/
+
+# generated
+next-env.d.ts
+*.tsbuildinfo

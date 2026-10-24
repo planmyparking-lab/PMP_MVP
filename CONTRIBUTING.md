@@ -30,8 +30,7 @@ Environment variables: see `.env.example`. Copy what you need into an untracked 
 | `pnpm test`                         | Vitest in every package that defines `test` (today: `packages/contracts`)    |
 | `pnpm check:branch`                 | Validates your current branch name                                           |
 
-There is no "run the app" command yet: `apps/gate`, `apps/console` and `supabase/` are not
-initialized. Their owners add `dev`, `build`, `typecheck` and `test` scripts when they initialize them.
+`apps/gate` and `apps/console` are placeholder shells (no features yet). `supabase/` is not initialized.
 
 ## 3. Branches
 

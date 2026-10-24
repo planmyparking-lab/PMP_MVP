@@ -4,7 +4,7 @@ Prepared 24 Oct 2026 for Team PlanMyParking (Afzal, Nikhil, Anamika, Akanksha).
 
 ## Team index (start here)
 
-Repository status (updated after the repository scaffold): the monorepo structure, tooling and CI exist, and `packages/contracts` is implemented with tests. **Everything else in the feature inventory is still Not implemented.** The sheets below are plans and specifications, not descriptions of working code.
+Repository status: the monorepo structure, tooling and CI exist, `packages/contracts` is implemented with tests, and placeholder shells exist for the gate app and console (branch `chore/init-apps`). **Everything else in the feature inventory is still Not implemented.** The sheets below are plans and specifications, not descriptions of working code.
 
 | Member | GitHub | Assignment sheet | Feature IDs |
 | --- | --- | --- | --- |
@@ -52,10 +52,10 @@ Wave 0 to 7 in section 6 (dependency-ordered, no dates). Critical path: `SYNC-01
 | ID | Issue | Status |
 | --- | --- | --- |
 | C-1 | `packages/domain` holds the fare function (IC-04, feature `GATE-03`, owner Nikhil). | **Resolved (owner decision):** Nikhil owns, Afzal co-owns. CODEOWNERS lists both. |
-| C-2 | `docs/team/README.md` section 2 notes that the earlier Phase 2 plan assigned roles differently (OQ-18). | TBD: team confirms. |
+| C-2 | `docs/team/README.md` section 2 notes that the earlier Phase 2 plan assigned roles differently (OQ-18). | Open: owner said something should change; details pending. |
 | C-3 | `supabase/migrations`: Afzal writes sync SQL, `CLD-02` (schema migrations and deploys) is Akanksha's feature. | **Resolved (owner decision):** Afzal and Akanksha co-own. Either may approve the other's migration; forward-only rule unchanged. |
-| C-4 | Weekly hours per member unknown (OQ-17), so no dates exist. | TBD |
-| C-5 | `apps/gate`, `apps/console` and `supabase/functions` have no initialized projects yet. | Open: owners initialize them. |
+| C-4 | Weekly hours per member unknown (OQ-17), so no dates exist. | TBD (owner chose to keep it TBD) |
+| C-5 | Apps and Supabase project were not initialized. | **Resolved (branch `chore/init-apps`, pending merge):** `apps/gate` (Expo shell), `apps/console` (Next.js shell) and `supabase/config.toml` exist. They are placeholders; no feature code. |
 
 All other open questions: [open-questions-and-assumptions.md](open-questions-and-assumptions.md).
 
