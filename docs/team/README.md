@@ -1,6 +1,6 @@
 # ParkOS MVP: Team Implementation Plan (Master Coordination Document)
 
-Prepared 24 Oct 2026 for Team PlanMyParking (Afzal, Nikhil, Anamika, Akanksha).
+Prepared 24 Oct 2026 for Team PlanMyParking (Afzal, Nikhil, Anamika, Akanksha). Workload rebalanced by the repository owner: `CLD-06` and `MET-01..03` moved from Akanksha to Anamika.
 
 ## Team index (start here)
 
@@ -10,8 +10,8 @@ Repository status: the monorepo structure, tooling and CI exist, `packages/contr
 | --- | --- | --- | --- |
 | Afzal (lead) | `@afzl-raza` | [member-01-afzal.md](member-01-afzal.md) | `SYNC-01..07`, `REL-01`, `PRT-01` |
 | Nikhil | `@NikhilChaurasiya01` | [member-02-nikhil.md](member-02-nikhil.md) | `GATE-01..12` |
-| Anamika | `@tanamikaa` | [member-03-anamika.md](member-03-anamika.md) | `CON-01..12` |
-| Akanksha | `@Akankshakushwahaa` | [member-04-akanksha.md](member-04-akanksha.md) | `CLD-01..10`, `MET-01..03` |
+| Anamika | `@tanamikaa` | [member-03-anamika.md](member-03-anamika.md) | `CON-01..12`, `CLD-06`, `MET-01..03` |
+| Akanksha | `@Akankshakushwahaa` | [member-04-akanksha.md](member-04-akanksha.md) | `CLD-01..05`, `CLD-07..10` |
 
 GitHub handles come from `.github/CODEOWNERS`, as supplied by the repository owner. They have not been independently verified by this documentation. Whether each person has write access is TBD (repository administrator).
 
@@ -21,8 +21,8 @@ GitHub handles come from `.github/CODEOWNERS`, as supplied by the repository own
 | --- | --- | --- | --- |
 | Afzal | Event contracts, upload outbox and idempotent ingest, download sync, occupancy computation, conflict detection, health signals, simulation harness, repo and release rules, partner pipeline | `packages/contracts`, `packages/sync-rules`, `supabase/migrations` (co-owner), `docs/team`; fallback owner for everything (`*`) | Contracts package, sync client, `ingest_events`, sync spike decision record, `tools/sim` reports, `docs/release.md`, pilot agreements |
 | Nikhil | Gate app: entry, exit, fare engine, payments, passes, shifts, overrides, zone counts, login and enrollment, printer, backfill, app shell | `apps/gate`, `packages/domain` (Afzal co-owns) | Android app and APK, fare function with the 60-case table, gate-side tests |
-| Anamika | Operator Console: setup wizard, staff and devices, login, occupancy board, dashboard, shift review, conflicts inbox, reports, overstay, pilot health, seed data, baseline study and ROI | `apps/console` | Console app, report render route, seed and demo data, baseline study and ROI statements |
-| Akanksha | Supabase environments, schema (non-sync), RLS and device auth, heartbeat, KPI views, report scheduler, alerts, retention, CI/CD, monitoring and backups, pilot measurement | `supabase/functions`, `supabase/migrations` (co-owner), `.github` | Environments, migrations 0001..0011 deployment, RLS suite, KPI views, pipelines, monitoring, weekly metrics pack |
+| Anamika | Operator Console: setup wizard, staff and devices, login, occupancy board, dashboard, shift review, conflicts inbox, reports, overstay, pilot health, seed data, baseline study and ROI; report scheduler and email (`CLD-06`); pilot measurement (`MET-01..03`) | `apps/console` | Console app, report render route, seed and demo data, baseline study and ROI statements |
+| Akanksha | Supabase environments, schema (non-sync), RLS and device auth, heartbeat, KPI views, alerts, retention, CI/CD, monitoring and backups | `supabase/functions`, `supabase/migrations` (co-owner), `.github` | Environments, migrations 0001..0011 deployment, RLS suite, KPI views, pipelines, monitoring, weekly metrics pack |
 
 ### Dependencies and handoffs between members
 
@@ -36,7 +36,7 @@ Full matrix: section 4. Integration contracts IC-01..IC-10: section 5. In short:
 | Nikhil | Anamika | Fare function and tariff rule JSON | IC-04 |
 | Akanksha | Anamika, Nikhil | Device enrollment, PIN hashes | IC-05, IC-06 |
 | Akanksha | Anamika | KPI views | IC-07 |
-| Anamika | Akanksha | Report render route | IC-08 |
+| Anamika (route) | Anamika (`CLD-06` scheduler) | Report render route, now both ends are hers; Akanksha deploys the Supabase side | IC-08 |
 | Akanksha, Afzal | Anamika | Heartbeat, conflict records | IC-09, IC-10 |
 
 ### Relevant tests and acceptance criteria
@@ -84,8 +84,8 @@ Out of scope: driver app, marketplace, truck parking, ANPR or FASTag (only as la
 | --- | --- | --- | --- |
 | Afzal (lead) | Architecture, sync core, releases, partners | `SYNC`, `REL`, `PRT` | [member-01-afzal.md](member-01-afzal.md) |
 | Nikhil | Gate app (guard phone) and fare engine | `GATE` | [member-02-nikhil.md](member-02-nikhil.md) |
-| Anamika | Operator Console, reports, baseline study | `CON` | [member-03-anamika.md](member-03-anamika.md) |
-| Akanksha | Cloud, data, DevOps, pilot measurement | `CLD`, `MET` | [member-04-akanksha.md](member-04-akanksha.md) |
+| Anamika | Operator Console, reports, baseline study, report scheduler, pilot measurement | `CON`, `CLD-06`, `MET` | [member-03-anamika.md](member-03-anamika.md) |
+| Akanksha | Cloud, data, DevOps | `CLD` (except `CLD-06`) | [member-04-akanksha.md](member-04-akanksha.md) |
 
 Other files: [feature-traceability.md](feature-traceability.md), [open-questions-and-assumptions.md](open-questions-and-assumptions.md).
 
@@ -135,14 +135,14 @@ Status for every row: **Not implemented**. "P0" refers to the Phase 2 plan must-
 | CLD-03 | Row-level security, device auth, `enroll_device` | P0-11 | Akanksha | CLD-02 |
 | CLD-04 | Heartbeat table and function | Handbook | Akanksha | CLD-02 |
 | CLD-05 | KPI SQL views | P0-8 | Akanksha | CLD-02, SYNC-02 |
-| CLD-06 | Report scheduler and email | P0-9 | Akanksha | CON-08 |
+| CLD-06 | Report scheduler and email | P0-9 | Anamika | CON-08 |
 | CLD-07 | Overstay and stale-device alerts | P0-10 | Akanksha | CLD-02, SYNC-03 |
 | CLD-08 | Retention, export and delete | PRD risk register | Akanksha | CLD-02 |
 | CLD-09 | CI/CD pipelines | Handbook | Akanksha | REL-01 |
 | CLD-10 | Monitoring, backups and restore drill | Handbook | Akanksha | CLD-01 |
-| MET-01 | Twice-weekly physical occupancy audits | Phase 2 plan E3 | Akanksha | GATE-08, CON-04 |
-| MET-02 | Adherence checks | Phase 2 plan E4 | Akanksha | GATE-01 |
-| MET-03 | Weekly metrics pack | Phase 2 plan | Akanksha | MET-01, MET-02, CON-10 |
+| MET-01 | Twice-weekly physical occupancy audits | Phase 2 plan E3 | Anamika | GATE-08, CON-04 |
+| MET-02 | Adherence checks | Phase 2 plan E4 | Anamika | GATE-01 |
+| MET-03 | Weekly metrics pack | Phase 2 plan | Anamika | MET-01, MET-02, CON-10 |
 
 ## 4. Cross-team dependency matrix
 
@@ -152,8 +152,8 @@ Rows depend on columns. Cell shows the feature IDs consumed.
 | --- | --- | --- | --- | --- |
 | Afzal | | `GATE-01/02` for SYNC-07 | `CON-12` for PRT-01 | `CLD-02/03/04` |
 | Nikhil | `SYNC-01/03/04/06` | | `CON-02` (enrollment QR) | `CLD-03` (`enroll_device`, staff PIN hashes) |
-| Anamika | `SYNC-05/06` | `GATE-03` (fare function) | | `CLD-02/03/05/07` |
-| Akanksha | `SYNC-01/02/05` (migrations to deploy) | `GATE-08` for MET-01 | `CON-08` (render route) | |
+| Anamika | `SYNC-05/06` | `GATE-03` (fare function); `GATE-01/08` for MET-01/02 | | `CLD-02/03/05/07` |
+| Akanksha | `SYNC-01/02/05` (migrations to deploy) | | | |
 
 ## 5. Integration contracts
 
@@ -168,7 +168,7 @@ All signatures below are **Recommended (does not exist yet)** unless marked. Eac
 | IC-05 | Device enrollment | Akanksha (`enroll_device`) | Anamika (QR screen), Nikhil (scan) | One-time code valid 10 minutes returns device credentials with `org_id`, `facility_id`, `device_id` claims |
 | IC-06 | Staff PIN hashes | Akanksha (`staff` table), Anamika (set PIN UI) | Nikhil | Salted hash only; synced to enrolled devices of that facility |
 | IC-07 | KPI views | Akanksha | Anamika | `v_daily_kpis`, `v_zone_now`, `v_hourly` (names specified in Handbook) |
-| IC-08 | Report render route | Anamika | Akanksha | `GET /api/reports/{daily|weekly|monthly}?facility=...` with a shared secret, returns PDF and Excel |
+| IC-08 | Report render route | Anamika | Anamika (`CLD-06` scheduler, moved from Akanksha) | `GET /api/reports/{daily|weekly|monthly}?facility=...` with a shared secret, returns PDF and Excel |
 | IC-09 | Heartbeat | Akanksha (`heartbeat(...)`), Afzal sender | Anamika health page | device id, queue depth, oldest unsynced age, app version, schema version, battery |
 | IC-10 | Conflict records | Afzal (`sync_conflicts`) | Anamika (resolve UI) | types `DUPLICATE_EXIT`, `ORPHAN_EXIT`, `DUPLICATE_ENTRY`, `CLOCK_SKEW`; resolutions written to `conflict_resolutions` by Console |
 

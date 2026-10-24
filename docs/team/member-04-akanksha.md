@@ -1,6 +1,6 @@
 # Implementation Sheet: Akanksha (Cloud, Data, DevOps and Pilot Measurement)
 
-Workstream prefixes: `CLD-01..CLD-10`, `MET-01..MET-03`. Master document: [README.md](README.md). Traceability: [feature-traceability.md](feature-traceability.md). Open questions: [open-questions-and-assumptions.md](open-questions-and-assumptions.md).
+Workstream prefixes: `CLD-01..CLD-05`, `CLD-07..CLD-10`. (`CLD-06` and `MET-01..MET-03` were reassigned to Anamika; see her sheet.) Master document: [README.md](README.md). Traceability: [feature-traceability.md](feature-traceability.md). Open questions: [open-questions-and-assumptions.md](open-questions-and-assumptions.md).
 
 ## 0. Ground truth and labelling conventions
 
@@ -20,6 +20,8 @@ Status vocabulary (from the task spec): Implemented and verified; Implemented bu
 
 ---
 
+> **Reassignment note.** `CLD-06` (report scheduler and email) and `MET-01..03` (pilot measurement) were moved to Anamika's sheet to balance workload. Where this sheet still mentions scheduler jobs, report delivery or measurement files, treat that text as context for the owner of those features. Akanksha stays the code owner of `supabase/functions`.
+
 ## A. Role and Ownership
 
 ### A.1 Objective
@@ -35,15 +37,14 @@ Build and keep running the cloud foundation of ParkOS so that (1) every guard ph
 | Security model | Row-level security (RLS) policies, the `is_member(facility_id, roles text[])` helper (H), device auth, `enroll_device` |
 | Heartbeat | `device_heartbeats` table and `heartbeat(...)` function (H) |
 | Reporting data | SQL views `v_daily_kpis`, `v_zone_now`, `v_hourly` (H) |
-| Scheduled jobs | `daily_report`, `weekly_report`, `monthly_report`, `overstay_alerts`, `stale_devices`, `retention_purge` (H), the `job_runs` table (H), email via Resend, the private `reports` bucket (H) |
+| Scheduled jobs | `overstay_alerts`, `stale_devices`, `retention_purge` (H), the `job_runs` table (H), email via Resend, the private `reports` bucket (H) |
 | Data rights | Retention, `data_export`, facility deletion (H) under India's Digital Personal Data Protection Act, 2023 |
 | Pipeline | `.github/workflows/ci.yml`, `deploy-staging.yml`, `deploy-prod.yml` (H) |
 | Operations | Sentry, uptime check, alert routing, backups, restore drills |
-| Pilot measurement | Physical occupancy audits, adherence checks, Monday metrics pack |
 
 ### A.3 Features owned (primary owner)
 
-`CLD-01`, `CLD-02`, `CLD-03`, `CLD-04`, `CLD-05`, `CLD-06`, `CLD-07`, `CLD-08`, `CLD-09`, `CLD-10`, `MET-01`, `MET-02`, `MET-03`.
+`CLD-01`, `CLD-02`, `CLD-03`, `CLD-04`, `CLD-05`, `CLD-07`, `CLD-08`, `CLD-09`, `CLD-10`. (Reassigned to Anamika: `CLD-06`, `MET-01`, `MET-02`, `MET-03`.)
 
 ### A.4 Explicitly outside her scope
 
@@ -52,7 +53,7 @@ Build and keep running the cloud foundation of ParkOS so that (1) every guard ph
 | Writing `ingest_events`, `open_sessions` trigger, conflict detector SQL (migrations 0004 to 0006) | Afzal (`SYNC-02`, `SYNC-05`); she reviews and deploys |
 | `packages/contracts`, `packages/sync-rules`, occupancy computation | Afzal |
 | Gate app screens, fare engine | Nikhil (`GATE-*`) |
-| Console screens, report templates and the render route | Anamika (`CON-*`); she only triggers the route and emails the result |
+| Console screens, report templates and the render route | Anamika (`CON-*`); the report scheduler and email (`CLD-06`) are now also Anamika's |
 | Partner agreements and pricing | Afzal (`PRT-01`) |
 | Baseline time-and-motion study and ROI statements | Anamika (`CON-12`) |
 
@@ -70,7 +71,7 @@ supabase/
 tools/load/ingest.k6.js
 tools/restore/restore_drill.sh
 ops/runbook.md  ops/alerts.md
-ops/metrics/audit-sheet.csv  ops/metrics/adherence-sheet.csv  ops/metrics/weekly-pack.md
+(ops/metrics/* moved to Anamika's sheet with MET-01..03)
 ```
 
 ### A.6 Dependencies on other members
@@ -79,10 +80,7 @@ ops/metrics/audit-sheet.csv  ops/metrics/adherence-sheet.csv  ops/metrics/weekly
 | --- | --- | --- |
 | Contracts package types (`SCHEMA_VERSION`, event and reason-code enums) | Afzal (`SYNC-01`) | Mirror enums and check constraints in SQL |
 | SQL for `ingest_events`, `open_sessions`, conflict detector | Afzal | Deploy; review |
-| Report render route | Anamika (`CON-08`) | `daily_report`, `weekly_report`, `monthly_report` call it |
 | Set-PIN UI and enrollment QR UI | Anamika (`CON-02`) | Her functions are called by these screens |
-| Zone-count entry in gate app | Nikhil (`GATE-08`) | `MET-01` audits compare against `ZONE_COUNT` events |
-| Entry flow in gate app | Nikhil (`GATE-01`) | `MET-02` adherence |
 | Health page | Anamika (`CON-10`) | Reads `device_heartbeats` |
 
 ### A.7 Decisions she can make independently
@@ -90,9 +88,7 @@ ops/metrics/audit-sheet.csv  ops/metrics/adherence-sheet.csv  ops/metrics/weekly
 - Index additions backed by a measured slow query.
 - Job schedules inside the IST windows already agreed (H), if the facility requires a different time of day.
 - Alert thresholds within the ranges in section H of the Handbook (H), recorded in `ops/alerts.md`.
-- Resend template layout and subject lines.
 - Supabase plan choice, within the budget alert (see OQ-07).
-- Format of measurement sheets in MET-01 to MET-03.
 
 ### A.8 Decisions requiring approval or coordination
 
@@ -118,14 +114,10 @@ Common to every row: **Status = Not implemented**. Dependencies are exactly thos
 | CLD-03 | RLS, device auth, `enroll_device` | Isolate data per org and facility; enroll phones safely | Guard devices, managers, owners | Role matrix enforced in the database; device = auth user with claims; one-time code valid 10 minutes | Critical | CLD-02 | Permission matrix all green; code expires; code single-use | pgTAP matrix, enrollment integration tests, abuse tests |
 | CLD-04 | Heartbeat table and function | Detect stale or unhealthy devices | Gate app (through sync package), Console health page, `stale_devices` job | One row per device upserted at most every 5 minutes | High | CLD-02 | Upsert works; rate limited; readable only by authorized roles | pgTAP, integration, rate-limit test |
 | CLD-05 | KPI SQL views | Dashboard and reports have a single source of truth | Console | `v_daily_kpis`, `v_zone_now`, `v_hourly` correct on seed and under load | High | CLD-02, SYNC-02 | Match independent oracle queries exactly; under 500 ms at end of load test | Oracle comparison, seed tests, k6 |
-| CLD-06 | Report scheduler and email | Owners get daily, weekly, monthly reports automatically | `pg_cron`, `pg_net`, Console render route, Resend, Storage | Jobs call the render route, store files in private `reports` bucket, email 7-day signed links | High | CON-08 | A report email with working links arrives for each cadence; failures logged | Integration with stub route, email deliverability, job idempotency |
 | CLD-07 | Overstay and stale-device alerts | Managers notified of long-stay vehicles; team of silent devices | `pg_cron` jobs, Resend or messaging | `overstay_alerts` every 10 minutes (once per session); `stale_devices` every 10 minutes when facility open | High | CLD-02, SYNC-03 | One alert per session; stale device flagged after 30 minutes silence in opening hours | Unit and integration with fixed clocks |
 | CLD-08 | Retention, export, delete | Data rights under DPDP Act 2023 | Owners, support | `retention_purge` nightly; `data_export` CSV per facility; facility deletion removes rows and files | Medium (High before any real personal data is stored) | CLD-02 | Export is complete and scoped; purge honours settings; delete leaves no rows or files | Integration, negative authorization, completeness reconciliation |
 | CLD-09 | CI/CD pipelines | Repeatable, gated delivery | GitHub | `ci.yml` on PR; `deploy-staging.yml` on push to `main`; `deploy-prod.yml` on tag `v*` with manual approval | High | REL-01 | CI blocks merges on failure; staging deploys on main; prod needs approval | Dry-run pipelines on a sandbox repo; failure injection |
 | CLD-10 | Monitoring, backups, restore drill | Know first; be able to recover | Team | Sentry, uptime check on a health route, alert routing to named on-call, restorable backups, drill passes | Critical | CLD-01 | Alerts reach a human; restore drill logged with counts and checksums | Alert fire test, restore drill |
-| MET-01 | Twice-weekly physical occupancy audits | Prove or disprove zone-level accuracy | Field operator (Akanksha), Afzal | Counts at three moments per zone, twice a week, per facility; accuracy per zone and facility | Critical (pilot success criterion) | GATE-08, CON-04 | Sheet complete; pass bar 95% zone, 97% facility sustained for final two weeks | Protocol checks, sheet validation script |
-| MET-02 | Adherence checks | Prove staff log vehicles in the system | Field operator | Three random hours per week compared with independent count | Critical | GATE-01 | At least 90% in week 4 | Protocol checks |
-| MET-03 | Weekly metrics pack | Single weekly truth for the team | Team, partners | Published each Monday with fixed contents | High | MET-01, MET-02, CON-10 | Pack published with all sections, sources named | Completeness checklist |
 
 ---
 
@@ -266,31 +258,6 @@ Common to every row: **Status = Not implemented**. Dependencies are exactly thos
 15. **Acceptance.** Exact oracle match; p95 under 500 ms at end of load test (H).
 16. **Definition of done.** E and J.
 
-### CLD-06: Report scheduler and email
-
-1. **Problem.** Owners should receive proof of performance without logging in. Reports render in the Console (Node runtime); delivery and scheduling belong to the database scheduler (H decision 5).
-2. **Expected behaviour.** Jobs `daily_report` (06:30 IST daily), `weekly_report` (Monday 07:00 IST), `monthly_report` (1st, 07:00 IST) (H). For each active facility the job calls the Console route, stores the PDF and Excel in the private `reports` bucket (H), creates signed links valid 7 days (H), and emails them via Resend (H) to the facility's configured recipients.
-3. **Preconditions.** `CON-08` route live in staging with a shared secret; Resend domain verified; recipients configured per facility (R table `report_recipients(facility_id, email, cadence)`; add to `0011` or a later migration).
-4. **Implementation sequence.**
-   1. Enable `pg_cron` and `pg_net` extensions (H).
-   2. Create a SQL function `run_report_job(cadence text)` (R) that loops facilities, calls the route via `net.http_get` with the secret header, polls or receives the file location, writes to Storage, and sends email. Because Edge Functions stay small (H), the sending step may be a short Edge Function `send_report_email` (R) that takes `{facility_id, cadence, file_urls}` and calls Resend.
-   3. Schedule with `cron.schedule` using UTC equivalents of IST (06:30 IST = 01:00 UTC; 07:00 IST = 01:30 UTC); document the conversion in `ops/runbook.md` since pg_cron uses UTC unless configured.
-   4. Write a row in `job_runs` (H) at start and finish with status and detail.
-   5. Idempotency key `(job, facility_id, period_start)`; a rerun for the same period replaces the files and does not send a second email unless forced by an operator flag (R).
-   6. Resend webhook endpoint (R) records bounce and complaint events into `job_runs` detail or a `email_events` table (R), which feeds the alert in CLD-10.
-5. **Files.** `supabase/migrations/0011_*` (job helpers), `supabase/functions/send_report_email/index.ts` (R), `ops/runbook.md`.
-6. **Contracts.** IC-08: `GET /api/reports/{daily|weekly|monthly}?facility=...` with `REPORT_ROUTE_SECRET`; response: PDF and Excel bytes or a manifest with two URLs (confirm with Anamika; recommended: two requests with `format=pdf|xlsx`).
-7. **Data flow.** `pg_cron` → `run_report_job` → Console route → files → `reports` bucket → signed URLs → Resend → recipients; every step logged in `job_runs`.
-8. **Validation and rules.** Period boundaries computed in facility local time. Recipients validated as emails. Signed URL lifetime exactly 7 days (H).
-9. **Success.** Each recipient gets one email per period with two working links; `job_runs` shows success.
-10. **Failure.** Route failure: retry up to 3 times with backoff inside the job (R), then `job_runs.status = failed` and an alert (CLD-10). Email failure: record and alert. A failure for one facility never blocks others.
-11. **Edge cases.** No events in the period (send a "no activity" report, do not skip silently); facility with no recipient (log and skip, warn); route slow beyond timeout (mark failed, do not duplicate); duplicate scheduler invocation (idempotency key); bucket public by mistake (CI policy check that bucket is private).
-12. **Security.** Bucket private; signed links only; route secret in Supabase secrets; links never logged in full.
-13. **Logging.** `job_runs` rows; Resend message ids stored; failures to Sentry.
-14. **Tests.** T-CLD-06-U1, I1..I3, E1, N1..N3, X1..X2.
-15. **Acceptance.** Three cadences each produce a deliverable email in staging with a stub and with the real route; a forced failure raises an alert.
-16. **Definition of done.** E and J; evidence: `job_runs` export, screenshot of received emails, deliverability results.
-
 ### CLD-07: Overstay and stale-device alerts
 
 1. **Problem.** Managers need to hear about long-stay vehicles and silent phones without watching a screen.
@@ -394,77 +361,6 @@ Common to every row: **Status = Not implemented**. Dependencies are exactly thos
 
 ---
 
-### MET-01: Twice-weekly physical occupancy audits
-
-1. **Problem.** "Real-time occupancy" is the highest-risk claim in the plan; it must be tested against physical counts.
-2. **Expected behaviour.** Twice a week for each pilot facility, Akanksha counts each zone physically at three moments (suggested: opening period, mid-day peak, late period; moments recorded per facility), enters a `ZONE_COUNT` event through the gate app (GATE-08), and logs the system value and the gap on the audit sheet. Accuracy per zone and per facility is computed weekly.
-3. **Preconditions.** GATE-08 and CON-04 working; zones defined in the wizard; at least one pilot facility live in shadow or primary stage.
-4. **Protocol.**
-   1. Before the audit, tell the guard on duty that an audit is happening only if the operator requires it; do not coach behavior. Surprise timing is the default (Phase 2 plan: surprise physical audits).
-   2. At each of the three moments, for each zone: (a) read the system count from the Console board and note its "as of" time; (b) count vehicles physically within a defined short window (target under 5 minutes per zone) or use two people for large zones; (c) re-read the system count if the zone changed during the count and record both values; (d) enter the physical count as `ZONE_COUNT`; (e) write one row on the sheet.
-   3. Vehicles in transit (entering or leaving during the count): count them as present only if they have passed the zone boundary marker; note the number in `notes`.
-   4. Two-person check on one zone per visit (second counter blind to the first) to estimate counting error; record `counter_b`.
-   5. After each visit, the same day: compute `abs_error = |system - physical|`, `pct_error = abs_error / max(physical, 1)`, and zone accuracy as `1 - pct_error` floored at 0.
-5. **Recording sheet `ops/metrics/audit-sheet.csv` (R).** Columns: `visit_id, facility_id, date_local, moment (1|2|3), zone_id, counter_a, counter_b (optional), physical_count, system_count, system_as_of_time, system_count_after (optional), abs_error, pct_error, notes, entered_zone_count_event_id`.
-6. **Calculations (weekly).**
-   - Zone-level accuracy for a zone = mean of `1 - pct_error` over its rows in the week.
-   - Facility-level accuracy = `1 - (sum of abs_error over zones) / (sum of physical_count over zones)`, computed per moment then averaged.
-   - Sustained check: pass bar is at least 95% zone-level and at least 97% facility-level, sustained across the final two weeks of the 4-week measurement window (Phase 2 plan E3).
-   - Kill criterion: if zone-level accuracy stays below 90% after four weeks of tuning across three facilities, stop calling the count "real-time" and position it as a directional indicator (Phase 2 plan §7 and §20; PRD partner copy already commits to saying so).
-7. **Drift analysis.** Track drift per shift: if a zone drifts by more than 3% per shift repeatedly, flag it as a likely unmonitored side entrance (H: from PRD section 4 "When the count drifts").
-8. **Contracts.** Consumes `ZONE_COUNT` events (IC-01) and `v_zone_now` (IC-07).
-9. **Success.** All visits recorded; calculations reproducible from the CSV by the verification script.
-10. **Failure.** Missing moments are recorded as missed, not back-filled; visits with a system outage are marked `excluded` with a reason.
-11. **Edge cases.** Zone closed for event or maintenance (exclude with note); device offline at count time (system value may lag; record device last sync time from the health page; accuracy reported both with and without offline-lagged rows); very small zones (accuracy percentages unstable; report absolute error too).
-12. **Security and privacy.** Do not record plate numbers on the audit sheet; counts only.
-13. **Logging.** Audit sheet committed or stored in the shared metrics folder with version history.
-14. **Tests (of the protocol and calculation).** T-MET-01-U1, I1, N1, X1.
-15. **Acceptance.** Two audits a week for each live facility; calculation script reproduces the weekly numbers; bars evaluated.
-16. **Definition of done.** E and J; evidence: sheets and the weekly summary in MET-03.
-
-### MET-02: Adherence checks
-
-1. **Problem.** Plans assume at least 90% of vehicle entries are logged in the system, unassisted, by week 4 (Phase 2 plan E4).
-2. **Expected behaviour.** Three random hours per week per facility, count entries independently and compare with the system's `ENTRY` count for the same hour.
-3. **Preconditions.** GATE-01 live at the facility; independent counting method available (gate video review or a manual observer).
-4. **Protocol.**
-   1. Choose three random hours per facility per week from opening hours using a recorded random draw (R: spreadsheet random function with seed noted), spread across at least two days and including at least one peak hour.
-   2. Independent count: an observer at the gate counts every vehicle entering during the hour with a tally counter, separated by vehicle class; or count from video afterward with two reviewers for one hour per week.
-   3. System count: query `events` where `type = 'ENTRY'` and `device_time` in the hour for the facility (R query saved in `ops/metrics/adherence.sql`).
-   4. Adherence = `system_entries / independent_entries` for the hour, capped at 100% for reporting, with overcounts listed separately.
-   5. Every bypass found (vehicle entered, no event) is logged with time, class, and the reason from a short interview with the guard (Phase 2 plan: interview the staff member about why).
-5. **Recording sheet `ops/metrics/adherence-sheet.csv` (R).** Columns: `facility_id, date_local, hour_start, method (observer|video), observer_id, independent_entries, system_entries, adherence_pct, bypass_count, bypass_reasons, notes`.
-6. **Pass bar.** At least 90% in week 4 with no team presence on site except the weekly review (Phase 2 plan pilot week 4 "Unassisted").
-7. **Contracts.** Reads `events` through the same access the Console uses; read-only.
-8. **Success / failure.** Hours missed are recorded; if adherence under 70% at end of week 3, raise a flag to Afzal (Phase 2 risk R3 early-warning signal).
-9. **Edge cases.** Observer presence changes guard behavior (note it; week 4 uses video where possible); two-wheelers entering side by side (count each; note); staff vehicles (counted as `STAFF_VEHICLE` override per reason codes, H).
-10. **Security and privacy.** Video reviewed on site or on the operator's system only; no copies of footage leave the facility; sheet has no plate numbers.
-11. **Tests.** T-MET-02-U1, I1, N1.
-12. **Acceptance and DoD.** Three hours a week recorded for each live facility; weekly figure in MET-03.
-
-### MET-03: Weekly metrics pack
-
-1. **Problem.** The team needs one weekly, evidence-based view of pilot health.
-2. **Expected behaviour.** Published every Monday (H cadence: Monday metrics review). Fixed sections:
-   1. Facility status: stage (shadow, primary, unassisted), days live, critical incidents.
-   2. Occupancy accuracy: zone and facility (MET-01), pass bar status.
-   3. Adherence: percentage and bypass reasons (MET-02).
-   4. Sync health: queue depth, oldest unsynced age, sync latency p95, quarantined events, devices on old schema (from the Handbook metrics table (H) and `device_heartbeats`).
-   5. Conflicts: count by type, unresolved over 24 hours.
-   6. Overrides per 100 vehicles, by reason code.
-   7. Reports: delivered, bounced, failed (from `job_runs` and Resend).
-   8. Cloud: uptime against 99.5%, job failures, database size, bill.
-   9. Open issues: owner, severity, next action.
-   10. Decisions needed from Afzal.
-3. **Preconditions.** MET-01, MET-02 sheets current; CON-10 health page shows the sync figures.
-4. **Implementation.** Template `ops/metrics/weekly-pack.md` (R). Each figure names its source (view, table, sheet) and the time window. A small SQL file `ops/metrics/weekly.sql` (R) produces the database-derived numbers so they are reproducible.
-5. **Success.** Pack published with no empty sections; any missing figure is stated as missing with the reason.
-6. **Edge cases.** No live facility that week (publish a "no data" pack with blockers); partial week (state the window); disputed number (link to the query).
-7. **Tests.** T-MET-03-U1, I1, N1.
-8. **Acceptance and DoD.** Template complete; query reproduces the figures; pack reviewed by Afzal at the Monday review.
-
----
-
 ## D. Detailed Testing Protocol
 
 All tests are **Not run**. Priorities: Critical, High, Medium, Low. "Verification method" names the evidence. Test tooling (all (R), to be confirmed): pgTAP for SQL, a TypeScript test runner for functions (for example Vitest), k6 for load, Playwright only for Console smoke (owned by Anamika; used here for the pipeline).
@@ -559,21 +455,6 @@ Seed fixture: three facilities with known events (Anamika's seed, `CON-11`), plu
 | T-CLD-05-R1 | Column contract unchanged | IC-07 column list file | Compare view columns to list | list | Same names and types | pgTAP | High |
 | T-CLD-05-X1 | Performance after load | k6 run complete (D.10) | Time view queries | load data | p95 under 500 ms | k6 and `EXPLAIN` log | High |
 
-### D.6 CLD-06 Report scheduler and email
-
-| Test ID | Scenario | Preconditions | Steps | Input/data | Expected result | Verification | Priority |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| T-CLD-06-U1 | Period boundary calculation | Function | Compute daily, weekly, monthly periods in IST | fixed clock samples | Correct start and end (Monday start, month start) | Unit test | High |
-| T-CLD-06-I1 | Job with stub route | Stub returning two small files | Trigger `run_report_job('daily')` | one facility | Files in bucket; `job_runs` success; one email accepted by Resend sandbox | Bucket listing, DB, Resend log | High |
-| T-CLD-06-I2 | Signed link lifetime | Report stored | Generate link; fetch now; inspect expiry | link | Works now; expiry parameter equals 7 days | HTTP check and token inspection | Medium |
-| T-CLD-06-I3 | Idempotency | Same period run twice | Run job twice | same facility | Files replaced, one email only | `job_runs`, email log | High |
-| T-CLD-06-E1 | Real route end to end | Console route on staging | Run job against staging route with seed data | seed | Email with working PDF and Excel; totals equal dashboard | Manual check plus script | High |
-| T-CLD-06-N1 | Route down | Stub returns 500 | Run job | one failing facility, one healthy | 3 retries, failed row, other facility succeeds, alert raised | `job_runs`, alert log | High |
-| T-CLD-06-N2 | Facility without recipients | None configured | Run job | facility | Skipped with warning logged | `job_runs` | Medium |
-| T-CLD-06-N3 | Public bucket check | Bucket policies | Attempt unauthenticated fetch of a stored object path | anon request | Denied | HTTP status | Critical |
-| T-CLD-06-X1 | Email deliverability | Resend domain with SPF and DKIM | Send test reports to Gmail and Outlook test accounts | two accounts | Inbox (not spam); headers show SPF and DKIM pass | Headers screenshot | High |
-| T-CLD-06-X2 | Cron time conversion | Schedules created | Inspect `cron.job` entries | schedules | UTC times correspond to 06:30, 07:00 IST | SQL output | Medium |
-
 ### D.7 CLD-07 Alerts
 
 | Test ID | Scenario | Preconditions | Steps | Input/data | Expected result | Verification | Priority |
@@ -630,23 +511,6 @@ Seed fixture: three facilities with known events (Anamika's seed, `CON-11`), plu
 4. Run the pgTAP suite and the row-count script.
 5. Record result in `ops/migration-rehearsals.md` (R): tag, migrations applied, duration, counts before and after.
 
-### D.12 Measurement tests (MET-01 to MET-03)
-
-| Test ID | Scenario | Preconditions | Steps | Input/data | Expected result | Verification | Priority |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| T-MET-01-U1 | Accuracy formulas | Calculation script | Feed hand-computed sample sheets | 3 zones, 3 moments | Script equals hand results | Script test | High |
-| T-MET-01-I1 | Sheet to events cross-check | Audit rows with event ids | Join sheet to `ZONE_COUNT` events | sample | Every sheet row has a matching event with the same count | SQL | Medium |
-| T-MET-01-N1 | Incomplete sheet | Missing zone row | Run validation | partial sheet | Validation lists the missing row; week marked incomplete | Script output | Medium |
-| T-MET-01-X1 | Counting error estimate | Two-person count rows | Compute counter disagreement | sample | Reported with the week; flags above 5% | Script output | Low |
-| T-MET-02-U1 | Adherence formula and cap | Script | Independent 100, system 92; independent 80, system 85 | two rows | 92% and 100% with 5 overcount reported | Script test | High |
-| T-MET-02-I1 | Query returns entries for the hour | Seed events | Run `adherence.sql` for an hour | seed | Count equals known seed count | SQL | High |
-| T-MET-02-N1 | Random-hour draw rejects closed hours | Opening hours config | Draw hours | config | No hour outside opening hours; at least two days | Script output | Low |
-| T-MET-03-U1 | Pack completeness | Template | Run completeness check on a sample pack | sample | All 10 sections present | Checklist script | Medium |
-| T-MET-03-I1 | Query reproducibility | `weekly.sql` | Run twice on same data | seed | Identical output | Diff | Medium |
-| T-MET-03-N1 | Missing source | A source sheet missing | Build pack | none | Section states "missing: reason" not a blank | Review | Low |
-
----
-
 ## E. Acceptance Criteria and Completion Checklist
 
 ### E.1 Per feature checklist (adapt; not every item applies to every row)
@@ -658,14 +522,10 @@ Seed fixture: three facilities with known events (Anamika's seed, `CON-11`), plu
 | CLD-03 | [ ] matrix green [ ] enrollment single-use and expiring [ ] revocation fails closed [ ] no permissive policy [ ] Afzal reviewed permission change [ ] T-CLD-03-* run | pgTAP output, matrix doc, review approval |
 | CLD-04 | [ ] 5-minute window [ ] own-device only [ ] read policy [ ] T-CLD-04-* run | pgTAP, k6 output |
 | CLD-05 | [ ] oracle match [ ] same definition as `occupancy.ts` [ ] RLS through views [ ] p95 under 500 ms [ ] T-CLD-05-* run | pgTAP, diff output, k6 summary |
-| CLD-06 | [ ] three cadences deliver [ ] 7-day links [ ] private bucket [ ] idempotent [ ] failure alerts [ ] deliverability proven [ ] T-CLD-06-* run | `job_runs` export, email screenshots, header evidence |
 | CLD-07 | [ ] once-only overstay [ ] stale rule [ ] alert delivery [ ] T-CLD-07-* run | pgTAP, Resend log |
 | CLD-08 | [ ] purge, export, delete verified [ ] events delete only by purge role [ ] legal review done (OQ-12) [ ] T-CLD-08-* run | Reconciliation output, review note |
 | CLD-09 | [ ] CI required on `main` [ ] staging auto deploy [ ] production approval [ ] failure injection done [ ] T-CLD-09-* run | Actions logs, branch protection export |
 | CLD-10 | [ ] every alert fire-tested [ ] on-call named [ ] backups restorable [ ] drill logged [ ] k6 pass [ ] T-CLD-10-* run | Alert logs, restore log, k6 summary |
-| MET-01 | [ ] two audits per week per live facility [ ] sheets complete [ ] bars evaluated [ ] T-MET-01-* run | Sheets, weekly summary |
-| MET-02 | [ ] three hours per week per live facility [ ] bypass reasons recorded [ ] T-MET-02-* run | Sheets |
-| MET-03 | [ ] pack each Monday with all sections [ ] sources named [ ] reviewed by Afzal [ ] T-MET-03-* run | Published packs |
 
 ### E.2 Global acceptance (applies to all CLD features)
 
@@ -705,7 +565,7 @@ All contract shapes are **(R)** unless stated; IC numbers and parties follow REA
 | --- | --- | --- | --- |
 | Monorepo and branch rules | Afzal (`REL-01`) | `CLD-09` | Wave 0 |
 | Fixtures for occupancy | Afzal | `T-CLD-05-U2` | Before views merge |
-| Console `/api/health` route and report route | Anamika | `CLD-10`, `CLD-06` | Wave 5 |
+| Console `/api/health` route | Anamika | `CLD-10` | Wave 5 |
 | Seed data | Anamika (`CON-11`) with Akanksha's `seed.sql` | Tests D.5 | Wave 1 |
 
 ### F.2 Likely conflicts over shared files

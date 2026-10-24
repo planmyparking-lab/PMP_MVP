@@ -46,14 +46,14 @@ Prepared 24 Oct 2026. Companion to [README.md](README.md). Chain: product requir
 | P0-11; PRD FR-48, 9.3 security, 9.4 multi-tenant | CLD-03 | RLS, device auth, enroll_device | Akanksha | `supabase/migrations`, `supabase/functions/enroll_device` | `member-04-akanksha.md` sections B and E | `T-CLD-03-*`: 16 (U2, I4, E1, N6, R1, X2) | Not verified |
 | Handbook; PRD FR-42, FR-50 (partial) | CLD-04 | Heartbeat | Akanksha | `supabase/migrations/0008_device_heartbeats.sql` | `member-04-akanksha.md` sections B and E | `T-CLD-04-*`: 5 (U1, I1, N2, X1) | Not verified |
 | P0-8; PRD FR-24, FR-25 | CLD-05 | KPI views | Akanksha | `supabase/migrations/0009_views_kpis.sql` | `member-04-akanksha.md` sections B and E | `T-CLD-05-*`: 8 (U3, I2, N1, R1, X1) | Not verified |
-| P0-9; PRD FR-28 | CLD-06 | Report scheduler and email | Akanksha | `pg_cron` jobs, `reports` bucket, Resend | `member-04-akanksha.md` sections B and E | `T-CLD-06-*`: 10 (U1, I3, E1, N3, X2) | Not verified |
+| P0-9; PRD FR-28 | CLD-06 | Report scheduler and email | Anamika | `pg_cron` jobs, `reports` bucket, Resend | `member-03-anamika.md` sections B and E | `T-CLD-06-*`: 10 (U1, I3, E1, N3, X2) | Not verified |
 | P0-10; PRD FR-29 (partial), FR-42 (partial) | CLD-07 | Overstay and stale-device alerts | Akanksha | `pg_cron` jobs, functions | `member-04-akanksha.md` sections B and E | `T-CLD-07-*`: 7 (U3, I2, N1, X1) | Not verified |
 | PRD FR-56, 15.1 legal risk | CLD-08 | Retention, export, delete | Akanksha | `supabase/migrations/0011`, `data_export` | `member-04-akanksha.md` sections B and E | `T-CLD-08-*`: 7 (I3, N3, X1) | Not verified |
 | Handbook; PRD 11.2 DevOps (simplified) | CLD-09 | CI/CD | Akanksha | `.github/workflows/*` | `member-04-akanksha.md` sections B and E | `T-CLD-09-*`: 6 (I3, N2, X1) | Not verified |
 | PRD 9.2, 9.7 | CLD-10 | Monitoring, backups, restore drill | Akanksha | Sentry, uptime check, backup job | `member-04-akanksha.md` sections B and E | `T-CLD-10-*`: 6 (I3, E1, N1, X1) | Not verified |
-| Phase 2 plan E3 | MET-01 | Physical occupancy audits | Akanksha | recording sheet (Recommended) | `member-04-akanksha.md` sections B and E | `T-MET-01-*`: 4 (U1, I1, N1, X1) | Not verified |
-| Phase 2 plan E4 | MET-02 | Adherence checks | Akanksha | recording sheet (Recommended) | `member-04-akanksha.md` sections B and E | `T-MET-02-*`: 3 (U1, I1, N1) | Not verified |
-| Phase 2 plan metrics section | MET-03 | Weekly metrics pack | Akanksha | weekly document (Recommended) | `member-04-akanksha.md` sections B and E | `T-MET-03-*`: 3 (U1, I1, N1) | Not verified |
+| Phase 2 plan E3 | MET-01 | Physical occupancy audits | Anamika | recording sheet (Recommended) | `member-03-anamika.md` sections B and E | `T-MET-01-*`: 4 (U1, I1, N1, X1) | Not verified |
+| Phase 2 plan E4 | MET-02 | Adherence checks | Anamika | recording sheet (Recommended) | `member-03-anamika.md` sections B and E | `T-MET-02-*`: 3 (U1, I1, N1) | Not verified |
+| Phase 2 plan metrics section | MET-03 | Weekly metrics pack | Anamika | weekly document (Recommended) | `member-03-anamika.md` sections B and E | `T-MET-03-*`: 3 (U1, I1, N1) | Not verified |
 
 Total specified test cases: **422**. Features: **46**.
 
