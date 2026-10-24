@@ -11,3 +11,15 @@ coverage/
 .vercel/
 supabase/.temp/
 *.keystore
+.idea/
+.vscode/
+*.sqlite
+*.sqlite3
+*.db
+*.tmp
+.cache/
+.turbo/
+
+# generated
+next-env.d.ts
+*.tsbuildinfo

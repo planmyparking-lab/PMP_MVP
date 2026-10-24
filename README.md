@@ -3,8 +3,8 @@
 Operator-first parking operations: an offline-first Android gate app, a Next.js operator console, and a
 Supabase backend, in one pnpm monorepo.
 
-> **Status: scaffold.** Structure, tooling, CI and the shared `contracts` package exist. The apps and
-> database are not implemented yet. Plans live in `docs/team/`.
+> **Status: scaffold.** Structure, tooling, CI, the shared `contracts` package and placeholder app shells
+> exist. No product features or database schema are implemented yet. Plans live in `docs/team/`.
 
 ## Layout
 
@@ -20,20 +20,28 @@ Supabase backend, in one pnpm monorepo.
 | `scripts/`            | Repo and branch-name checks                                                    | Akanksha         |
 | `.github/`            | CI, CODEOWNERS, PR/issue templates                                             | Akanksha         |
 
+## Technologies
+
+Implemented: TypeScript, pnpm workspaces, zod, Vitest, ESLint, Prettier, GitHub Actions.
+Planned: React Native (Expo) + SQLite, Next.js on Vercel, Supabase (Postgres, Auth, RLS, Edge Functions), Resend, Sentry.
+Architecture: `docs/architecture/overview.md`.
+
 ## Getting started
 
-Requires Node 22 (`.nvmrc`) and pnpm 10 (`corepack enable`).
+Prerequisites: Git, Node 22 (`.nvmrc`), pnpm 10.28 (`npm install -g pnpm@10.28.0`).
 
 ```bash
+git clone https://github.com/planmyparking-lab/PMP_MVP.git && cd PMP_MVP
 pnpm install
 pnpm check        # repo structure, format, lint, typecheck, tests
 ```
 
-Individual: `pnpm lint`, `pnpm format`, `pnpm typecheck`, `pnpm test`, `pnpm check:repo`.
-Copy `.env.example` to your local env file; never commit real values.
+Run the console shell with `pnpm --filter @pmp/console dev`. Full workflow, branch and commit rules:
+[CONTRIBUTING.md](CONTRIBUTING.md). Environment variables: `.env.example` (nothing reads them yet).
+Tests: `docs/testing/strategy.md`. GitHub settings an admin must apply: `docs/development/github-repository-settings.md`.
 
 ## Where to start
 
-1. `docs/team/README.md` (ownership, dependencies, integration contracts IC-01..IC-10)
+1. `docs/team/README.md` (team index, ownership, dependencies, integration contracts IC-01..IC-10)
 2. Your member sheet: `docs/team/member-0N-*.md`
 3. `CONTRIBUTING.md` (branching, commits, PR review rules)

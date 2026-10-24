@@ -1,12 +1,13 @@
-# PLACEHOLDER HANDLES - replace @TODO-* with real GitHub usernames (see docs/team/open-questions-and-assumptions.md).
+# Handles supplied by the repository owner; not independently verified. Each must have write access.
+# NOTE: this file does not enforce review. Enforcement is a GitHub ruleset (docs/development/github-repository-settings.md).
 # Ownership follows docs/team/README.md section "Ownership matrix".
 *                       @afzl-raza
 /apps/gate/             @NikhilChaurasiya01
 /apps/console/          @tanamikaa
 /supabase/functions/    @Akankshakushwahaa
-/supabase/migrations/   @afzl-raza
+/supabase/migrations/   @afzl-raza @Akankshakushwahaa
 /packages/contracts/    @afzl-raza
 /packages/sync-rules/   @afzl-raza
-/packages/domain/       @afzl-raza
+/packages/domain/       @NikhilChaurasiya01 @afzl-raza
 /.github/               @Akankshakushwahaa
 /docs/team/             @afzl-raza

@@ -21,6 +21,12 @@ const required = [
   "docs/team/member-03-anamika.md",
   "docs/team/member-04-akanksha.md",
   "supabase/README.md",
+  "supabase/config.toml",
+  "docs/development/dependency-security.md",
+  "docs/development/github-repository-settings.md",
+  "docs/integrations/contracts.md",
+  "docs/testing/strategy.md",
+  "docs/architecture/overview.md",
 ];
 
 const errors = [];

@@ -1,22 +1,39 @@
-## What / why
+## Purpose and summary
 
-<!-- one paragraph -->
+<!-- What does this change and why? -->
 
-## Feature IDs
+## Related issue / assignment
 
-<!-- e.g. SYNC-03, GATE-05 (see docs/team/feature-traceability.md) -->
+<!-- Feature ID(s) from docs/team/feature-traceability.md, e.g. GATE-05. Issue link if any. -->
+
+## Implementation details and decisions
+
+<!-- Key design choices, trade-offs, anything a reviewer should look at first. -->
+
+## Testing performed
+
+<!-- Commands run and results. Test IDs covered (T-<FeatureID>-...). Say what you did NOT test. -->
+
+```
+pnpm check
+```
+
+## Configuration, migration and breaking changes
+
+- [ ] No config / env var / migration changes
+- [ ] Changes described here (new env vars also added to `.env.example`; migrations are forward-only):
+- [ ] No breaking change to a shared contract. If there is one: `SCHEMA_VERSION` bumped and consumers notified
+
+## Integration dependencies
+
+<!-- Other PRs, features or contracts (IC-xx) this depends on or unblocks. -->
+
+## Screenshots / recordings (UI changes)
 
 ## Checklist
 
-- [ ] Branch name follows `type/<FEATURE-ID>-slug`
-- [ ] `pnpm check` passes locally (paste result below)
-- [ ] Tests added/updated for the Test IDs touched (`T-<ID>-...`)
-- [ ] Touches a shared contract (`packages/contracts`, migrations, sync rules)? Then a second workstream owner is requested for review
-- [ ] Docs updated if behavior or contracts changed
-- [ ] No secrets, no `.env` files
-
-## Check output
-
-```
-paste `pnpm check` summary
-```
+- [ ] Branch name follows `type/slug` and commits follow Conventional Commits
+- [ ] CI is green (`check`, `branch-name`)
+- [ ] Docs updated where behavior or contracts changed
+- [ ] If shared code (`packages/*`, `supabase/migrations`) changed: reviewer from another workstream requested
+- [ ] No secrets, `.env` files, or unrelated changes included

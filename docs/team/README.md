@@ -1,10 +1,67 @@
 # ParkOS MVP: Team Implementation Plan (Master Coordination Document)
 
-Prepared 24 Oct 2026 for Team PlanMyParking (Afzal, Nikhil, Anamika, Akanksha).
+Prepared 24 Oct 2026 for Team PlanMyParking (Afzal, Nikhil, Anamika, Akanksha). Workload rebalanced by the repository owner: `CLD-06` and `MET-01..03` moved from Akanksha to Anamika.
+
+## Team index (start here)
+
+Repository status: the monorepo structure, tooling and CI exist, `packages/contracts` is implemented with tests, and placeholder shells exist for the gate app and console (branch `chore/init-apps`). **Everything else in the feature inventory is still Not implemented.** The sheets below are plans and specifications, not descriptions of working code.
+
+| Member | GitHub | Assignment sheet | Feature IDs |
+| --- | --- | --- | --- |
+| Afzal (lead) | `@afzl-raza` | [member-01-afzal.md](member-01-afzal.md) | `SYNC-01..07`, `REL-01`, `PRT-01` |
+| Nikhil | `@NikhilChaurasiya01` | [member-02-nikhil.md](member-02-nikhil.md) | `GATE-01..12` |
+| Anamika | `@tanamikaa` | [member-03-anamika.md](member-03-anamika.md) | `CON-01..12`, `CLD-06`, `MET-01..03` |
+| Akanksha | `@Akankshakushwahaa` | [member-04-akanksha.md](member-04-akanksha.md) | `CLD-01..05`, `CLD-07..10` |
+
+GitHub handles come from `.github/CODEOWNERS`, as supplied by the repository owner. They have not been independently verified by this documentation. Whether each person has write access is TBD (repository administrator).
+
+### Responsibilities, owned paths and deliverables
+
+| Member | Responsibilities | Owned repo paths (per CODEOWNERS) | Main deliverables |
+| --- | --- | --- | --- |
+| Afzal | Event contracts, upload outbox and idempotent ingest, download sync, occupancy computation, conflict detection, health signals, simulation harness, repo and release rules, partner pipeline | `packages/contracts`, `packages/sync-rules`, `supabase/migrations` (co-owner), `docs/team`; fallback owner for everything (`*`) | Contracts package, sync client, `ingest_events`, sync spike decision record, `tools/sim` reports, `docs/release.md`, pilot agreements |
+| Nikhil | Gate app: entry, exit, fare engine, payments, passes, shifts, overrides, zone counts, login and enrollment, printer, backfill, app shell | `apps/gate`, `packages/domain` (Afzal co-owns) | Android app and APK, fare function with the 60-case table, gate-side tests |
+| Anamika | Operator Console: setup wizard, staff and devices, login, occupancy board, dashboard, shift review, conflicts inbox, reports, overstay, pilot health, seed data, baseline study and ROI; report scheduler and email (`CLD-06`); pilot measurement (`MET-01..03`) | `apps/console` | Console app, report render route, seed and demo data, baseline study and ROI statements |
+| Akanksha | Supabase environments, schema (non-sync), RLS and device auth, heartbeat, KPI views, alerts, retention, CI/CD, monitoring and backups | `supabase/functions`, `supabase/migrations` (co-owner), `.github` | Environments, migrations 0001..0011 deployment, RLS suite, KPI views, pipelines, monitoring, weekly metrics pack |
+
+### Dependencies and handoffs between members
+
+Full matrix: section 4. Integration contracts IC-01..IC-10: section 5. In short:
+
+| From | To | What is handed off | Contract |
+| --- | --- | --- | --- |
+| Afzal | everyone | Event schemas and money helpers | IC-01 |
+| Afzal | Nikhil | Sync client API (`writeEvent`, `observeOccupancy`, `health`) | IC-02 |
+| Afzal writes, Akanksha deploys | gate app | `ingest_events` | IC-03 |
+| Nikhil | Anamika | Fare function and tariff rule JSON | IC-04 |
+| Akanksha | Anamika, Nikhil | Device enrollment, PIN hashes | IC-05, IC-06 |
+| Akanksha | Anamika | KPI views | IC-07 |
+| Anamika (route) | Anamika (`CLD-06` scheduler) | Report render route, now both ends are hers; Akanksha deploys the Supabase side | IC-08 |
+| Akanksha, Afzal | Anamika | Heartbeat, conflict records | IC-09, IC-10 |
+
+### Relevant tests and acceptance criteria
+
+Each sheet has section D (test tables, IDs `T-<FeatureID>-<kind><n>`) and section E (acceptance criteria and completion checklist). Counts and status per feature: [feature-traceability.md](feature-traceability.md). Nothing is verified yet except the `packages/contracts` unit tests, which run in CI via `pnpm test` (they cover part of `SYNC-01`; the traceability file has not yet been updated to say so).
+
+### Recommended implementation sequence
+
+Wave 0 to 7 in section 6 (dependency-ordered, no dates). Critical path: `SYNC-01` -> `CLD-02` -> `SYNC-02/03` -> `GATE-01/02` -> `SYNC-07` -> dry run.
+
+### Unresolved assignments and ownership conflicts
+
+| ID | Issue | Status |
+| --- | --- | --- |
+| C-1 | `packages/domain` holds the fare function (IC-04, feature `GATE-03`, owner Nikhil). | **Resolved (owner decision):** Nikhil owns, Afzal co-owns. CODEOWNERS lists both. |
+| C-2 | `docs/team/README.md` section 2 notes that the earlier Phase 2 plan assigned roles differently (OQ-18). | Open: owner said something should change; details pending. |
+| C-3 | `supabase/migrations`: Afzal writes sync SQL, `CLD-02` (schema migrations and deploys) is Akanksha's feature. | **Resolved (owner decision):** Afzal and Akanksha co-own. Either may approve the other's migration; forward-only rule unchanged. |
+| C-4 | Weekly hours per member unknown (OQ-17), so no dates exist. | TBD (owner chose to keep it TBD) |
+| C-5 | Apps and Supabase project were not initialized. | **Resolved (branch `chore/init-apps`, pending merge):** `apps/gate` (Expo shell), `apps/console` (Next.js shell) and `supabase/config.toml` exist. They are placeholders; no feature code. |
+
+All other open questions: [open-questions-and-assumptions.md](open-questions-and-assumptions.md).
 
 ## 0. Read this first: what this plan is based on
 
-**The repository contains no application code.** On inspection, the connected folder `PlanMyParking/` holds only the `doc/` folder with eight product documents (Problem Discovery, Define Phase, Empathy worksheet, Phase 1 submission, Phase 2 plan, PRD v1.1, Executive Blueprint, Working Phase). It is not a git repository and has no source files, schema, migrations, tests, configuration or CI. The team division and architecture used here come from the "ParkOS MVP PRD for Design Partners" and the "ParkOS Engineering Handbook" Claude Docs created in this project on 24 Oct 2026 (they are proposals the team has not yet formally confirmed; see OQ-18).
+**At the time this plan was written the repository contained no application code** (a scaffold with the shared `contracts` package was added afterwards). On inspection, the connected folder `PlanMyParking/` holds only the `doc/` folder with eight product documents (Problem Discovery, Define Phase, Empathy worksheet, Phase 1 submission, Phase 2 plan, PRD v1.1, Executive Blueprint, Working Phase). It is not a git repository and has no source files, schema, migrations, tests, configuration or CI. The team division and architecture used here come from the "ParkOS MVP PRD for Design Partners" and the "ParkOS Engineering Handbook" Claude Docs created in this project on 24 Oct 2026 (they are proposals the team has not yet formally confirmed; see OQ-18).
 
 Consequences for every document in this folder:
 
@@ -27,8 +84,8 @@ Out of scope: driver app, marketplace, truck parking, ANPR or FASTag (only as la
 | --- | --- | --- | --- |
 | Afzal (lead) | Architecture, sync core, releases, partners | `SYNC`, `REL`, `PRT` | [member-01-afzal.md](member-01-afzal.md) |
 | Nikhil | Gate app (guard phone) and fare engine | `GATE` | [member-02-nikhil.md](member-02-nikhil.md) |
-| Anamika | Operator Console, reports, baseline study | `CON` | [member-03-anamika.md](member-03-anamika.md) |
-| Akanksha | Cloud, data, DevOps, pilot measurement | `CLD`, `MET` | [member-04-akanksha.md](member-04-akanksha.md) |
+| Anamika | Operator Console, reports, baseline study, report scheduler, pilot measurement | `CON`, `CLD-06`, `MET` | [member-03-anamika.md](member-03-anamika.md) |
+| Akanksha | Cloud, data, DevOps | `CLD` (except `CLD-06`) | [member-04-akanksha.md](member-04-akanksha.md) |
 
 Other files: [feature-traceability.md](feature-traceability.md), [open-questions-and-assumptions.md](open-questions-and-assumptions.md).
 
@@ -78,14 +135,14 @@ Status for every row: **Not implemented**. "P0" refers to the Phase 2 plan must-
 | CLD-03 | Row-level security, device auth, `enroll_device` | P0-11 | Akanksha | CLD-02 |
 | CLD-04 | Heartbeat table and function | Handbook | Akanksha | CLD-02 |
 | CLD-05 | KPI SQL views | P0-8 | Akanksha | CLD-02, SYNC-02 |
-| CLD-06 | Report scheduler and email | P0-9 | Akanksha | CON-08 |
+| CLD-06 | Report scheduler and email | P0-9 | Anamika | CON-08 |
 | CLD-07 | Overstay and stale-device alerts | P0-10 | Akanksha | CLD-02, SYNC-03 |
 | CLD-08 | Retention, export and delete | PRD risk register | Akanksha | CLD-02 |
 | CLD-09 | CI/CD pipelines | Handbook | Akanksha | REL-01 |
 | CLD-10 | Monitoring, backups and restore drill | Handbook | Akanksha | CLD-01 |
-| MET-01 | Twice-weekly physical occupancy audits | Phase 2 plan E3 | Akanksha | GATE-08, CON-04 |
-| MET-02 | Adherence checks | Phase 2 plan E4 | Akanksha | GATE-01 |
-| MET-03 | Weekly metrics pack | Phase 2 plan | Akanksha | MET-01, MET-02, CON-10 |
+| MET-01 | Twice-weekly physical occupancy audits | Phase 2 plan E3 | Anamika | GATE-08, CON-04 |
+| MET-02 | Adherence checks | Phase 2 plan E4 | Anamika | GATE-01 |
+| MET-03 | Weekly metrics pack | Phase 2 plan | Anamika | MET-01, MET-02, CON-10 |
 
 ## 4. Cross-team dependency matrix
 
@@ -95,8 +152,8 @@ Rows depend on columns. Cell shows the feature IDs consumed.
 | --- | --- | --- | --- | --- |
 | Afzal | | `GATE-01/02` for SYNC-07 | `CON-12` for PRT-01 | `CLD-02/03/04` |
 | Nikhil | `SYNC-01/03/04/06` | | `CON-02` (enrollment QR) | `CLD-03` (`enroll_device`, staff PIN hashes) |
-| Anamika | `SYNC-05/06` | `GATE-03` (fare function) | | `CLD-02/03/05/07` |
-| Akanksha | `SYNC-01/02/05` (migrations to deploy) | `GATE-08` for MET-01 | `CON-08` (render route) | |
+| Anamika | `SYNC-05/06` | `GATE-03` (fare function); `GATE-01/08` for MET-01/02 | | `CLD-02/03/05/07` |
+| Akanksha | `SYNC-01/02/05` (migrations to deploy) | | | |
 
 ## 5. Integration contracts
 
@@ -111,7 +168,7 @@ All signatures below are **Recommended (does not exist yet)** unless marked. Eac
 | IC-05 | Device enrollment | Akanksha (`enroll_device`) | Anamika (QR screen), Nikhil (scan) | One-time code valid 10 minutes returns device credentials with `org_id`, `facility_id`, `device_id` claims |
 | IC-06 | Staff PIN hashes | Akanksha (`staff` table), Anamika (set PIN UI) | Nikhil | Salted hash only; synced to enrolled devices of that facility |
 | IC-07 | KPI views | Akanksha | Anamika | `v_daily_kpis`, `v_zone_now`, `v_hourly` (names specified in Handbook) |
-| IC-08 | Report render route | Anamika | Akanksha | `GET /api/reports/{daily|weekly|monthly}?facility=...` with a shared secret, returns PDF and Excel |
+| IC-08 | Report render route | Anamika | Anamika (`CLD-06` scheduler, moved from Akanksha) | `GET /api/reports/{daily|weekly|monthly}?facility=...` with a shared secret, returns PDF and Excel |
 | IC-09 | Heartbeat | Akanksha (`heartbeat(...)`), Afzal sender | Anamika health page | device id, queue depth, oldest unsynced age, app version, schema version, battery |
 | IC-10 | Conflict records | Afzal (`sync_conflicts`) | Anamika (resolve UI) | types `DUPLICATE_EXIT`, `ORPHAN_EXIT`, `DUPLICATE_ENTRY`, `CLOCK_SKEW`; resolutions written to `conflict_resolutions` by Console |
 

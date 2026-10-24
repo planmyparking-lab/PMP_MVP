@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SCHEMA_VERSION, formatRupees, isSupported, parseEvent, toPaise } from "../src/index.js";
+import { SCHEMA_VERSION, formatRupees, isSupported, parseEvent, toPaise } from "../src/index";
 
 const id = "0192f0a0-0000-7000-8000-000000000001";
 const sid = "0192f0a0-0000-7000-8000-000000000002";
