@@ -1,12 +1,12 @@
 # PLACEHOLDER HANDLES - replace @TODO-* with real GitHub usernames (see docs/team/open-questions-and-assumptions.md).
 # Ownership follows docs/team/README.md section "Ownership matrix".
-*                       @TODO-afzl-raza
-/apps/gate/             @TODO-NikhilChaurasiya01
-/apps/console/          @TODO-tanamikaa
-/supabase/functions/    @TODO-Akankshakushwahaa
-/supabase/migrations/   @TODO-afzl-raza
-/packages/contracts/    @TODO-afzl-raza
-/packages/sync-rules/   @TODO-afzl-raza
-/packages/domain/       @TODO-afzl-raza
-/.github/               @TODO-Akankshakushwahaa
-/docs/team/             @TODO-afzl-raza
+*                       @afzl-raza
+/apps/gate/             @NikhilChaurasiya01
+/apps/console/          @tanamikaa
+/supabase/functions/    @Akankshakushwahaa
+/supabase/migrations/   @afzl-raza
+/packages/contracts/    @afzl-raza
+/packages/sync-rules/   @afzl-raza
+/packages/domain/       @afzl-raza
+/.github/               @Akankshakushwahaa
+/docs/team/             @afzl-raza
