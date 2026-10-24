@@ -2,9 +2,66 @@
 
 Prepared 24 Oct 2026 for Team PlanMyParking (Afzal, Nikhil, Anamika, Akanksha).
 
+## Team index (start here)
+
+Repository status (updated after the repository scaffold): the monorepo structure, tooling and CI exist, and `packages/contracts` is implemented with tests. **Everything else in the feature inventory is still Not implemented.** The sheets below are plans and specifications, not descriptions of working code.
+
+| Member | GitHub | Assignment sheet | Feature IDs |
+| --- | --- | --- | --- |
+| Afzal (lead) | `@afzl-raza` | [member-01-afzal.md](member-01-afzal.md) | `SYNC-01..07`, `REL-01`, `PRT-01` |
+| Nikhil | `@NikhilChaurasiya01` | [member-02-nikhil.md](member-02-nikhil.md) | `GATE-01..12` |
+| Anamika | `@tanamikaa` | [member-03-anamika.md](member-03-anamika.md) | `CON-01..12` |
+| Akanksha | `@Akankshakushwahaa` | [member-04-akanksha.md](member-04-akanksha.md) | `CLD-01..10`, `MET-01..03` |
+
+GitHub handles come from `.github/CODEOWNERS`, as supplied by the repository owner. They have not been independently verified by this documentation. Whether each person has write access is TBD (repository administrator).
+
+### Responsibilities, owned paths and deliverables
+
+| Member | Responsibilities | Owned repo paths (per CODEOWNERS) | Main deliverables |
+| --- | --- | --- | --- |
+| Afzal | Event contracts, upload outbox and idempotent ingest, download sync, occupancy computation, conflict detection, health signals, simulation harness, repo and release rules, partner pipeline | `packages/contracts`, `packages/sync-rules`, `packages/domain` (see conflict C-1), `supabase/migrations`, `docs/team`; fallback owner for everything (`*`) | Contracts package, sync client, `ingest_events`, sync spike decision record, `tools/sim` reports, `docs/release.md`, pilot agreements |
+| Nikhil | Gate app: entry, exit, fare engine, payments, passes, shifts, overrides, zone counts, login and enrollment, printer, backfill, app shell | `apps/gate` | Android app and APK, fare function with the 60-case table, gate-side tests |
+| Anamika | Operator Console: setup wizard, staff and devices, login, occupancy board, dashboard, shift review, conflicts inbox, reports, overstay, pilot health, seed data, baseline study and ROI | `apps/console` | Console app, report render route, seed and demo data, baseline study and ROI statements |
+| Akanksha | Supabase environments, schema (non-sync), RLS and device auth, heartbeat, KPI views, report scheduler, alerts, retention, CI/CD, monitoring and backups, pilot measurement | `supabase/functions`, `.github` | Environments, migrations 0001..0011 deployment, RLS suite, KPI views, pipelines, monitoring, weekly metrics pack |
+
+### Dependencies and handoffs between members
+
+Full matrix: section 4. Integration contracts IC-01..IC-10: section 5. In short:
+
+| From | To | What is handed off | Contract |
+| --- | --- | --- | --- |
+| Afzal | everyone | Event schemas and money helpers | IC-01 |
+| Afzal | Nikhil | Sync client API (`writeEvent`, `observeOccupancy`, `health`) | IC-02 |
+| Afzal writes, Akanksha deploys | gate app | `ingest_events` | IC-03 |
+| Nikhil | Anamika | Fare function and tariff rule JSON | IC-04 |
+| Akanksha | Anamika, Nikhil | Device enrollment, PIN hashes | IC-05, IC-06 |
+| Akanksha | Anamika | KPI views | IC-07 |
+| Anamika | Akanksha | Report render route | IC-08 |
+| Akanksha, Afzal | Anamika | Heartbeat, conflict records | IC-09, IC-10 |
+
+### Relevant tests and acceptance criteria
+
+Each sheet has section D (test tables, IDs `T-<FeatureID>-<kind><n>`) and section E (acceptance criteria and completion checklist). Counts and status per feature: [feature-traceability.md](feature-traceability.md). Nothing is verified yet except the `packages/contracts` unit tests, which run in CI via `pnpm test` (they cover part of `SYNC-01`; the traceability file has not yet been updated to say so).
+
+### Recommended implementation sequence
+
+Wave 0 to 7 in section 6 (dependency-ordered, no dates). Critical path: `SYNC-01` -> `CLD-02` -> `SYNC-02/03` -> `GATE-01/02` -> `SYNC-07` -> dry run.
+
+### Unresolved assignments and ownership conflicts
+
+| ID | Issue | Status |
+| --- | --- | --- |
+| C-1 | `packages/domain` holds the fare function (IC-04, feature `GATE-03`, owner Nikhil), but CODEOWNERS maps `/packages/domain/` to Afzal. | TBD: decide the owner. Until then Afzal reviews and Nikhil authors. |
+| C-2 | `docs/team/README.md` section 2 notes that the earlier Phase 2 plan assigned roles differently (OQ-18). | TBD: team confirms. |
+| C-3 | `supabase/migrations` is owned by Afzal in CODEOWNERS, but `CLD-02` (schema migrations) is Akanksha's feature. | TBD: agree who authors and who approves. |
+| C-4 | Weekly hours per member unknown (OQ-17), so no dates exist. | TBD |
+| C-5 | `apps/gate`, `apps/console` and `supabase/functions` have no initialized projects yet. | Open: owners initialize them. |
+
+All other open questions: [open-questions-and-assumptions.md](open-questions-and-assumptions.md).
+
 ## 0. Read this first: what this plan is based on
 
-**The repository contains no application code.** On inspection, the connected folder `PlanMyParking/` holds only the `doc/` folder with eight product documents (Problem Discovery, Define Phase, Empathy worksheet, Phase 1 submission, Phase 2 plan, PRD v1.1, Executive Blueprint, Working Phase). It is not a git repository and has no source files, schema, migrations, tests, configuration or CI. The team division and architecture used here come from the "ParkOS MVP PRD for Design Partners" and the "ParkOS Engineering Handbook" Claude Docs created in this project on 24 Oct 2026 (they are proposals the team has not yet formally confirmed; see OQ-18).
+**At the time this plan was written the repository contained no application code** (a scaffold with the shared `contracts` package was added afterwards). On inspection, the connected folder `PlanMyParking/` holds only the `doc/` folder with eight product documents (Problem Discovery, Define Phase, Empathy worksheet, Phase 1 submission, Phase 2 plan, PRD v1.1, Executive Blueprint, Working Phase). It is not a git repository and has no source files, schema, migrations, tests, configuration or CI. The team division and architecture used here come from the "ParkOS MVP PRD for Design Partners" and the "ParkOS Engineering Handbook" Claude Docs created in this project on 24 Oct 2026 (they are proposals the team has not yet formally confirmed; see OQ-18).
 
 Consequences for every document in this folder:
 

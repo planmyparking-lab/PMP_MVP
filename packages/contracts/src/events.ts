@@ -48,7 +48,7 @@ export const OverrideEvent = z
     target_event_id: uuid,
     reason_code: ReasonCode,
     note: z.string().optional(),
-    change: z.record(z.unknown()).optional(),
+    change: z.record(z.string(), z.unknown()).optional(),
   })
   .refine((e) => e.reason_code !== "OTHER" || (e.note ?? "").trim().length > 0, {
     message: "note is required when reason_code is OTHER",
@@ -72,7 +72,7 @@ export const EventSchema = z.union([
 ]);
 export type Event = z.infer<typeof EventSchema>;
 
-export type ParseResult = { ok: true; value: Event } | { ok: false; issues: z.ZodIssue[] };
+export type ParseResult = { ok: true; value: Event } | { ok: false; issues: z.core.$ZodIssue[] };
 
 export function parseEvent(input: unknown): ParseResult {
   const r = EventSchema.safeParse(input);
