@@ -1,0 +1,1 @@
+visit_id,facility_id,date_local,moment,zone_id,counter_a,counter_b,physical_count,system_count,system_as_of_time,system_count_after,abs_error,pct_error,notes,entered_zone_count_event_id

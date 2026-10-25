@@ -1,0 +1,284 @@
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+import {
+  PACK_SECTIONS,
+  adherence,
+  checkPackCompleteness,
+  drawAuditHours,
+  facilityAccuracy,
+  rowError,
+  sustainedPass,
+  weeklyOccupancySummary,
+  zoneAccuracy,
+} from "./pilot-metrics.mjs";
+
+const row = (visit_id, moment, zone_id, physical_count, system_count) => ({
+  visit_id,
+  moment,
+  zone_id,
+  physical_count,
+  system_count,
+});
+
+describe("T-MET-01-U1 accuracy formulas (hand-computed)", () => {
+  // Visit v1, moment 1: zone A physical 100 system 95; zone B physical 50 system 50; zone C physical 0 system 2
+  const rows = [row("v1", 1, "A", 100, 95), row("v1", 1, "B", 50, 50), row("v1", 1, "C", 0, 2)];
+  it("computes per-row error", () => {
+    assert.deepEqual(rowError(rows[0]), { absError: 5, pctError: 0.05, accuracy: 0.95 });
+    // physical 0: denominator is max(0, 1) = 1, so 2 vehicles of error gives 200% and accuracy floors at 0
+    assert.deepEqual(rowError(rows[2]), { absError: 2, pctError: 2, accuracy: 0 });
+  });
+  it("computes zone accuracy as the mean of row accuracy", () => {
+    assert.equal(zoneAccuracy([row("v1", 1, "A", 100, 95), row("v2", 1, "A", 100, 100)]), 0.975);
+  });
+  it("computes facility accuracy as 1 - sum(abs error) / sum(physical)", () => {
+    // errors 5 + 0 + 2 = 7 over physical 150 -> 1 - 7/150
+    assert.ok(Math.abs(facilityAccuracy(rows) - (1 - 7 / 150)) < 1e-12);
+  });
+  it("averages facility accuracy over rounds", () => {
+    const two = [row("v1", 1, "A", 100, 90), row("v1", 2, "A", 100, 100)];
+    assert.ok(Math.abs(facilityAccuracy(two) - 0.95) < 1e-12);
+  });
+  it("scores an empty round as correct only when the system is also empty", () => {
+    assert.equal(facilityAccuracy([row("v1", 1, "A", 0, 0)]), 1);
+    assert.equal(facilityAccuracy([row("v1", 1, "A", 0, 3)]), 0);
+  });
+  it("rejects missing or negative counts", () => {
+    assert.throws(() => rowError(row("v1", 1, "A", "", 5)), RangeError);
+    assert.throws(() => rowError(row("v1", 1, "A", 5, -1)), RangeError);
+  });
+});
+
+describe("weekly summary and sustained pass bar", () => {
+  const good = weeklyOccupancySummary([row("v1", 1, "A", 100, 98), row("v1", 1, "B", 100, 99)]);
+  const bad = weeklyOccupancySummary([row("v1", 1, "A", 100, 80), row("v1", 1, "B", 100, 100)]);
+  it("summarises zones and facility", () => {
+    assert.equal(good.zoneMin, 0.98);
+    assert.equal(good.facility, 1 - 3 / 200);
+  });
+  it("requires both of the last two weeks to meet both bars", () => {
+    assert.equal(sustainedPass([bad, good, good], "min"), true);
+    assert.equal(sustainedPass([good, good, bad], "min"), false);
+    assert.equal(sustainedPass([good], "min"), false);
+  });
+  it("makes the zone basis an explicit choice", () => {
+    assert.throws(() => sustainedPass([good, good]), RangeError);
+    // bad has min zone 0.80 but mean 0.90 and facility 0.90, so it fails either way
+    assert.equal(sustainedPass([bad, bad], "mean"), false);
+  });
+  it("rejects rows with a missing or invalid zone_id instead of inventing a zone", () => {
+    const ok = row("v1", 1, "A", 100, 98);
+    for (const zone of [undefined, null, "", "   ", 5, {}]) {
+      assert.throws(
+        () => weeklyOccupancySummary([ok, row("v1", 1, zone, 50, 50)]),
+        /zone_id must be a non-blank string \(row 1\)/,
+      );
+    }
+    const noKey = { visit_id: "v1", moment: 1, physical_count: 5, system_count: 5 };
+    assert.throws(() => weeklyOccupancySummary([noKey]), RangeError);
+  });
+  it("lists only zones that have rows and never creates an 'undefined' zone", () => {
+    const s = weeklyOccupancySummary([row("v1", 1, "A", 100, 98), row("v2", 1, "A", 100, 100)]);
+    assert.deepEqual(Object.keys(s.zones), ["A"]);
+    assert.equal("undefined" in s.zones, false);
+    assert.equal(s.zones.A, 0.99);
+  });
+  it("returns nulls for an empty week (no zones are back-filled)", () => {
+    assert.deepEqual(weeklyOccupancySummary([]), {
+      zones: {},
+      zoneMin: null,
+      zoneMean: null,
+      facility: null,
+    });
+  });
+});
+
+describe("T-MET-02-U1 adherence formula and cap", () => {
+  it("reports 92% for 100 independent and 92 system", () => {
+    assert.deepEqual(adherence({ independentEntries: 100, systemEntries: 92 }), {
+      adherencePct: 92,
+      overcount: 0,
+    });
+  });
+  it("caps at 100% and reports the overcount of 5", () => {
+    assert.deepEqual(adherence({ independentEntries: 80, systemEntries: 85 }), {
+      adherencePct: 100,
+      overcount: 5,
+    });
+  });
+  it("has no percentage when nothing was counted independently", () => {
+    assert.deepEqual(adherence({ independentEntries: 0, systemEntries: 2 }), {
+      adherencePct: null,
+      overcount: 2,
+    });
+  });
+  it("accepts numeric strings, as read from a CSV cell", () => {
+    assert.deepEqual(adherence({ independentEntries: "100", systemEntries: "92" }), {
+      adherencePct: 92,
+      overcount: 0,
+    });
+    assert.deepEqual(adherence({ independentEntries: "80", systemEntries: "85" }), {
+      adherencePct: 100,
+      overcount: 5,
+    });
+  });
+  it("rejects empty, non-numeric and negative values", () => {
+    assert.throws(() => adherence({ independentEntries: "", systemEntries: 5 }), RangeError);
+    assert.throws(() => adherence({ independentEntries: "abc", systemEntries: 5 }), RangeError);
+    assert.throws(() => adherence({ independentEntries: 10, systemEntries: -1 }), RangeError);
+    assert.throws(
+      () => adherence({ independentEntries: 10, systemEntries: undefined }),
+      RangeError,
+    );
+  });
+});
+
+describe("blank cell regression: whitespace-only is not zero", () => {
+  const blanks = ["", " ", "   ", "\t", "\n", " \t "];
+  it("rejects blank strings in adherence and rowError alike", () => {
+    for (const blank of blanks) {
+      assert.throws(() => adherence({ independentEntries: blank, systemEntries: 5 }), RangeError);
+      assert.throws(() => adherence({ independentEntries: 10, systemEntries: blank }), RangeError);
+      assert.throws(() => rowError(row("v1", 1, "A", blank, 5)), RangeError);
+      assert.throws(() => rowError(row("v1", 1, "A", 5, blank)), RangeError);
+    }
+  });
+  it("keeps valid zero as 0 for both number and string input", () => {
+    assert.deepEqual(adherence({ independentEntries: 0, systemEntries: 0 }), {
+      adherencePct: null,
+      overcount: 0,
+    });
+    assert.deepEqual(adherence({ independentEntries: "0", systemEntries: "0" }), {
+      adherencePct: null,
+      overcount: 0,
+    });
+    assert.deepEqual(rowError(row("v1", 1, "A", 0, 0)), { absError: 0, pctError: 0, accuracy: 1 });
+    assert.deepEqual(rowError(row("v1", 1, "A", "0", "0")), {
+      absError: 0,
+      pctError: 0,
+      accuracy: 1,
+    });
+  });
+  it("keeps valid numeric strings working, including padded ones", () => {
+    assert.deepEqual(adherence({ independentEntries: "100", systemEntries: "92" }), {
+      adherencePct: 92,
+      overcount: 0,
+    });
+    assert.deepEqual(adherence({ independentEntries: " 100 ", systemEntries: "92" }), {
+      adherencePct: 92,
+      overcount: 0,
+    });
+    assert.deepEqual(rowError(row("v1", 1, "A", "100", "95")), {
+      absError: 5,
+      pctError: 0.05,
+      accuracy: 0.95,
+    });
+  });
+  it("rejects booleans instead of converting them to 1 and 0", () => {
+    for (const flag of [true, false]) {
+      assert.throws(() => adherence({ independentEntries: flag, systemEntries: 5 }), RangeError);
+      assert.throws(() => adherence({ independentEntries: 10, systemEntries: flag }), RangeError);
+      assert.throws(() => rowError(row("v1", 1, "A", flag, 5)), RangeError);
+      assert.throws(() => rowError(row("v1", 1, "A", 5, flag)), RangeError);
+      assert.throws(() => facilityAccuracy([row("v1", 1, "A", flag, 5)]), RangeError);
+    }
+    assert.throws(() => rowError(row("v1", 1, "A", true, 5)), /physical_count.*true/);
+    assert.throws(() => rowError(row("v1", 1, "A", 5, false)), /system_count.*false/);
+  });
+  it("still rejects non-numeric strings and negatives", () => {
+    assert.throws(() => rowError(row("v1", 1, "A", "abc", 5)), RangeError);
+    assert.throws(() => rowError(row("v1", 1, "A", "-1", 5)), RangeError);
+  });
+});
+
+describe("T-MET-02-N1 random hour draw", () => {
+  const candidates = [];
+  for (const date of ["2026-11-02", "2026-11-03", "2026-11-04"]) {
+    for (let hour = 8; hour <= 20; hour++) candidates.push({ date, hour });
+  }
+  it("draws only open hours, across at least two days, including a peak hour", () => {
+    for (let seed = 1; seed <= 50; seed++) {
+      const picked = drawAuditHours({ candidates, seed, peakHours: [11, 12, 17, 18] });
+      assert.equal(picked.length, 3);
+      assert.ok(picked.every((p) => p.hour >= 8 && p.hour <= 20));
+      assert.ok(new Set(picked.map((p) => p.date)).size >= 2);
+      assert.ok(picked.some((p) => [11, 12, 17, 18].includes(p.hour)));
+    }
+  });
+  it("is reproducible for the same seed", () => {
+    assert.deepEqual(
+      drawAuditHours({ candidates, seed: 7 }),
+      drawAuditHours({ candidates, seed: 7 }),
+    );
+  });
+  it("refuses impossible draws", () => {
+    assert.throws(
+      () =>
+        drawAuditHours({ candidates: candidates.filter((c) => c.date === "2026-11-02"), seed: 1 }),
+      RangeError,
+    );
+  });
+  it("never draws the same hour twice when candidates contain duplicates", () => {
+    const duplicated = [...candidates, ...candidates, { date: "2026-11-02", hour: 8 }];
+    for (let seed = 1; seed <= 200; seed++) {
+      const picked = drawAuditHours({ candidates: duplicated, seed, count: 5 });
+      const keys = picked.map((p) => `${p.date}|${p.hour}`);
+      assert.equal(new Set(keys).size, 5);
+    }
+  });
+  it("gives the same draw for a duplicated list as for the de-duplicated list", () => {
+    const duplicated = [...candidates, ...candidates];
+    for (const seed of [1, 7, 42]) {
+      assert.deepEqual(
+        drawAuditHours({ candidates: duplicated, seed }),
+        drawAuditHours({ candidates, seed }),
+      );
+    }
+  });
+  it("fails clearly when fewer distinct hours remain than the count", () => {
+    const dup = [
+      { date: "2026-11-02", hour: 9 },
+      { date: "2026-11-02", hour: 9 },
+      { date: "2026-11-03", hour: 9 },
+      { date: "2026-11-03", hour: 9 },
+    ];
+    assert.throws(
+      () => drawAuditHours({ candidates: dup, seed: 1 }),
+      /not enough distinct open hours/,
+    );
+  });
+  it("checks the two-day rule after removing duplicates", () => {
+    const oneDay = [
+      { date: "2026-11-02", hour: 9 },
+      { date: "2026-11-02", hour: 10 },
+      { date: "2026-11-02", hour: 11 },
+      { date: "2026-11-03", hour: 9 },
+      { date: "2026-11-03", hour: 9 },
+    ];
+    const picked = drawAuditHours({ candidates: oneDay, seed: 3 });
+    assert.equal(new Set(picked.map((p) => `${p.date}|${p.hour}`)).size, 3);
+    assert.ok(new Set(picked.map((p) => p.date)).size >= 2);
+  });
+});
+
+describe("T-MET-03-U1 / N1 pack completeness", () => {
+  const full = PACK_SECTIONS.map((t, i) => `## ${i + 1}. ${t}\n\nContent for ${t}.\n`).join("\n");
+  it("accepts a pack with all 10 sections filled", () => {
+    assert.deepEqual(checkPackCompleteness(full), { complete: true, problems: [] });
+  });
+  it("flags a missing section", () => {
+    const r = checkPackCompleteness(full.replace("## 5. Conflicts", "## Conflicts"));
+    assert.equal(r.complete, false);
+    assert.match(r.problems[0], /section 5/);
+  });
+  it("flags an empty section and a TODO, but accepts 'Missing: reason'", () => {
+    const empty = checkPackCompleteness(full.replace("Content for Cloud.", ""));
+    assert.match(empty.problems.join(), /section 8/);
+    const todo = checkPackCompleteness(full.replace("Content for Cloud.", "TODO: fill"));
+    assert.match(todo.problems.join(), /TODO/);
+    const missing = checkPackCompleteness(
+      full.replace("Content for Cloud.", "Missing: Supabase bill not available yet."),
+    );
+    assert.equal(missing.complete, true);
+  });
+});
