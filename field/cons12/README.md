@@ -43,7 +43,10 @@ staff-hours per day = (mean entry/exit seconds x daily vehicles
 rupees per month    = staff-hours per day x wage per hour x operating days
 ```
 
-Money is held in integer paise. Worked example (T-CON-12-U1): 40 s, 600 vehicles, 2 shifts of 1,800 s and
+Money is held in integer paise. The median of an even number of facility amounts rounds a half paisa up
+(`medianPaise`; the rounding direction awaits Afzal's confirmation, OQ-36). All six inputs to
+`staffHoursPerDay` are required numbers; numeric strings are not accepted (the calculator takes values you
+have already worked out, unlike `ops/metrics`, which reads raw CSV cells). Worked example (T-CON-12-U1): 40 s, 600 vehicles, 2 shifts of 1,800 s and
 3 disputes of 300 s gives 6.67 + 1.00 + 0.25 = about 7.9 hours per day.
 
 ## Decision rule (D12)

@@ -28,6 +28,29 @@ describe("T-CON-08-U1 / T-CLD-06-U1 report periods", () => {
     expect(() => monthRange("2023-02-29")).toThrow(RangeError);
     expect(() => dayRange("25/10/2026")).toThrow(RangeError);
   });
+  it("applies the century leap-year rule (same cases as the audit-hour date check)", () => {
+    expect(monthRange("2000-02-10")).toEqual({ start: "2000-02-01", end: "2000-02-29" });
+    expect(() => dayRange("2100-02-29")).toThrow(RangeError);
+    expect(dayRange("2024-02-29")).toEqual({ start: "2024-02-29", end: "2024-02-29" });
+    expect(() => dayRange("2026-02-29")).toThrow(RangeError);
+  });
+  it("rejects the same malformed strings as the audit-hour date check", () => {
+    for (const bad of [
+      "",
+      "2026-1-5",
+      "26-11-02",
+      "2026/11/02",
+      " 2026-11-02",
+      "2026-11-02 ",
+      "2026-11-02T00:00:00Z",
+      "2026-13-01",
+      "2026-00-10",
+      "2026-11-31",
+      "2026-02-30",
+    ]) {
+      expect(() => dayRange(bad), JSON.stringify(bad)).toThrow(RangeError);
+    }
+  });
   it("converts IST day boundaries to UTC instants", () => {
     expect(istDayStartUtc("2026-10-26")).toBe("2026-10-25T18:30:00.000Z");
     expect(istRangeBoundsUtc({ start: "2026-02-28", end: "2026-02-28" })).toEqual({

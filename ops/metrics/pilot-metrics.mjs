@@ -5,14 +5,19 @@
 export const ZONE_BAR = 0.95;
 export const FACILITY_BAR = 0.97;
 
+// Input contract for counts: these functions read raw CSV cells, which arrive as strings, so a plain decimal
+// string ("92", " 100 ", "5.5") is accepted and converted here, at the boundary. Rejected: blank or
+// whitespace-only, booleans, null, undefined, arrays and objects, signed, hexadecimal or exponent text
+// ("-1", "+5", "0x10", "1e3"), non-numeric text, NaN, infinities and negative numbers. (field/cons12/roi.mjs
+// differs on purpose: it takes numbers only.)
+const DECIMAL_TEXT = /^\d+(\.\d+)?$/;
+
 function count(name, value) {
-  if (typeof value === "boolean") {
-    throw new RangeError(`${name} must be a non-negative number, got ${value}`);
-  }
-  const n = Number(value);
-  const blank =
-    value === null || value === undefined || (typeof value === "string" && !value.trim());
-  if (blank || !Number.isFinite(n) || n < 0) {
+  let n;
+  if (typeof value === "number") n = value;
+  else if (typeof value === "string" && DECIMAL_TEXT.test(value.trim())) n = Number(value.trim());
+  else throw new RangeError(`${name} must be a non-negative number, got ${value}`);
+  if (!Number.isFinite(n) || n < 0) {
     throw new RangeError(`${name} must be a non-negative number, got ${value}`);
   }
   return n;
@@ -42,7 +47,9 @@ export function zoneAccuracy(rows) {
 export function facilityAccuracy(rows) {
   const rounds = new Map();
   for (const r of rows) {
-    const key = `${r.visit_id}|${r.moment}`;
+    // JSON of a pair cannot collide (a plain "a|b" join can: ["a|b","1"] vs ["a","b|1"]). Both parts are
+    // converted to text first so that moment 1 and "1" (a CSV cell) still land in the same round.
+    const key = JSON.stringify([String(r.visit_id), String(r.moment)]);
     const g = rounds.get(key) ?? { abs: 0, physical: 0 };
     g.abs += rowError(r).absError;
     g.physical += count("physical_count", r.physical_count);
@@ -120,6 +127,9 @@ function mulberry32(seed) {
 
 const MIN_AUDIT_HOURS = 2;
 
+// Same rules as parseCivil() in apps/console/src/lib/reportPeriod.ts (strict yyyy-mm-dd, real calendar date).
+// Kept as a separate copy on purpose: this folder is plain Node with no workspace imports, and
+// packages/domain is reserved for the fare function. See the review notes before sharing code.
 function isCalendarDate(value) {
   const m = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
   if (!m) return false;

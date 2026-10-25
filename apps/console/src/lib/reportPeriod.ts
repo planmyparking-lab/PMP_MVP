@@ -13,6 +13,8 @@ export interface DateRange {
 const IST_OFFSET_MINUTES = 330;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Same rules as isCalendarDate() in ops/metrics/pilot-metrics.mjs (strict yyyy-mm-dd, real calendar date),
+// but this one throws and returns the UTC milliseconds. Deliberately not shared yet; see the review notes.
 function parseCivil(date: string): number {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
   if (!m) throw new RangeError(`Invalid date (expected yyyy-mm-dd): ${date}`);

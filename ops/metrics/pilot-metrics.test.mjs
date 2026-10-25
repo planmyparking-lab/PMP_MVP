@@ -39,6 +39,29 @@ describe("T-MET-01-U1 accuracy formulas (hand-computed)", () => {
     const two = [row("v1", 1, "A", 100, 90), row("v1", 2, "A", 100, 100)];
     assert.ok(Math.abs(facilityAccuracy(two) - 0.95) < 1e-12);
   });
+  it("keeps rounds apart when visit_id or moment contain a '|' (no key collisions)", () => {
+    // A plain "visit|moment" join would give "a|b|1" for both rows and merge them into one round.
+    const rows = [
+      { visit_id: "a|b", moment: "1", zone_id: "A", physical_count: 100, system_count: 100 },
+      { visit_id: "a", moment: "b|1", zone_id: "A", physical_count: 10, system_count: 0 },
+    ];
+    // two separate rounds: accuracy 1 and 0, mean 0.5 (a merged round would give 1 - 10/110)
+    assert.equal(facilityAccuracy(rows), 0.5);
+    // the same pair of rows with ordinary ids behaves identically
+    const plain = [
+      { visit_id: "x", moment: "1", zone_id: "A", physical_count: 100, system_count: 100 },
+      { visit_id: "y", moment: "1", zone_id: "A", physical_count: 10, system_count: 0 },
+    ];
+    assert.equal(facilityAccuracy(plain), facilityAccuracy(rows));
+  });
+  it("still groups the same visit and moment together, whether moment is 1 or '1'", () => {
+    const rows = [
+      { visit_id: "v1", moment: 1, zone_id: "A", physical_count: 100, system_count: 90 },
+      { visit_id: "v1", moment: "1", zone_id: "B", physical_count: 50, system_count: 50 },
+    ];
+    // one round: 1 - 10 / 150 (two rounds would give a mean of 0.95)
+    assert.ok(Math.abs(facilityAccuracy(rows) - (1 - 10 / 150)) < 1e-12);
+  });
   it("scores an empty round as correct only when the system is also empty", () => {
     assert.equal(facilityAccuracy([row("v1", 1, "A", 0, 0)]), 1);
     assert.equal(facilityAccuracy([row("v1", 1, "A", 0, 3)]), 0);
@@ -184,6 +207,45 @@ describe("blank cell regression: whitespace-only is not zero", () => {
     }
     assert.throws(() => rowError(row("v1", 1, "A", true, 5)), /physical_count.*true/);
     assert.throws(() => rowError(row("v1", 1, "A", 5, false)), /system_count.*false/);
+  });
+  it("accepts only plain decimal text from a CSV cell", () => {
+    const accepted = ["0", "7", "92", " 100 ", "5.5", "007", "0.0"];
+    for (const text of accepted) {
+      assert.equal(rowError(row("v1", 1, "A", text, text)).absError, 0, JSON.stringify(text));
+    }
+    const rejected = [
+      "0x10",
+      "1e3",
+      "1E3",
+      "+5",
+      "-1",
+      "-0",
+      ".5",
+      "5.",
+      "1,000",
+      "Infinity",
+      "NaN",
+      "12abc",
+      "٣",
+    ];
+    for (const text of rejected) {
+      assert.throws(
+        () => rowError(row("v1", 1, "A", text, 5)),
+        /physical_count must be a non-negative number/,
+        JSON.stringify(text),
+      );
+    }
+  });
+  it("rejects arrays, objects, functions and dates that Number() would convert", () => {
+    for (const value of [[9], [], {}, () => 9, new Date(9)]) {
+      assert.throws(() => adherence({ independentEntries: value, systemEntries: 5 }), RangeError);
+    }
+  });
+  it("applies the same contract to adherence and rowError", () => {
+    for (const value of ["0x10", "1e3", "+5", true, null, undefined, " ", NaN, Infinity, -1]) {
+      assert.throws(() => adherence({ independentEntries: value, systemEntries: 5 }), RangeError);
+      assert.throws(() => rowError(row("v1", 1, "A", value, 5)), RangeError);
+    }
   });
   it("still rejects non-numeric strings and negatives", () => {
     assert.throws(() => rowError(row("v1", 1, "A", "abc", 5)), RangeError);
@@ -354,6 +416,15 @@ describe("drawAuditHours input validation", () => {
       );
     }
     assert.throws(draw({ candidates: [...good, { date: "2026-11-03" }] }), /candidates\[4\]\.hour/);
+  });
+  it("applies the century leap-year rule to dates", () => {
+    const withDate = (date) => ({
+      candidates: [...good, { date, hour: 9 }],
+    });
+    assert.doesNotThrow(draw(withDate("2000-02-29")));
+    assert.doesNotThrow(draw(withDate("2024-02-29")));
+    assert.throws(draw(withDate("2100-02-29")), /candidates\[4\]\.date/);
+    assert.throws(draw(withDate("2026-02-29")), /candidates\[4\]\.date/);
   });
   it("accepts hour 0 and hour 23", () => {
     const picked = drawAuditHours({
