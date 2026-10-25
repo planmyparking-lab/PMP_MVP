@@ -39,6 +39,69 @@ describe("T-CON-03-U1 redirect sanitizer", () => {
     expect(sanitizeRedirect("%2F%2Fevil.com")).toBe("/");
     expect(sanitizeRedirect("https%3A%2F%2Fevil.com")).toBe("/");
   });
+  it("validates the fallback with the same rules as the target", () => {
+    const unsafeFallbacks = [
+      "//evil.com",
+      "https://evil.com",
+      "/\\evil.com",
+      "/\t/evil.com",
+      "/\n/evil.com",
+      "evil.com",
+      "",
+      " /login",
+      "javascript:alert(1)",
+      123,
+      null,
+      {},
+    ];
+    for (const fb of unsafeFallbacks) {
+      // unsafe target and unsafe fallback: known-safe default
+      expect(sanitizeRedirect("//evil.com", fb)).toBe("/");
+      expect(sanitizeRedirect(undefined, fb)).toBe("/");
+      // safe target: the fallback is never consulted
+      expect(sanitizeRedirect("/dash", fb)).toBe("/dash");
+    }
+  });
+  it("still uses a safe custom fallback", () => {
+    expect(sanitizeRedirect("https://evil.com", "/login")).toBe("/login");
+    expect(sanitizeRedirect(null, "/f/1?x=2")).toBe("/f/1?x=2");
+  });
+  it("never yields a value that leaves the origin, whatever the target and fallback", () => {
+    const hostile = [
+      "//evil.com",
+      "///evil.com",
+      "/\\evil.com",
+      "/\t/evil.com",
+      "/\n/evil.com",
+      "/\r/evil.com",
+      "/\u0000/evil.com",
+      "/\u007f/evil.com",
+      "https://evil.com",
+      "HTTP://evil.com",
+      "\t//evil.com",
+      " //evil.com",
+      "javascript:alert(1)",
+      "data:text/html,x",
+      "evil.com",
+      "",
+      undefined,
+      null,
+      42,
+      {},
+    ];
+    const origin = "https://console.example";
+    for (const target of hostile) {
+      for (const fb of hostile) {
+        const result = sanitizeRedirect(target, fb);
+        expect(result).toBe("/");
+        expect(new URL(result, origin).origin).toBe(origin);
+      }
+    }
+    // and for safe values the browser's own URL parsing agrees they stay on this origin
+    for (const safe of ["/", "/dash", "/f/1?x=2#y", "/%2F%2Fevil.com", "/%5Cevil.com"]) {
+      expect(new URL(sanitizeRedirect(safe), origin).origin).toBe(origin);
+    }
+  });
   it("keeps a percent-encoded path as an undecoded same-origin path", () => {
     // Still a path, so it stays on this origin. Callers must not decode it before redirecting.
     expect(sanitizeRedirect("/%2F%2Fevil.com")).toBe("/%2F%2Fevil.com");

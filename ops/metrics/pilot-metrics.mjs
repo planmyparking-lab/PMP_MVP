@@ -118,14 +118,49 @@ function mulberry32(seed) {
   };
 }
 
+const MIN_AUDIT_HOURS = 2;
+
+function isCalendarDate(value) {
+  const m = typeof value === "string" ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(value) : null;
+  if (!m) return false;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const date = new Date(Date.UTC(y, mo - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === mo - 1 && date.getUTCDate() === d;
+}
+
 /**
  * MET-02: recorded random draw of audit hours. `candidates` must already be OPEN hours only
  * ([{ date: "yyyy-mm-dd", hour: 0-23 }]), so a closed hour can never be drawn. The draw spans at least two
  * days and, when `peakHours` is given and available, includes at least one peak hour. Same seed, same draw.
  * Duplicate candidates (same date and hour) are collapsed first, keeping the first occurrence, so an hour
  * can never be drawn twice. If fewer than `count` distinct hours remain, it throws.
+ *
+ * Input checks (all throw RangeError with the offending field named):
+ * - `count` (default 3, "three random hours per week") must be an integer of at least 2, because the
+ *   two-day rule cannot be met with fewer than two hours.
+ * - `candidates` must be an array of objects, each with `date` a real calendar date `yyyy-mm-dd` and `hour`
+ *   an integer from 0 to 23.
  */
 export function drawAuditHours({ candidates: rawCandidates, seed, count: n = 3, peakHours = [] }) {
+  if (!Number.isInteger(n) || n < MIN_AUDIT_HOURS) {
+    throw new RangeError(
+      `count must be an integer of at least ${MIN_AUDIT_HOURS} (the two-day rule needs two hours), got ${n}`,
+    );
+  }
+  if (!Array.isArray(rawCandidates)) {
+    throw new RangeError(`candidates must be an array, got ${rawCandidates}`);
+  }
+  rawCandidates.forEach((c, i) => {
+    if (c === null || typeof c !== "object" || Array.isArray(c)) {
+      throw new RangeError(`candidates[${i}] must be an object with date and hour, got ${c}`);
+    }
+    if (!isCalendarDate(c.date)) {
+      throw new RangeError(`candidates[${i}].date must be a real yyyy-mm-dd date, got ${c.date}`);
+    }
+    if (!Number.isInteger(c.hour) || c.hour < 0 || c.hour > 23) {
+      throw new RangeError(`candidates[${i}].hour must be an integer from 0 to 23, got ${c.hour}`);
+    }
+  });
   const seen = new Set();
   const candidates = rawCandidates.filter((c) => {
     const key = `${c.date}|${c.hour}`;

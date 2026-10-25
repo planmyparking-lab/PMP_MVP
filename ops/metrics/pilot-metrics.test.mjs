@@ -261,6 +261,126 @@ describe("T-MET-02-N1 random hour draw", () => {
   });
 });
 
+describe("drawAuditHours input validation", () => {
+  const good = [
+    { date: "2026-11-02", hour: 9 },
+    { date: "2026-11-02", hour: 10 },
+    { date: "2026-11-03", hour: 9 },
+    { date: "2026-11-03", hour: 10 },
+  ];
+  const draw = (over) => () => drawAuditHours({ candidates: good, seed: 1, ...over });
+
+  it("rejects an unsupported count with a clear message", () => {
+    for (const count of [
+      0,
+      1,
+      -1,
+      -3,
+      2.5,
+      3.0000001,
+      NaN,
+      Infinity,
+      -Infinity,
+      "3",
+      null,
+      true,
+      {},
+    ]) {
+      assert.throws(draw({ count }), /count must be an integer of at least 2/, String(count));
+    }
+  });
+  it("accepts the default of 3 and the smallest supported count of 2", () => {
+    assert.equal(drawAuditHours({ candidates: good, seed: 1 }).length, 3);
+    assert.equal(drawAuditHours({ candidates: good, seed: 1, count: 2 }).length, 2);
+    assert.equal(drawAuditHours({ candidates: good, seed: 1, count: 4 }).length, 4);
+  });
+  it("still fails when count exceeds the distinct hours available", () => {
+    assert.throws(draw({ count: 5 }), /not enough distinct open hours/);
+  });
+
+  it("rejects candidates that are not an array", () => {
+    for (const candidates of [undefined, null, "2026-11-02", 5, {}]) {
+      assert.throws(draw({ candidates }), /candidates must be an array/);
+    }
+  });
+  it("rejects candidate entries that are not objects", () => {
+    for (const bad of [null, undefined, 5, "2026-11-02|9", [], ["2026-11-02", 9], true]) {
+      assert.throws(draw({ candidates: [...good, bad] }), /candidates\[4\] must be an object/);
+    }
+  });
+  it("rejects missing, malformed and impossible dates, naming the candidate", () => {
+    const badDates = [
+      undefined,
+      null,
+      "",
+      20261102,
+      "2026-1-5",
+      "26-11-02",
+      "2026/11/02",
+      " 2026-11-02",
+      "2026-11-02T00:00:00Z",
+      "2026-13-01",
+      "2026-00-10",
+      "2026-11-31",
+      "2026-02-29",
+      "2026-02-30",
+      new Date("2026-11-02"),
+    ];
+    for (const date of badDates) {
+      assert.throws(
+        draw({ candidates: [...good, { date, hour: 9 }] }),
+        /candidates\[4\]\.date must be a real yyyy-mm-dd date/,
+        String(date),
+      );
+    }
+    assert.throws(draw({ candidates: [...good, { hour: 9 }] }), /candidates\[4\]\.date/);
+  });
+  it("accepts real calendar boundaries, including a leap day and a year end", () => {
+    const edges = [
+      { date: "2024-02-29", hour: 0 },
+      { date: "2026-12-31", hour: 23 },
+      { date: "2027-01-01", hour: 12 },
+    ];
+    const picked = drawAuditHours({ candidates: edges, seed: 5 });
+    assert.equal(picked.length, 3);
+  });
+  it("rejects missing and invalid hours, naming the candidate", () => {
+    const badHours = [undefined, null, -1, 24, 25, 8.5, NaN, Infinity, "9", "09", true, [9]];
+    for (const hour of badHours) {
+      assert.throws(
+        draw({ candidates: [...good, { date: "2026-11-03", hour }] }),
+        /candidates\[4\]\.hour must be an integer from 0 to 23/,
+        String(hour),
+      );
+    }
+    assert.throws(draw({ candidates: [...good, { date: "2026-11-03" }] }), /candidates\[4\]\.hour/);
+  });
+  it("accepts hour 0 and hour 23", () => {
+    const picked = drawAuditHours({
+      candidates: [
+        { date: "2026-11-02", hour: 0 },
+        { date: "2026-11-02", hour: 23 },
+        { date: "2026-11-03", hour: 0 },
+        { date: "2026-11-03", hour: 23 },
+      ],
+      seed: 2,
+    });
+    assert.equal(picked.length, 3);
+    assert.ok(picked.every((p) => p.hour === 0 || p.hour === 23));
+  });
+  it("validates before drawing, so one bad candidate fails the whole draw", () => {
+    assert.throws(
+      () => drawAuditHours({ candidates: [{ date: "2026-11-02", hour: 25 }], seed: 1 }),
+      /hour must be an integer from 0 to 23/,
+    );
+  });
+  it("keeps seeded results identical for valid input", () => {
+    const first = drawAuditHours({ candidates: good, seed: 11 });
+    assert.deepEqual(drawAuditHours({ candidates: good, seed: 11 }), first);
+    assert.deepEqual(drawAuditHours({ candidates: [...good, good[0]], seed: 11 }), first);
+  });
+});
+
 describe("T-MET-03-U1 / N1 pack completeness", () => {
   const full = PACK_SECTIONS.map((t, i) => `## ${i + 1}. ${t}\n\nContent for ${t}.\n`).join("\n");
   it("accepts a pack with all 10 sections filled", () => {
