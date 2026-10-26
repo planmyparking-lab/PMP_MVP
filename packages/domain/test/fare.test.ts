@@ -537,6 +537,22 @@ describe("explainFare() (T-GATE-03 step breakdown for the Console try-it panel)"
     expect(last?.paiseAfter).toBe(33000);
   });
 
+  it("reports the count for repeated full blocks in a multi-day breakdown (F4-5)", () => {
+    const r = explainFare(
+      tariffs["CAR-A"],
+      "2026-11-10T08:00:00+05:30",
+      "2026-11-13T08:00:00+05:30",
+      "Car",
+    );
+
+    expect(r.farePaise).toBe(90000);
+    expect(r.durationMinutes).toBe(4320);
+    expect(r.blocks).toEqual([{ index: 1, minutes: 1440, rawPaise: 48000, cappedPaise: 30000 }]);
+    expect(r.steps.find((step) => step.label === "blocks")?.detail).toBe(
+      "3 full block(s) at 30000 paise",
+    );
+  });
+
   it("minimum raises the fare only when it is under the minimum (F12-2 shape)", () => {
     const r = explainFare(
       tariffs["MIN-A"],
