@@ -76,7 +76,10 @@ export type FareComputation = {
   effectiveDate: string;
   durationMinutes: number;
   graceApplied: boolean;
-  /** One entry per 1440-minute block (empty for PER_ENTRY, which is priced once). */
+  /**
+   * One representative entry for repeated full 1440-minute blocks, followed by an optional remainder.
+   * The number of full blocks is included in the `blocks` step detail and derivable from durationMinutes.
+   */
   blocks: { index: number; minutes: number; rawPaise: Paise; cappedPaise: Paise }[];
   /** True when any minute of the stay falls inside the tariff's night window. */
   nightOverlap: boolean;
@@ -267,7 +270,7 @@ export function computeFare(
     };
   }
 
-  // Per-stay base: PER_ENTRY is priced once; FLAT/HOURLY_SLABS split into capped 1440-min blocks.
+  // Per-stay base: PER_ENTRY is priced once; identical full blocks are priced together and exposed compactly.
   const blocks: FareComputation["blocks"] = [];
   let subtotal = 0;
   if (t.model === "PER_ENTRY") {

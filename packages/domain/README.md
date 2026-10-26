@@ -16,7 +16,9 @@ IC-04). The reference fixture set lives in `src/fixtures/`:
   the engine implements the documented default (tariff in force at entry).
 
 `fare()` returns just the paise; `explainFare()` returns the same result plus the computation
-steps for the console "try it" panel and dispute resolution. Tests: `test/fare.test.ts`
+steps for the console "try it" panel and dispute resolution. Its `blocks` list is compact:
+identical full 1440-minute blocks appear once, with their count in the block-step detail; a partial
+remainder appears as a separate entry. Tests: `test/fare.test.ts`
 (table-driven fixture run, an independent recomputation cross-check, property tests for
 monotonicity, integer money, offset invariance and performance, typed errors, input
 immutability, and schema-rejection cases).
