@@ -1,6 +1,7 @@
 import { parseEvent, type Event } from "@pmp/contracts";
 
 import type { HealthSnapshot, OccupancySnapshot, OccupancyZone, SyncClient } from "./ic02";
+import { formatEventIssues } from "./eventIssues";
 
 /**
  * `FakeSync` — the in-memory IC-02 test double required by the sheets (member-02 D.15: "the sync
@@ -74,7 +75,7 @@ export class FakeSync implements SyncClient {
       const parsed = parseEvent(e);
       if (!parsed.ok) {
         throw new Error(
-          `FakeSync: event failed IC-01 validation (${parsed.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")})`,
+          `FakeSync: event failed IC-01 validation (${formatEventIssues(parsed.issues)})`,
         );
       }
     }

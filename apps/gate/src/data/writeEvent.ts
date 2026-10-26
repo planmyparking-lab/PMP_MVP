@@ -11,6 +11,7 @@ import {
 } from "../domain/paymentRules";
 import { validateOverrideInput } from "../domain/override";
 import type { SyncClient } from "./ic02";
+import { formatEventIssues } from "./eventIssues";
 
 /**
  * Gate-side `writeEvent` data layer (GATE-01 sequence 4.5; the gate owns this file per C.0 rule 1;
@@ -123,7 +124,7 @@ export function stampAndValidate(deps: WriteDeps, draft: EventDraft): StampResul
   if (!parsed.ok) {
     return {
       ok: false,
-      detail: parsed.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "),
+      detail: formatEventIssues(parsed.issues),
     };
   }
   return { ok: true, event: parsed.value };
