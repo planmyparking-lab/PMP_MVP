@@ -24,6 +24,7 @@ Environment variables: see `.env.example`. Copy what you need into an untracked 
 | ----------------------------------- | ---------------------------------------------------------------------------- |
 | `pnpm check`                        | Everything below, in CI order                                                |
 | `pnpm check:repo`                   | Required files exist, no tracked `.env`, no obvious secrets, READMEs present |
+| CI `secret-scan`                    | Gitleaks scans the repository checkout; detected values are redacted         |
 | `pnpm format` / `pnpm format:check` | Prettier write / verify                                                      |
 | `pnpm lint`                         | ESLint                                                                       |
 | `pnpm typecheck`                    | `tsc` in every package that defines `typecheck`                              |
@@ -68,7 +69,9 @@ git push -u origin feature/gate-05-monthly-pass
 ```
 
 1. Open a pull request into `main` with the template filled in.
-2. CI must pass: required check names are `check` and `branch-name` (`audit` is advisory).
+2. CI should pass before merge. The target required status checks are `check`, `branch-name`,
+   and `secret-scan`, pending administrator configuration; `audit` is advisory. Until an
+   administrator configures them, do not treat these checks as enforced merge protections.
 3. Respond to review with new commits; resolve conversations when addressed.
 4. After approval, merge using the method the repository allows (recommended: squash).
 5. Clean up: `git switch main && git pull --ff-only && git branch -d <branch>`.
