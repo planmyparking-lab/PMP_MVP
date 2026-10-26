@@ -70,6 +70,18 @@ describe("T-MET-01-U1 accuracy formulas (hand-computed)", () => {
     assert.throws(() => rowError(row("v1", 1, "A", "", 5)), RangeError);
     assert.throws(() => rowError(row("v1", 1, "A", 5, -1)), RangeError);
   });
+  it("rejects fractional vehicle counts from numbers and CSV strings", () => {
+    for (const value of [5.5, "5.5"]) {
+      assert.throws(
+        () => rowError(row("v1", 1, "A", value, 5)),
+        /physical_count must be a non-negative integer/,
+      );
+      assert.throws(
+        () => rowError(row("v1", 1, "A", 5, value)),
+        /system_count must be a non-negative integer/,
+      );
+    }
+  });
 });
 
 describe("weekly summary and sustained pass bar", () => {
@@ -154,6 +166,18 @@ describe("T-MET-02-U1 adherence formula and cap", () => {
       RangeError,
     );
   });
+  it("rejects fractional entry counts from numbers and CSV strings", () => {
+    for (const value of [5.5, "5.5"]) {
+      assert.throws(
+        () => adherence({ independentEntries: value, systemEntries: 5 }),
+        /independent_entries must be a non-negative integer/,
+      );
+      assert.throws(
+        () => adherence({ independentEntries: 5, systemEntries: value }),
+        /system_entries must be a non-negative integer/,
+      );
+    }
+  });
 });
 
 describe("blank cell regression: whitespace-only is not zero", () => {
@@ -208,8 +232,8 @@ describe("blank cell regression: whitespace-only is not zero", () => {
     assert.throws(() => rowError(row("v1", 1, "A", true, 5)), /physical_count.*true/);
     assert.throws(() => rowError(row("v1", 1, "A", 5, false)), /system_count.*false/);
   });
-  it("accepts only plain decimal text from a CSV cell", () => {
-    const accepted = ["0", "7", "92", " 100 ", "5.5", "007", "0.0"];
+  it("accepts only plain non-negative integer text from a CSV cell", () => {
+    const accepted = ["0", "7", "92", " 100 ", "007"];
     for (const text of accepted) {
       assert.equal(rowError(row("v1", 1, "A", text, text)).absError, 0, JSON.stringify(text));
     }
@@ -222,6 +246,8 @@ describe("blank cell regression: whitespace-only is not zero", () => {
       "-0",
       ".5",
       "5.",
+      "5.5",
+      "0.0",
       "1,000",
       "Infinity",
       "NaN",
@@ -231,7 +257,7 @@ describe("blank cell regression: whitespace-only is not zero", () => {
     for (const text of rejected) {
       assert.throws(
         () => rowError(row("v1", 1, "A", text, 5)),
-        /physical_count must be a non-negative number/,
+        /physical_count must be a non-negative integer/,
         JSON.stringify(text),
       );
     }

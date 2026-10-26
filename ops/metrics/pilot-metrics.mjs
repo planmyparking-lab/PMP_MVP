@@ -5,20 +5,19 @@
 export const ZONE_BAR = 0.95;
 export const FACILITY_BAR = 0.97;
 
-// Input contract for counts: these functions read raw CSV cells, which arrive as strings, so a plain decimal
-// string ("92", " 100 ", "5.5") is accepted and converted here, at the boundary. Rejected: blank or
+// Input contract for counts: these functions read raw CSV cells, which arrive as strings, so a plain integer
+// string ("92", " 100 ") is accepted and converted here, at the boundary. Rejected: fractional, blank or
 // whitespace-only, booleans, null, undefined, arrays and objects, signed, hexadecimal or exponent text
-// ("-1", "+5", "0x10", "1e3"), non-numeric text, NaN, infinities and negative numbers. (field/cons12/roi.mjs
-// differs on purpose: it takes numbers only.)
-const DECIMAL_TEXT = /^\d+(\.\d+)?$/;
+// ("-1", "+5", "5.5", "0x10", "1e3"), non-numeric text, NaN, infinities and negative numbers.
+const INTEGER_TEXT = /^\d+$/;
 
 function count(name, value) {
   let n;
   if (typeof value === "number") n = value;
-  else if (typeof value === "string" && DECIMAL_TEXT.test(value.trim())) n = Number(value.trim());
-  else throw new RangeError(`${name} must be a non-negative number, got ${value}`);
-  if (!Number.isFinite(n) || n < 0) {
-    throw new RangeError(`${name} must be a non-negative number, got ${value}`);
+  else if (typeof value === "string" && INTEGER_TEXT.test(value.trim())) n = Number(value.trim());
+  else throw new RangeError(`${name} must be a non-negative integer, got ${value}`);
+  if (!Number.isSafeInteger(n) || n < 0) {
+    throw new RangeError(`${name} must be a non-negative integer, got ${value}`);
   }
   return n;
 }

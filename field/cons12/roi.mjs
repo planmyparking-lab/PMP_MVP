@@ -74,46 +74,57 @@ export function median(values) {
 }
 
 /**
- * Median of money held as integer paise; the result is always an integer.
- * Every value must be a non-negative integer. For an even count the two middle values are averaged and a
- * half paisa is rounded UP (10000 and 10001 give 10001). The rounding is done with integer arithmetic, so it
- * cannot lose precision. The input array is not modified. The rounding direction is not specified in the
- * team documents (see OQ-36); it is a documented default pending Afzal's confirmation.
+ * Median of money held as integer paise; the reported result is always an integer.
+ * Every value must be a non-negative safe integer. For an even count the two middle values are averaged and a
+ * half paisa is rounded UP (10000 and 10001 give 10001). Threshold decisions use the exact median separately.
  */
-export function medianPaise(values) {
+function sortedPaise(values) {
   if (!Array.isArray(values) || values.length === 0) throw new RangeError("median of empty list");
   values.forEach((v, i) => {
     if (!Number.isSafeInteger(v) || v < 0) {
       throw new RangeError(`values[${i}] must be a non-negative integer paise amount, got ${v}`);
     }
   });
-  const s = [...values].sort((a, b) => a - b);
+  return [...values].sort((a, b) => a - b);
+}
+
+export function medianPaise(values) {
+  const s = sortedPaise(values);
   const mid = Math.floor(s.length / 2);
   if (s.length % 2) return s[mid];
   const lo = s[mid - 1];
   return lo + Math.ceil((s[mid] - lo) / 2);
 }
 
+function medianPaiseAtLeast(values, pricePaise, multiple) {
+  const s = sortedPaise(values);
+  const mid = Math.floor(s.length / 2);
+  const medianTimesTwo =
+    s.length % 2 === 1 ? BigInt(s[mid]) * 2n : BigInt(s[mid - 1]) + BigInt(s[mid]);
+  return medianTimesTwo >= BigInt(pricePaise) * BigInt(multiple) * 2n;
+}
+
 /**
  * Applies the D12 pass bar and kill criterion across facilities.
  * facilities: [{ hoursPerDay, paisePerMonth }]; proposedMonthlyPricePaise: integer.
+ * Reported money rounds half up; pass-bar comparisons use the exact median in integer arithmetic.
  * Returns { result: "pass" | "kill" | "neither", medianHoursPerDay, medianPaisePerMonth }.
  */
 export function evaluateBaseline({ facilities, proposedMonthlyPricePaise }) {
   if (!Array.isArray(facilities) || facilities.length === 0) {
     throw new RangeError("at least one facility is required");
   }
-  if (!Number.isInteger(proposedMonthlyPricePaise) || proposedMonthlyPricePaise <= 0) {
-    throw new RangeError("proposedMonthlyPricePaise must be a positive integer");
+  if (!Number.isSafeInteger(proposedMonthlyPricePaise) || proposedMonthlyPricePaise <= 0) {
+    throw new RangeError("proposedMonthlyPricePaise must be a positive safe integer");
   }
   facilities.forEach((f, i) => {
     if (f === null || typeof f !== "object") {
       throw new RangeError(`facilities[${i}] must be an object, got ${f}`);
     }
     assertNonNegative(`facilities[${i}].hoursPerDay`, f.hoursPerDay);
-    if (!Number.isInteger(f.paisePerMonth) || f.paisePerMonth < 0) {
+    if (!Number.isSafeInteger(f.paisePerMonth) || f.paisePerMonth < 0) {
       throw new RangeError(
-        `facilities[${i}].paisePerMonth must be a non-negative integer, got ${f.paisePerMonth}`,
+        `facilities[${i}].paisePerMonth must be a non-negative safe integer, got ${f.paisePerMonth}`,
       );
     }
   });
@@ -123,7 +134,11 @@ export function evaluateBaseline({ facilities, proposedMonthlyPricePaise }) {
   if (medianHoursPerDay < KILL_MAX_HOURS_PER_DAY) result = "kill";
   else if (
     medianHoursPerDay >= PASS_MIN_HOURS_PER_DAY &&
-    medianPaisePerMonth >= PASS_VALUE_MULTIPLE * proposedMonthlyPricePaise
+    medianPaiseAtLeast(
+      facilities.map((f) => f.paisePerMonth),
+      proposedMonthlyPricePaise,
+      PASS_VALUE_MULTIPLE,
+    )
   ) {
     result = "pass";
   }
