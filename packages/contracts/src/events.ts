@@ -174,8 +174,8 @@ export type Event = z.infer<typeof EventSchema>;
 export type EventOf<T extends EventType> = Extract<Event, { type: T }>;
 
 export interface EventIssue {
-  /** Dotted path of the failing field, e.g. "payload.amount_paise"; "" for the whole input. */
-  path: string;
+  /** Path components from Zod, e.g. ["payload", "amount_paise"]. */
+  path: PropertyKey[];
   message: string;
 }
 
@@ -187,6 +187,6 @@ export function parseEvent(input: unknown): ParseResult {
   if (r.success) return { ok: true, value: r.data };
   return {
     ok: false,
-    issues: r.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })),
+    issues: r.error.issues.map((i) => ({ path: i.path, message: i.message })),
   };
 }

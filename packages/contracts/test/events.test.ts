@@ -55,7 +55,7 @@ describe("invalid fixtures (T-SYNC-01-U2, N1)", () => {
       expect(r.ok).toBe(false);
       if (!r.ok) {
         expect(r.issues.length).toBeGreaterThan(0);
-        expect(r.issues.map((i) => i.path)).toContain(json.expect_path);
+        expect(r.issues.map((i) => i.path.join("."))).toContain(json.expect_path);
         expect("value" in r).toBe(false); // never a partial object
       }
     },
@@ -100,6 +100,18 @@ describe("rules (T-SYNC-01-U3, U4, N1)", () => {
     for (const bad of [null, undefined, 5, "x", []]) {
       const r = parseEvent(bad);
       expect(r.ok).toBe(false);
+    }
+  });
+
+  it("preserves array-shaped issue paths for existing parseEvent consumers", () => {
+    const invalid = load("invalid").find((v) => v.name === "bad-short-code.json")!.json;
+    const result = parseEvent(invalid.event);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.issues).toContainEqual(
+        expect.objectContaining({ path: ["payload", "short_code"] }),
+      );
+      expect(result.issues[0]?.path.join(".")).toBe(invalid.expect_path);
     }
   });
 
