@@ -25,6 +25,7 @@ const required = [
   "docs/development/dependency-security.md",
   "docs/development/github-repository-settings.md",
   "docs/integrations/contracts.md",
+  "docs/integrations/event-envelope.md",
   "docs/testing/strategy.md",
   "docs/architecture/overview.md",
 ];
