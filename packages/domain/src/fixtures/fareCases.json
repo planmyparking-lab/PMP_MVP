@@ -1,0 +1,546 @@
+[
+  {
+    "id": "F1-1",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:00:00+05:30",
+    "durationMinutes": 0,
+    "expectedPaise": 0,
+    "note": "zero stay"
+  },
+  {
+    "id": "F1-2",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:14:59+05:30",
+    "durationMinutes": 15,
+    "expectedPaise": 0,
+    "note": "inside grace"
+  },
+  {
+    "id": "F1-3",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:15:00+05:30",
+    "durationMinutes": 15,
+    "expectedPaise": 0,
+    "note": "exactly grace"
+  },
+  {
+    "id": "F1-4",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:15:01+05:30",
+    "durationMinutes": 16,
+    "expectedPaise": 3000,
+    "note": "one second over grace rounds to 16"
+  },
+  {
+    "id": "F1-5",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:16:00+05:30",
+    "durationMinutes": 16,
+    "expectedPaise": 3000
+  },
+  {
+    "id": "F2-1",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T11:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedPaise": 3000,
+    "note": "slab edge"
+  },
+  {
+    "id": "F2-2",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T11:01:00+05:30",
+    "durationMinutes": 61,
+    "expectedPaise": 6000,
+    "note": "next band"
+  },
+  {
+    "id": "F2-3",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T13:00:00+05:30",
+    "durationMinutes": 180,
+    "expectedPaise": 6000,
+    "note": "band edge"
+  },
+  {
+    "id": "F2-4",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T13:01:00+05:30",
+    "durationMinutes": 181,
+    "expectedPaise": 8000,
+    "note": "first repeat unit"
+  },
+  {
+    "id": "F2-5",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T14:01:00+05:30",
+    "durationMinutes": 241,
+    "expectedPaise": 10000,
+    "note": "second repeat unit"
+  },
+  {
+    "id": "F3-1",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T15:00:00+05:30",
+    "durationMinutes": 300,
+    "expectedPaise": 10000,
+    "note": "6000 + 2 x 2000"
+  },
+  {
+    "id": "F3-2",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T17:00:00+05:30",
+    "durationMinutes": 420,
+    "expectedPaise": 14000,
+    "note": "6000 + 4 x 2000"
+  },
+  {
+    "id": "F3-3",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-10T20:00:00+05:30",
+    "durationMinutes": 720,
+    "expectedPaise": 24000,
+    "note": "6000 + 9 x 2000"
+  },
+  {
+    "id": "F3-4",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-11T07:00:00+05:30",
+    "durationMinutes": 1380,
+    "expectedPaise": 30000,
+    "note": "uncapped 46000, capped"
+  },
+  {
+    "id": "F3-5",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-11T08:00:00+05:30",
+    "durationMinutes": 1440,
+    "expectedPaise": 30000,
+    "note": "exactly one block"
+  },
+  {
+    "id": "F4-1",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-11T08:01:00+05:30",
+    "durationMinutes": 1441,
+    "expectedPaise": 33000,
+    "note": "block 30000 + 1-minute remainder 3000 (confirm in OQ-20)"
+  },
+  {
+    "id": "F4-2",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-11T09:00:00+05:30",
+    "durationMinutes": 1500,
+    "expectedPaise": 33000,
+    "note": "remainder 60 min = 3000"
+  },
+  {
+    "id": "F4-3",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-12T08:00:00+05:30",
+    "durationMinutes": 2880,
+    "expectedPaise": 60000,
+    "note": "two full blocks"
+  },
+  {
+    "id": "F4-4",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-12T08:01:00+05:30",
+    "durationMinutes": 2881,
+    "expectedPaise": 63000
+  },
+  {
+    "id": "F4-5",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-13T08:00:00+05:30",
+    "durationMinutes": 4320,
+    "expectedPaise": 90000,
+    "note": "three blocks"
+  },
+  {
+    "id": "F5-1",
+    "tariffId": "BIKE-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:15:00+05:30",
+    "durationMinutes": 15,
+    "expectedPaise": 0,
+    "note": "grace"
+  },
+  {
+    "id": "F5-2",
+    "tariffId": "BIKE-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:16:00+05:30",
+    "durationMinutes": 16,
+    "expectedPaise": 1000
+  },
+  {
+    "id": "F5-3",
+    "tariffId": "BIKE-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T12:00:00+05:30",
+    "durationMinutes": 120,
+    "expectedPaise": 1000,
+    "note": "band edge"
+  },
+  {
+    "id": "F5-4",
+    "tariffId": "BIKE-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T12:01:00+05:30",
+    "durationMinutes": 121,
+    "expectedPaise": 1500
+  },
+  {
+    "id": "F5-5",
+    "tariffId": "BIKE-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-10T18:00:00+05:30",
+    "durationMinutes": 600,
+    "expectedPaise": 5000,
+    "note": "1000 + 8 x 500"
+  },
+  {
+    "id": "F6-1",
+    "tariffId": "TRUCK-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:10:00+05:30",
+    "durationMinutes": 10,
+    "expectedPaise": 0,
+    "note": "grace"
+  },
+  {
+    "id": "F6-2",
+    "tariffId": "TRUCK-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:11:00+05:30",
+    "durationMinutes": 11,
+    "expectedPaise": 20000
+  },
+  {
+    "id": "F6-3",
+    "tariffId": "TRUCK-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-10T18:00:00+05:30",
+    "durationMinutes": 600,
+    "expectedPaise": 20000
+  },
+  {
+    "id": "F6-4",
+    "tariffId": "TRUCK-A",
+    "entryAt": "2026-11-10T08:00:00+05:30",
+    "exitAt": "2026-11-12T08:00:00+05:30",
+    "durationMinutes": 2880,
+    "expectedPaise": 20000,
+    "note": "per entry, no daily repeat"
+  },
+  {
+    "id": "F6-5",
+    "tariffId": "TRUCK-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:00:00+05:30",
+    "durationMinutes": 0,
+    "expectedPaise": 0
+  },
+  {
+    "id": "F7-1",
+    "tariffId": "FLAT-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:01:00+05:30",
+    "durationMinutes": 1,
+    "expectedPaise": 2000,
+    "note": "grace 0"
+  },
+  {
+    "id": "F7-2",
+    "tariffId": "FLAT-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-11T10:00:00+05:30",
+    "durationMinutes": 1440,
+    "expectedPaise": 2000
+  },
+  {
+    "id": "F7-3",
+    "tariffId": "FLAT-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-11T10:01:00+05:30",
+    "durationMinutes": 1441,
+    "expectedPaise": 4000,
+    "note": "second started block"
+  },
+  {
+    "id": "F7-4",
+    "tariffId": "FLAT-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-12T10:00:00+05:30",
+    "durationMinutes": 2880,
+    "expectedPaise": 4000
+  },
+  {
+    "id": "F7-5",
+    "tariffId": "FLAT-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-12T10:01:00+05:30",
+    "durationMinutes": 2881,
+    "expectedPaise": 6000
+  },
+  {
+    "id": "F8-1",
+    "tariffId": "NIGHT-A",
+    "entryAt": "2026-11-10T20:00:00+05:30",
+    "exitAt": "2026-11-10T21:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedPaise": 3000,
+    "note": "no overlap"
+  },
+  {
+    "id": "F8-2",
+    "tariffId": "NIGHT-A",
+    "entryAt": "2026-11-10T21:30:00+05:30",
+    "exitAt": "2026-11-10T22:30:00+05:30",
+    "durationMinutes": 60,
+    "expectedPaise": 4000,
+    "note": "overlaps 22:00 to 22:30"
+  },
+  {
+    "id": "F8-3",
+    "tariffId": "NIGHT-A",
+    "entryAt": "2026-11-10T23:00:00+05:30",
+    "exitAt": "2026-11-11T00:30:00+05:30",
+    "durationMinutes": 90,
+    "expectedPaise": 7000,
+    "note": "6000 + 1000"
+  },
+  {
+    "id": "F8-4",
+    "tariffId": "NIGHT-A",
+    "entryAt": "2026-11-11T05:30:00+05:30",
+    "exitAt": "2026-11-11T06:30:00+05:30",
+    "durationMinutes": 60,
+    "expectedPaise": 4000,
+    "note": "overlaps until 06:00"
+  },
+  {
+    "id": "F8-5",
+    "tariffId": "NIGHT-A",
+    "entryAt": "2026-11-11T06:00:00+05:30",
+    "exitAt": "2026-11-11T07:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedPaise": 3000,
+    "note": "starts at window end: no overlap"
+  },
+  {
+    "id": "F9-1",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-30T23:00:00+05:30",
+    "exitAt": "2026-12-01T00:30:00+05:30",
+    "durationMinutes": 90,
+    "expectedPaise": 6000,
+    "note": "tariff at entry (CAR-A)"
+  },
+  {
+    "id": "F9-2",
+    "tariffId": "CAR-B",
+    "entryAt": "2026-12-01T00:00:00+05:30",
+    "exitAt": "2026-12-01T01:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedPaise": 4000,
+    "note": "CAR-B"
+  },
+  {
+    "id": "F9-3",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-30T22:00:00+05:30",
+    "exitAt": "2026-11-30T23:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedPaise": 3000
+  },
+  {
+    "id": "F9-4",
+    "tariffId": "CAR-B",
+    "entryAt": "2026-11-30T23:00:00+05:30",
+    "exitAt": "2026-12-01T00:30:00+05:30",
+    "durationMinutes": 90,
+    "expectedPaise": 7000,
+    "skip": true,
+    "skipReason": "variant only if OQ-20 decides tariff at exit; kept skipped until decided (docs/team/member-02-nikhil.md D.3)"
+  },
+  {
+    "id": "F9-5",
+    "tariffId": null,
+    "entryAt": "2026-10-31T10:00:00+05:30",
+    "exitAt": "2026-10-31T11:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedError": "NO_TARIFF",
+    "note": "before earliest effectiveFrom 2026-11-01; called with no tariff"
+  },
+  {
+    "id": "F10-1",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T11:00:00+05:30",
+    "exitAt": "2026-11-10T10:00:00+05:30",
+    "durationMinutes": null,
+    "expectedError": "INVALID_RANGE",
+    "note": "exit before entry"
+  },
+  {
+    "id": "F10-2",
+    "tariffId": "CAR-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T11:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedError": "CLASS_MISMATCH",
+    "vehicleClass": "Bike",
+    "note": "CAR-A is for class Car"
+  },
+  {
+    "id": "F10-3",
+    "tariffId": null,
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T11:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedError": "NO_TARIFF",
+    "note": "null tariff"
+  },
+  {
+    "id": "F10-4",
+    "tariffId": "CAR-A",
+    "entryAt": "not-a-date",
+    "exitAt": "2026-11-10T11:00:00+05:30",
+    "durationMinutes": null,
+    "expectedError": "INVALID_RANGE",
+    "note": "input validation"
+  },
+  {
+    "id": "F10-5",
+    "tariffId": null,
+    "tariff": {
+      "id": "CAR-A",
+      "facilityId": "fac-demo-1",
+      "vehicleClass": "Car",
+      "effectiveFrom": "2026-11-01",
+      "effectiveTo": "2026-11-30",
+      "graceMinutes": -1,
+      "model": "HOURLY_SLABS",
+      "slabs": [
+        { "upToMinutes": 60, "pricePaise": 3000 },
+        { "upToMinutes": 180, "pricePaise": 6000 }
+      ],
+      "repeat": { "everyMinutes": 60, "pricePaise": 2000 },
+      "dayCapPaise": 30000
+    },
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T11:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedError": "INVALID_TARIFF",
+    "note": "schema rejection before computing (graceMinutes = -1)"
+  },
+  {
+    "id": "F11-1",
+    "tariffId": "CAR-A-WIDE",
+    "entryAt": "2026-12-31T18:29:00Z",
+    "exitAt": "2026-12-31T18:31:00Z",
+    "durationMinutes": 2,
+    "expectedPaise": 0,
+    "note": "crosses IST midnight, inside grace; CAR-A rules with an open effective set"
+  },
+  {
+    "id": "F11-2",
+    "tariffId": "CAR-A-WIDE",
+    "entryAt": "2026-12-31T18:00:00Z",
+    "exitAt": "2026-12-31T19:40:00Z",
+    "durationMinutes": 100,
+    "expectedPaise": 6000,
+    "note": "crosses IST midnight; CAR-A rules with an open effective set"
+  },
+  {
+    "id": "F11-3",
+    "tariffId": "CAR-A-WIDE",
+    "entryAt": "2028-02-28T10:00:00Z",
+    "exitAt": "2028-03-01T10:00:00Z",
+    "durationMinutes": 2880,
+    "expectedPaise": 60000,
+    "note": "leap day included (CAR-A rules with an open effective set)"
+  },
+  {
+    "id": "F11-4",
+    "tariffId": "CAR-A-WIDE",
+    "entryAt": "2026-11-10T04:30:00+05:30",
+    "exitAt": "2026-11-10T11:30:00+05:30",
+    "durationMinutes": 420,
+    "expectedPaise": 14000,
+    "note": "same instants as UTC offsets"
+  },
+  {
+    "id": "F11-5",
+    "tariffId": "CAR-A-WIDE",
+    "entryAt": "2026-11-10T10:00:00Z",
+    "exitAt": "2026-11-10T11:00:00+00:00",
+    "durationMinutes": 60,
+    "expectedPaise": 3000,
+    "note": "identical to UTC Z"
+  },
+  {
+    "id": "F12-1",
+    "tariffId": "MIN-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:10:00+05:30",
+    "durationMinutes": 10,
+    "expectedPaise": 0,
+    "note": "grace 10"
+  },
+  {
+    "id": "F12-2",
+    "tariffId": "MIN-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T10:11:00+05:30",
+    "durationMinutes": 11,
+    "expectedPaise": 2000,
+    "note": "minimum raises 1500"
+  },
+  {
+    "id": "F12-3",
+    "tariffId": "MIN-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T11:00:00+05:30",
+    "durationMinutes": 60,
+    "expectedPaise": 2000
+  },
+  {
+    "id": "F12-4",
+    "tariffId": "MIN-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T11:01:00+05:30",
+    "durationMinutes": 61,
+    "expectedPaise": 3000
+  },
+  {
+    "id": "F12-5",
+    "tariffId": "MIN-A",
+    "entryAt": "2026-11-10T10:00:00+05:30",
+    "exitAt": "2026-11-10T13:01:00+05:30",
+    "durationMinutes": 181,
+    "expectedPaise": 4000,
+    "note": "3000 + 1000"
+  }
+]
