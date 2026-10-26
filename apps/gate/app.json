@@ -3,6 +3,7 @@
     "name": "ParkOS Gate",
     "slug": "parkos-gate",
     "version": "0.0.0",
+    "scheme": "parkosgate",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,6 +16,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
-    }
+    },
+    "plugins": ["expo-router", "expo-secure-store"]
   }
 }
