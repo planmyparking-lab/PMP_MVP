@@ -13,8 +13,8 @@
 --     top-level payload fields and no LIVE value. Until the SYNC-01 PR lands, the SQL and the TypeScript disagree.
 --   TODO(contract: schema_version) The column is integer with check > 0 and no default. The proposal to make it
 --     smallint is not confirmed and is NOT applied, so the type assertion below still says integer.
---   TODO(contract: session_id) "required for ENTRY/EXIT/PAYMENT/OVERRIDE, null for SHIFT_* and ZONE_COUNT" is
---     not enforced by SQL (column is nullable, no CHECK). No assertion about it until the team decides where it is enforced.
+--   contract: session_id is nullable, with a CHECK requiring it for ENTRY/EXIT/PAYMENT/OVERRIDE and forbidding it
+--     for ZONE_COUNT/SHIFT_OPEN/SHIFT_CLOSE. The seven valid and seven invalid type/session combinations are tested below.
 --   TODO(contract: payload) type-specific data lives in `payload jsonb` (default '{}'); the TypeScript schemas are the
 --     source of truth. No test asserts payload contents or shape, by decision.
 --   TODO(contract: UUIDv7) a uuid column does not enforce version 7; no assertion about it.
@@ -29,7 +29,7 @@
 --     ingest_events writes (member-04-akanksha.md:188). If Afzal makes ingest_events SECURITY INVOKER instead,
 --     authenticated needs INSERT plus an RLS policy and that single assertion must change with that decision.
 begin;
-select plan(64);
+select plan(71);
 
 -- Three-argument form: the two-argument form reads its second argument as a description, not a table name.
 select has_table('public', 'events', 'public.events exists');
@@ -164,60 +164,106 @@ insert into public.staff (id, facility_id, name, pin_hash, pin_salt) values
 
 -- All seven documented event types are accepted
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'LIVE', 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
   'type ENTRY accepted');
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'EXIT', now(), 'LIVE', 1)$$,
+            'EXIT', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
   'type EXIT accepted');
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000e3', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'PAYMENT', now(), 'LIVE', 1)$$,
+            'PAYMENT', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
   'type PAYMENT accepted');
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000e4', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'OVERRIDE', now(), 'LIVE', 1)$$,
+            'OVERRIDE', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
   'type OVERRIDE accepted');
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000e5', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ZONE_COUNT', now(), 'LIVE', 1)$$,
+            'ZONE_COUNT', null, now(), 'LIVE', 1)$$,
   'type ZONE_COUNT accepted');
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000e6', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'SHIFT_OPEN', now(), 'LIVE', 1)$$,
+            'SHIFT_OPEN', null, now(), 'LIVE', 1)$$,
   'type SHIFT_OPEN accepted');
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000e7', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'SHIFT_CLOSE', now(), 'LIVE', 1)$$,
+            'SHIFT_CLOSE', null, now(), 'LIVE', 1)$$,
   'type SHIFT_CLOSE accepted');
+
+-- Session IDs are required for parking-session event types.
+select throws_ok(
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
+    values ('00000000-0000-0000-0000-000000000101', '00000000-0000-0000-0000-0000000000a2',
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
+            'ENTRY', null, now(), 'LIVE', 1)$$,
+  '23514', null, 'ENTRY with null session_id is rejected');
+select throws_ok(
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
+    values ('00000000-0000-0000-0000-000000000102', '00000000-0000-0000-0000-0000000000a2',
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
+            'EXIT', null, now(), 'LIVE', 1)$$,
+  '23514', null, 'EXIT with null session_id is rejected');
+select throws_ok(
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
+    values ('00000000-0000-0000-0000-000000000103', '00000000-0000-0000-0000-0000000000a2',
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
+            'PAYMENT', null, now(), 'LIVE', 1)$$,
+  '23514', null, 'PAYMENT with null session_id is rejected');
+select throws_ok(
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
+    values ('00000000-0000-0000-0000-000000000104', '00000000-0000-0000-0000-0000000000a2',
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
+            'OVERRIDE', null, now(), 'LIVE', 1)$$,
+  '23514', null, 'OVERRIDE with null session_id is rejected');
+
+-- Session IDs are forbidden for non-session event types.
+select throws_ok(
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
+    values ('00000000-0000-0000-0000-000000000105', '00000000-0000-0000-0000-0000000000a2',
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
+            'ZONE_COUNT', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
+  '23514', null, 'ZONE_COUNT with non-null session_id is rejected');
+select throws_ok(
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
+    values ('00000000-0000-0000-0000-000000000106', '00000000-0000-0000-0000-0000000000a2',
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
+            'SHIFT_OPEN', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
+  '23514', null, 'SHIFT_OPEN with non-null session_id is rejected');
+select throws_ok(
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
+    values ('00000000-0000-0000-0000-000000000107', '00000000-0000-0000-0000-0000000000a2',
+            '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
+            'SHIFT_CLOSE', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
+  '23514', null, 'SHIFT_CLOSE with non-null session_id is rejected');
 
 -- Source vocabulary confirmed by Afzal: LIVE (default) or PAPER_BACKFILL. LIVE is exercised by the seven type tests above.
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000e8', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'PAPER_BACKFILL', 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'PAPER_BACKFILL', 1)$$,
   'source PAPER_BACKFILL accepted');
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version)
     values ('00000000-0000-0000-0000-0000000000e9', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 1)$$,
   'an event inserted without source is accepted');
 select is(
   (select source from public.events where id = '00000000-0000-0000-0000-0000000000e9'),
@@ -226,109 +272,109 @@ select is(
 
 -- Rejections
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'BOGUS', now(), 'LIVE', 1)$$,
+            'BOGUS', null, now(), 'LIVE', 1)$$,
   '23514', null, 'unknown event type is rejected');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'BOGUS', 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'BOGUS', 1)$$,
   '23514', null, 'invalid source is rejected');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000fa', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'GATE', 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'GATE', 1)$$,
   '23514', null, 'GATE is no longer a valid source (replaced by LIVE)');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000f3', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'LIVE', 0)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 0)$$,
   '23514', null, 'schema_version 0 is rejected');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000f4', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'LIVE', -1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', -1)$$,
   '23514', null, 'negative schema_version is rejected');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000f5', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'LIVE', null)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', null)$$,
   '23502', null, 'missing schema_version is rejected');
 select ok(
   (select not atthasdef from pg_attribute
    where attrelid = 'public.events'::regclass and attname = 'schema_version'),
   'schema_version has no default (the writer must state it)');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'LIVE', 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
   '23505', null, 'duplicate event id is rejected');
 
 -- Foreign keys reject nonexistent references (the other two references are valid in each case)
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000f6', '00000000-0000-0000-0000-00000000dead',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'LIVE', 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
   '23503', null, 'nonexistent facility_id is rejected');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000f7', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-00000000dead', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 'LIVE', 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
   '23503', null, 'nonexistent device_id is rejected');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, source, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, source, schema_version)
     values ('00000000-0000-0000-0000-0000000000f8', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-00000000dead',
-            'ENTRY', now(), 'LIVE', 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 'LIVE', 1)$$,
   '23503', null, 'nonexistent staff_id is rejected');
 
 -- Same-facility integrity (provisional team assumption): device_id and staff_id must belong to the event's facility.
 -- Facility A owns device d2 and staff d1; facility B owns device d4 and staff d3.
 select lives_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version)
     values ('00000000-0000-0000-0000-0000000000eb', '00000000-0000-0000-0000-0000000000b2',
             '00000000-0000-0000-0000-0000000000d4', '00000000-0000-0000-0000-0000000000d3',
-            'ENTRY', now(), 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 1)$$,
   'an event whose device and staff belong to its facility is accepted (facility B)');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version)
     values ('00000000-0000-0000-0000-0000000000fb', '00000000-0000-0000-0000-0000000000b2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d3',
-            'ENTRY', now(), 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 1)$$,
   '23503',
   'insert or update on table "events" violates foreign key constraint "events_device_facility_fkey"',
   'a device from another facility is rejected');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version)
     values ('00000000-0000-0000-0000-0000000000fc', '00000000-0000-0000-0000-0000000000b2',
             '00000000-0000-0000-0000-0000000000d4', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 1)$$,
   '23503',
   'insert or update on table "events" violates foreign key constraint "events_staff_facility_fkey"',
   'a staff member from another facility is rejected');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version)
     values ('00000000-0000-0000-0000-0000000000fd', '00000000-0000-0000-0000-0000000000a2',
             '00000000-0000-0000-0000-0000000000d4', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 1)$$,
   '23503',
   'insert or update on table "events" violates foreign key constraint "events_device_facility_fkey"',
   'the reverse direction is rejected too (facility A with a facility B device)');
 select throws_ok(
-  $$insert into public.events (id, facility_id, device_id, staff_id, type, device_time, schema_version)
+  $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version)
     values ('00000000-0000-0000-0000-0000000000fe', '00000000-0000-0000-0000-0000000000b2',
             '00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000d1',
-            'ENTRY', now(), 1)$$,
+            'ENTRY', '00000000-0000-0000-0000-0000000000b0', now(), 1)$$,
   '23503', null, 'a device and staff member that both belong to another facility are rejected');
 
 -- The constraints that enforce it: composite foreign keys and the unique keys they reference

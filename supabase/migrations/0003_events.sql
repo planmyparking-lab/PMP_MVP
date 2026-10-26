@@ -37,6 +37,11 @@ create table public.events (
     schema_version integer not null
         check (schema_version > 0),
 
+    constraint events_session_id_by_type_check
+        check (
+            (type in ('ENTRY', 'EXIT', 'PAYMENT', 'OVERRIDE')) = (session_id is not null)
+        ),
+
     -- These replace single-column keys on device_id and staff_id: a composite key already requires the row to exist.
     constraint events_device_facility_fkey
         foreign key (device_id, facility_id) references public.devices (id, facility_id) on delete restrict,
