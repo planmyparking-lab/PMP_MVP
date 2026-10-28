@@ -28,7 +28,8 @@ const STAFF_HOURS_FIELDS = [
 /**
  * Staff-hours per day = (vehicle seconds x vehicles + shift-close seconds x shifts
  * + dispute seconds x disputes) / 3600.
- * `meanVehicleSeconds` is the per-vehicle handling time; see OQ-36 for how to derive it.
+ * `meanVehicleSeconds` is the per-vehicle handling time; how to derive it (one combined mean, or entry mean
+ * plus exit mean) is not decided yet, so the caller supplies it.
  *
  * All six fields in STAFF_HOURS_FIELDS are required. Each must be a finite, non-negative number; a missing
  * field, undefined, null, boolean, string, NaN, infinity or negative value throws a RangeError naming the
@@ -57,12 +58,16 @@ export function staffHoursPerDay(input) {
 export function paisePerMonth({ hoursPerDay, wagePerHourPaise, operatingDays }) {
   assertNonNegative("hoursPerDay", hoursPerDay);
   assertNonNegative("operatingDays", operatingDays);
-  if (!Number.isInteger(wagePerHourPaise) || wagePerHourPaise < 0) {
+  if (!Number.isSafeInteger(wagePerHourPaise) || wagePerHourPaise < 0) {
     throw new RangeError(
-      `wagePerHourPaise must be a non-negative integer, got ${wagePerHourPaise}`,
+      `wagePerHourPaise must be a non-negative integer within the safe range, got ${wagePerHourPaise}`,
     );
   }
-  return Math.round(hoursPerDay * wagePerHourPaise * operatingDays);
+  const result = Math.round(hoursPerDay * wagePerHourPaise * operatingDays);
+  if (!Number.isSafeInteger(result) || result < 0) {
+    throw new RangeError("paise per month is outside the safe integer range; check the inputs");
+  }
+  return result;
 }
 
 /** Plain median of numbers (used for hours per day). An even count averages the two middle values. */
@@ -74,13 +79,11 @@ export function median(values) {
 }
 
 /**
- * Median of money held as integer paise; the result is always an integer.
- * Every value must be a non-negative integer. For an even count the two middle values are averaged and a
- * half paisa is rounded UP (10000 and 10001 give 10001). The rounding is done with integer arithmetic, so it
- * cannot lose precision. The input array is not modified. The rounding direction is not specified in the
- * team documents (see OQ-36); it is a documented default pending Afzal's confirmation.
+ * TWICE the exact median of money held as integer paise, as a BigInt (so a half paisa is still a whole
+ * number and nothing is ever rounded or lost). Every value must be a non-negative integer.
+ * Odd count: twice the middle value. Even count: the sum of the two middle values.
  */
-export function medianPaise(values) {
+function doubledMedianPaise(values) {
   if (!Array.isArray(values) || values.length === 0) throw new RangeError("median of empty list");
   values.forEach((v, i) => {
     if (!Number.isSafeInteger(v) || v < 0) {
@@ -89,9 +92,20 @@ export function medianPaise(values) {
   });
   const s = [...values].sort((a, b) => a - b);
   const mid = Math.floor(s.length / 2);
-  if (s.length % 2) return s[mid];
-  const lo = s[mid - 1];
-  return lo + Math.ceil((s[mid] - lo) / 2);
+  return s.length % 2 ? 2n * BigInt(s[mid]) : BigInt(s[mid - 1]) + BigInt(s[mid]);
+}
+
+/** A doubled median back to whole paise, rounding a half paisa UP (the doubled value is never negative). */
+const roundHalfUp = (doubled) => Number((doubled + 1n) / 2n);
+
+/**
+ * Median of money held as integer paise, for REPORTING; the result is always a whole number of paise.
+ * For an even count the two middle values are averaged and a half paisa is rounded UP (10000 and 10001 give
+ * 10001), as decided in OQ-36 (Afzal). The input array is not modified. Pass or kill decisions must NOT use
+ * this rounded figure: evaluateBaseline compares the exact median instead.
+ */
+export function medianPaise(values) {
+  return roundHalfUp(doubledMedianPaise(values));
 }
 
 /**
@@ -103,28 +117,29 @@ export function evaluateBaseline({ facilities, proposedMonthlyPricePaise }) {
   if (!Array.isArray(facilities) || facilities.length === 0) {
     throw new RangeError("at least one facility is required");
   }
-  if (!Number.isInteger(proposedMonthlyPricePaise) || proposedMonthlyPricePaise <= 0) {
-    throw new RangeError("proposedMonthlyPricePaise must be a positive integer");
+  if (!Number.isSafeInteger(proposedMonthlyPricePaise) || proposedMonthlyPricePaise <= 0) {
+    throw new RangeError("proposedMonthlyPricePaise must be a positive safe integer");
   }
   facilities.forEach((f, i) => {
     if (f === null || typeof f !== "object") {
       throw new RangeError(`facilities[${i}] must be an object, got ${f}`);
     }
     assertNonNegative(`facilities[${i}].hoursPerDay`, f.hoursPerDay);
-    if (!Number.isInteger(f.paisePerMonth) || f.paisePerMonth < 0) {
+    if (!Number.isSafeInteger(f.paisePerMonth) || f.paisePerMonth < 0) {
       throw new RangeError(
-        `facilities[${i}].paisePerMonth must be a non-negative integer, got ${f.paisePerMonth}`,
+        `facilities[${i}].paisePerMonth must be a non-negative integer within the safe range, got ${f.paisePerMonth}`,
       );
     }
   });
   const medianHoursPerDay = median(facilities.map((f) => f.hoursPerDay));
-  const medianPaisePerMonth = medianPaise(facilities.map((f) => f.paisePerMonth));
+  // The reported median is rounded to whole paise, but the decision uses the EXACT median (OQ-36): both
+  // sides are doubled, so a half paisa needs no decimals and rounding can never flip pass to or from neither.
+  const doubledMedian = doubledMedianPaise(facilities.map((f) => f.paisePerMonth));
+  const medianPaisePerMonth = roundHalfUp(doubledMedian);
+  const doubledThreshold = 2n * BigInt(PASS_VALUE_MULTIPLE) * BigInt(proposedMonthlyPricePaise);
   let result = "neither";
   if (medianHoursPerDay < KILL_MAX_HOURS_PER_DAY) result = "kill";
-  else if (
-    medianHoursPerDay >= PASS_MIN_HOURS_PER_DAY &&
-    medianPaisePerMonth >= PASS_VALUE_MULTIPLE * proposedMonthlyPricePaise
-  ) {
+  else if (medianHoursPerDay >= PASS_MIN_HOURS_PER_DAY && doubledMedian >= doubledThreshold) {
     result = "pass";
   }
   return { result, medianHoursPerDay, medianPaisePerMonth };
