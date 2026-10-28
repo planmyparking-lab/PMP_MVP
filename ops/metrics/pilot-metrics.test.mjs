@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   PACK_SECTIONS,
   adherence,
+  auditCompleteness,
   checkPackCompleteness,
   drawAuditHours,
   facilityAccuracy,
@@ -54,13 +55,19 @@ describe("T-MET-01-U1 accuracy formulas (hand-computed)", () => {
     ];
     assert.equal(facilityAccuracy(plain), facilityAccuracy(rows));
   });
-  it("still groups the same visit and moment together, whether moment is 1 or '1'", () => {
+  it("distinguishes numeric and string key parts instead of silently merging them", () => {
     const rows = [
       { visit_id: "v1", moment: 1, zone_id: "A", physical_count: 100, system_count: 90 },
       { visit_id: "v1", moment: "1", zone_id: "B", physical_count: 50, system_count: 50 },
     ];
-    // one round: 1 - 10 / 150 (two rounds would give a mean of 0.95)
-    assert.ok(Math.abs(facilityAccuracy(rows) - (1 - 10 / 150)) < 1e-12);
+    // Two distinct rounds: 0.9 and 1, averaged to 0.95. Coercing both moments to text would merge them.
+    assert.equal(facilityAccuracy(rows), 0.95);
+
+    const visitIds = [
+      { visit_id: 1, moment: 2, zone_id: "A", physical_count: 100, system_count: 100 },
+      { visit_id: "1", moment: 2, zone_id: "B", physical_count: 10, system_count: 0 },
+    ];
+    assert.equal(facilityAccuracy(visitIds), 0.5);
   });
   it("scores an empty round as correct only when the system is also empty", () => {
     assert.equal(facilityAccuracy([row("v1", 1, "A", 0, 0)]), 1);
@@ -113,6 +120,42 @@ describe("weekly summary and sustained pass bar", () => {
       zoneMean: null,
       facility: null,
     });
+  });
+});
+
+describe("T-MET-01-N1 incomplete audit sheet", () => {
+  const expected = [
+    { visit_id: "v1", moment: "1", zone_id: "A" },
+    { visit_id: "v1", moment: "1", zone_id: "B" },
+    { visit_id: "v1", moment: "2", zone_id: "A" },
+    { visit_id: "v1", moment: "2", zone_id: "B" },
+  ];
+
+  it("lists each missing visit, moment and zone row and marks the audit incomplete", () => {
+    const rows = [
+      row("v1", "1", "A", 100, 98),
+      row("v1", "2", "A", 90, 90),
+      row("v1", "2", "B", 50, 49),
+    ];
+    assert.deepEqual(auditCompleteness(rows, expected), {
+      complete: false,
+      missing: [{ visit_id: "v1", moment: "1", zone_id: "B" }],
+    });
+  });
+  it("marks the audit complete only when every expected row is present", () => {
+    const rows = expected.map((r) => ({ ...r, physical_count: 0, system_count: 0 }));
+    assert.deepEqual(auditCompleteness(rows, expected), { complete: true, missing: [] });
+  });
+  it("preserves identifier types so a numeric moment cannot satisfy an expected string moment", () => {
+    const rows = [row("v1", 1, "A", 10, 10)];
+    assert.deepEqual(auditCompleteness(rows, [expected[0]]), {
+      complete: false,
+      missing: [expected[0]],
+    });
+  });
+  it("requires both inputs to be arrays", () => {
+    assert.throws(() => auditCompleteness(null, expected), /rows must be an array/);
+    assert.throws(() => auditCompleteness([], null), /expectedRows must be an array/);
   });
 });
 
@@ -208,8 +251,8 @@ describe("blank cell regression: whitespace-only is not zero", () => {
     assert.throws(() => rowError(row("v1", 1, "A", true, 5)), /physical_count.*true/);
     assert.throws(() => rowError(row("v1", 1, "A", 5, false)), /system_count.*false/);
   });
-  it("accepts only plain decimal text from a CSV cell", () => {
-    const accepted = ["0", "7", "92", " 100 ", "5.5", "007", "0.0"];
+  it("accepts only whole-number text from a CSV cell", () => {
+    const accepted = ["0", "7", "92", " 100 ", "007"];
     for (const text of accepted) {
       assert.equal(rowError(row("v1", 1, "A", text, text)).absError, 0, JSON.stringify(text));
     }
@@ -231,7 +274,7 @@ describe("blank cell regression: whitespace-only is not zero", () => {
     for (const text of rejected) {
       assert.throws(
         () => rowError(row("v1", 1, "A", text, 5)),
-        /physical_count must be a non-negative number/,
+        /physical_count must be a whole number of 0 or more/,
         JSON.stringify(text),
       );
     }
@@ -250,6 +293,109 @@ describe("blank cell regression: whitespace-only is not zero", () => {
   it("still rejects non-numeric strings and negatives", () => {
     assert.throws(() => rowError(row("v1", 1, "A", "abc", 5)), RangeError);
     assert.throws(() => rowError(row("v1", 1, "A", "-1", 5)), RangeError);
+  });
+});
+
+// OQ-38 (Afzal): physical_count and system_count are whole vehicle counts of 0 or more.
+describe("OQ-38 vehicle counts must be whole numbers", () => {
+  const fractions = ["5.5", "0.5", "1.5", "5.0", "0.0", "10.25", 5.5, 0.5, 1e-9, 99.999];
+  const negatives = ["-1", "-0", "-5", -1, -0.5, -100];
+  const blanks = ["", " ", "   ", "\t", "\n", null, undefined];
+  const nonNumeric = [
+    "abc",
+    "five",
+    "12abc",
+    "1,000",
+    "NaN",
+    "Infinity",
+    "0x10",
+    "1e3",
+    "+5",
+    NaN,
+    Infinity,
+  ];
+
+  it("rejects fractions such as '5.5' in physical_count and system_count", () => {
+    for (const value of fractions) {
+      assert.throws(
+        () => rowError(row("v1", 1, "A", value, 5)),
+        /physical_count must be a whole number of 0 or more/,
+        `physical ${JSON.stringify(value)}`,
+      );
+      assert.throws(
+        () => rowError(row("v1", 1, "A", 5, value)),
+        /system_count must be a whole number of 0 or more/,
+        `system ${JSON.stringify(value)}`,
+      );
+    }
+  });
+  it("rejects negative values", () => {
+    for (const value of negatives) {
+      assert.throws(
+        () => rowError(row("v1", 1, "A", value, 5)),
+        /physical_count must be a whole number/,
+      );
+      assert.throws(
+        () => rowError(row("v1", 1, "A", 5, value)),
+        /system_count must be a whole number/,
+      );
+    }
+  });
+  it("rejects blank input", () => {
+    for (const value of blanks) {
+      assert.throws(
+        () => rowError(row("v1", 1, "A", value, 5)),
+        /physical_count must be a whole number/,
+      );
+      assert.throws(
+        () => rowError(row("v1", 1, "A", 5, value)),
+        /system_count must be a whole number/,
+      );
+    }
+  });
+  it("rejects non-numeric input", () => {
+    for (const value of nonNumeric) {
+      assert.throws(
+        () => rowError(row("v1", 1, "A", value, 5)),
+        /physical_count must be a whole number/,
+      );
+      assert.throws(
+        () => rowError(row("v1", 1, "A", 5, value)),
+        /system_count must be a whole number/,
+      );
+    }
+  });
+  it("names the field and shows the bad value so the sheet row can be fixed", () => {
+    assert.throws(
+      () => rowError(row("v1", 1, "A", "5.5", 5)),
+      /physical_count must be a whole number of 0 or more, got 5\.5/,
+    );
+  });
+  it("rejects a fraction in every function that reads counts", () => {
+    const rows = [row("v1", 1, "A", "5.5", 5)];
+    assert.throws(() => zoneAccuracy(rows), RangeError);
+    assert.throws(() => facilityAccuracy(rows), RangeError);
+    assert.throws(() => weeklyOccupancySummary(rows), RangeError);
+    assert.throws(() => adherence({ independentEntries: "5.5", systemEntries: 5 }), RangeError);
+    assert.throws(() => adherence({ independentEntries: 5, systemEntries: "5.5" }), RangeError);
+  });
+  it("still accepts whole numbers as numbers and as text, including zero", () => {
+    for (const value of [0, 1, 5, 100, 123456, "0", "5", "007", " 92 ", Number.MAX_SAFE_INTEGER]) {
+      assert.doesNotThrow(() => rowError(row("v1", 1, "A", value, value)), String(value));
+    }
+    assert.deepEqual(rowError(row("v1", 1, "A", "100", "95")), {
+      absError: 5,
+      pctError: 0.05,
+      accuracy: 0.95,
+    });
+    assert.deepEqual(adherence({ independentEntries: "100", systemEntries: "92" }), {
+      adherencePct: 92,
+      overcount: 0,
+    });
+  });
+  it("rejects unsafe integers that would lose precision", () => {
+    assert.throws(() => rowError(row("v1", 1, "A", 2 ** 53, 5)), RangeError);
+    assert.throws(() => rowError(row("v1", 1, "A", "9007199254740993", 5)), RangeError);
   });
 });
 
