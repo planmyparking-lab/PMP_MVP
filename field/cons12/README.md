@@ -44,7 +44,9 @@ rupees per month    = staff-hours per day x wage per hour x operating days
 ```
 
 Money is held in integer paise. The median of an even number of facility amounts rounds a half paisa up
-(`medianPaise`; the rounding direction awaits Afzal's confirmation, OQ-36). All six inputs to
+(`medianPaise`, as decided in OQ-36). That rounded figure is only what is reported: the pass or kill
+decision compares the exact median (doubled, in whole numbers) with the threshold, so rounding never changes
+the verdict. All six inputs to
 `staffHoursPerDay` are required numbers; numeric strings are not accepted (the calculator takes values you
 have already worked out, unlike `ops/metrics`, which reads raw CSV cells). Worked example (T-CON-12-U1): 40 s, 600 vehicles, 2 shifts of 1,800 s and
 3 disputes of 300 s gives 6.67 + 1.00 + 0.25 = about 7.9 hours per day.
@@ -57,7 +59,7 @@ have already worked out, unlike `ops/metrics`, which reads raw CSV cells). Worke
   overstay recovery and renewal reporting (Phase 2 plan section 20).
 - **Neither:** everything between, or hours pass but the rupee test fails. `roi.mjs` reports `"neither"`.
 
-## Open points (see `docs/team/open-questions-and-assumptions.md`, OQ-36)
+## Open points (not yet recorded under an OQ number; OQ-36 now covers only the half-paisa rounding)
 
 The sheet does not say whether "mean entry/exit seconds" per vehicle is one combined mean or the entry mean
 plus the exit mean, nor which rupee figure the 3x test uses. `roi.mjs` takes the per-vehicle seconds as an
