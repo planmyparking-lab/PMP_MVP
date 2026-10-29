@@ -28,7 +28,7 @@ import { addLogLine } from "../src/lib/log";
  * THE WRITE PATH REMAINS DELIBERATELY BLOCKED: the merged IC-01 envelope carries
  * `source = PAPER_BACKFILL`, but there is still no `recorded_at` (paper-time provenance) field —
  * a persisted backfill event today would be INDISTINGUISHABLE from a live event with respect to
- * when it was actually written, and fabricating provenance is prohibited (OQ-46). This screen
+ * when it was actually written, and fabricating provenance is prohibited (OQ-42). This screen
  * validates drafts to full completeness and displays the blocked panel; NOTHING is written by
  * this flow. When the `recorded_at` decision lands, the write wrapper goes here and nowhere else.
  */

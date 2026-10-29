@@ -21,7 +21,7 @@ import { formatEventIssues } from "./eventIssues";
  *
  * The fake deliberately does NOT write SQLite, call the network, or emulate Afzal's conflict
  * detectors — production code consumes the `SyncClient` port, never this fake (integration with
- * the real package is Afzal's wave; see writeEvent.ts and OQ-45).
+ * the real package is Afzal's wave; see writeEvent.ts and OQ-37).
  */
 
 export type FakeSyncOptions = {

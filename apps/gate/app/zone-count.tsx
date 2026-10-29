@@ -22,7 +22,7 @@ import { BigButton, Field, KVRow, Muted, Note, P, Screen, ToggleRow } from "../s
  *
  * Honesty notes:
  * - safety limit mode is ABSOLUTE_PLUS_50 (capacity + 50) so the D.8-U2 case (50 cap, 76 counted
- *   → warn + accept) holds; OQ-47 documents the conflict with the proportional reading;
+ *   → warn + accept) holds; OQ-39 documents the conflict with the proportional reading;
  * - the ZONE_COUNT payload needs the system value AT COUNT TIME; without an occupancy snapshot
  *   the write is refused (never a fabricated "system" baseline), and above-capacity counts
  *   require the explicit confirm before the save;

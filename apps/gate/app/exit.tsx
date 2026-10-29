@@ -45,7 +45,7 @@ import { elapsedFlowMs, resetFlowTimer, startFlowTimer } from "../src/domain/flo
  *
  * Contract-honest states here (never papered over):
  * - all four payment modes are IC-01-payable (SYNC-01); a PASS exit needs the session's plate and
- *   a VALID pass row (dues settlement at the gate itself is an open partner decision, OQ-44) —
+ *   a VALID pass row (dues settlement at the gate itself is an open partner decision, OQ-41) —
  *   without them the screen shows the pass lookup screen and the explanation note;
  * - the tariff id rides the EXIT payload only when it is an IC-01 uuid (dev fixture ids like
  *   "CAR-A" are not; `tariff_version` is not emitted until the contract grows a version field);
@@ -244,7 +244,7 @@ export default function ExitScreen() {
     const entryEvent = events.find((e) => e.type === "ENTRY" && e.session_id === session.sessionId);
     if (entryEvent === undefined) {
       // the OVERRIDE schema requires target_event_id; without the local ENTRY event id this
-      // write is impossible (never silently skipped — surfaced, OQ-45 read-API note)
+      // write is impossible (never silently skipped — surfaced, OQ-37 read-API note)
       setSaveError(t("errors.writeRejected", { detail: "no local ENTRY event id" }));
       return;
     }

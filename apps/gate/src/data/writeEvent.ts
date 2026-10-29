@@ -42,7 +42,7 @@ export type WriteDeps = {
   /** The IC-02 client (FakeSync in tests; Afzal's package in the app shell). */
   client: SyncClient;
   /** Committed local events, for the exit/payment duplicate guards. IC-02 exposes no read API
-   * today (SYNC-03 gives open_sessions only); an events read is needed from Afzal (OQ-45 list). */
+   * today (SYNC-03 gives open_sessions only); an events read is needed from Afzal (OQ-37 list). */
   readEvents(): readonly Event[];
   /** Facility claim of the log-in (envelope facility_id; ingest rejects a different value). */
   facilityId: string;

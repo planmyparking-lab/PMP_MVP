@@ -23,7 +23,7 @@ import type { OpenSessionRecord } from "./findOpenSession";
  * NOTE (remaining contracts gap): the merged IC-01 envelope now carries `source = PAPER_BACKFILL`,
  * but there is still no `recorded_at` (paper-time provenance) field, so persisting is withheld:
  * drafts validated here would otherwise look identical to live-written events. The screen keeps
- * the explicit blocked panel until the `recorded_at` decision lands (GATE-11, OQ-46).
+ * the explicit blocked panel until the `recorded_at` decision lands (GATE-11, OQ-42).
  */
 
 const DUPLICATE_WINDOW_MINUTES = 10;

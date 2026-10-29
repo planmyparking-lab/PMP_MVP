@@ -468,10 +468,10 @@ describe("zoneCount (GATE-08 seq 4.3)", () => {
     expect(validateZoneCount(5, -2)).toEqual({ ok: false, issue: "INVALID_CAPACITY" });
   });
 
-  it("documents the C-rule vs D-table limit conflict explicitly (OQ-47)", () => {
+  it("documents the C-rule vs D-table limit conflict explicitly (OQ-39)", () => {
     // D.8-U2 literal rows for capacity 50: "0 and 50 accepted; 76 warn+confirm; -1, 2.5 rejected".
     // The C-section's "capacity + 50%" (=75) would reject 76 — impossible under that reading —
-    // so the ABSOLUTE_PLUS_50 mode exists to satisfy the table until OQ-47 is decided.
+    // so the ABSOLUTE_PLUS_50 mode exists to satisfy the table until OQ-39 is decided.
     expect(validateZoneCount(76, 50, { safetyLimitMode: "ABSOLUTE_PLUS_50" })).toEqual({
       ok: true,
       warning: "ABOVE_CAPACITY",

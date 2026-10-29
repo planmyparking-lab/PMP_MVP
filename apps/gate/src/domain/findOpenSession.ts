@@ -8,7 +8,7 @@
  * searchable attributes are representable in stored events; the entry instant is the envelope's
  * `device_time`. This module is nevertheless parametric: it takes `OpenSessionRecord` view inputs
  * that the caller builds from IC-02's read surface (FakeSync's local view today, the synced
- * `open_sessions` snapshot / an events read from Afzal once OQ-45 is resolved). No rule here
+ * `open_sessions` snapshot / an events read from Afzal once OQ-37 is resolved). No rule here
  * touches the IC-01 schema, so it needs no contract change.
  *
  * Inputs are pre-normalized: the screen normalizes typed short codes with
