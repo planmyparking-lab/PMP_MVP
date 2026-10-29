@@ -5,6 +5,7 @@ import { tryFare } from "../src/lib/fareTryIt";
 import {
   analyse,
   buildTariffs,
+  draftTariffId,
   draftToJson,
   emptyDraft,
   exampleDraft,
@@ -37,6 +38,16 @@ describe("setup wizard analysis", () => {
       night: { fromHHMM: "2200", toHHMM: "0600", surchargePaise: 5000 },
     });
     expect(bike.tariff).toMatchObject({ model: "FLAT", flatPaise: 2000 });
+  });
+
+  it("gives every draft tariff a distinct placeholder uuid, as the contract requires", () => {
+    const ids = buildTariffs(exampleDraft(TODAY)).map((t) => t.tariff?.id);
+    expect(ids).toEqual([draftTariffId(0), draftTariffId(1)]);
+    for (const id of ids)
+      expect(id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+    expect(new Set(ids).size).toBe(2);
   });
 
   it("lets the shared schema reject bands that do not get longer", () => {
