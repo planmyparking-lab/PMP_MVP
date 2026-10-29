@@ -6,3 +6,7 @@ values like `env(OPENAI_API_KEY)` are read from your environment). It has not be
 Not created yet: `migrations/` (add with `npx supabase@2.122.0 migration new <name>`) and `functions/`.
 Local stack needs Docker and is not run in CI yet. Rules: migrations are forward-only, one concern per file,
 never edit a merged migration, add RLS and a test with every table. Schema sketch: PRD appendix; features CLD-02, CLD-03.
+
+SQL tests: `pnpm test:db` (needs the local stack running) runs `supabase/tests/*.test.sql` in the local database container,
+applies migrations missing from local history inside a rolled-back transaction, and fails on any SQL error, failed assertion
+or leaked state. `--strict` also fails on assertions marked TODO. `supabase test db` runs the same files but without that step.
