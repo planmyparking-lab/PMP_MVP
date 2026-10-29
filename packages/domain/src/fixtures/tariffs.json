@@ -1,0 +1,104 @@
+[
+  {
+    "id": "CAR-A",
+    "facilityId": "fac-demo-1",
+    "vehicleClass": "Car",
+    "effectiveFrom": "2026-11-01",
+    "effectiveTo": "2026-11-30",
+    "graceMinutes": 15,
+    "model": "HOURLY_SLABS",
+    "slabs": [
+      { "upToMinutes": 60, "pricePaise": 3000 },
+      { "upToMinutes": 180, "pricePaise": 6000 }
+    ],
+    "repeat": { "everyMinutes": 60, "pricePaise": 2000 },
+    "dayCapPaise": 30000
+  },
+  {
+    "id": "CAR-B",
+    "facilityId": "fac-demo-1",
+    "vehicleClass": "Car",
+    "effectiveFrom": "2026-12-01",
+    "graceMinutes": 15,
+    "model": "HOURLY_SLABS",
+    "slabs": [
+      { "upToMinutes": 60, "pricePaise": 4000 },
+      { "upToMinutes": 180, "pricePaise": 7000 }
+    ],
+    "repeat": { "everyMinutes": 60, "pricePaise": 2500 },
+    "dayCapPaise": 35000
+  },
+  {
+    "id": "BIKE-A",
+    "facilityId": "fac-demo-1",
+    "vehicleClass": "Bike",
+    "effectiveFrom": "2026-11-01",
+    "graceMinutes": 15,
+    "model": "HOURLY_SLABS",
+    "slabs": [{ "upToMinutes": 120, "pricePaise": 1000 }],
+    "repeat": { "everyMinutes": 60, "pricePaise": 500 },
+    "dayCapPaise": 10000
+  },
+  {
+    "id": "TRUCK-A",
+    "facilityId": "fac-demo-1",
+    "vehicleClass": "Truck",
+    "effectiveFrom": "2026-11-01",
+    "graceMinutes": 10,
+    "model": "PER_ENTRY",
+    "flatPaise": 20000
+  },
+  {
+    "id": "FLAT-A",
+    "facilityId": "fac-demo-1",
+    "vehicleClass": "Car",
+    "effectiveFrom": "2026-11-01",
+    "graceMinutes": 0,
+    "model": "FLAT",
+    "flatPaise": 2000
+  },
+  {
+    "id": "NIGHT-A",
+    "facilityId": "fac-demo-1",
+    "vehicleClass": "Car",
+    "effectiveFrom": "2026-11-01",
+    "effectiveTo": "2026-11-30",
+    "graceMinutes": 15,
+    "model": "HOURLY_SLABS",
+    "slabs": [
+      { "upToMinutes": 60, "pricePaise": 3000 },
+      { "upToMinutes": 180, "pricePaise": 6000 }
+    ],
+    "repeat": { "everyMinutes": 60, "pricePaise": 2000 },
+    "dayCapPaise": 30000,
+    "night": { "fromHHMM": "2200", "toHHMM": "0600", "surchargePaise": 1000 }
+  },
+  {
+    "id": "CAR-A-WIDE",
+    "facilityId": "fac-demo-1",
+    "vehicleClass": "Car",
+    "effectiveFrom": "2026-11-01",
+    "graceMinutes": 15,
+    "model": "HOURLY_SLABS",
+    "slabs": [
+      { "upToMinutes": 60, "pricePaise": 3000 },
+      { "upToMinutes": 180, "pricePaise": 6000 }
+    ],
+    "repeat": { "everyMinutes": 60, "pricePaise": 2000 },
+    "dayCapPaise": 30000
+  },
+  {
+    "id": "MIN-A",
+    "facilityId": "fac-demo-1",
+    "vehicleClass": "Car",
+    "effectiveFrom": "2026-11-01",
+    "graceMinutes": 10,
+    "model": "HOURLY_SLABS",
+    "slabs": [
+      { "upToMinutes": 60, "pricePaise": 1500 },
+      { "upToMinutes": 180, "pricePaise": 3000 }
+    ],
+    "repeat": { "everyMinutes": 60, "pricePaise": 1000 },
+    "minimumPaise": 2000
+  }
+]
