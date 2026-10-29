@@ -26,8 +26,9 @@ proposal is in the pull request discussion, not applied here.
 
 ## Not built, and why
 
-- `weekly.sql` and `adherence.sql`: they query `events`, `device_heartbeats`, `sync_conflicts` and `job_runs`,
-  whose columns do not exist yet (CLD-02, owner Akanksha). Writing them now would invent a schema.
+- `weekly.sql`: it needs `device_heartbeats`, `sync_conflicts` and `job_runs`, which do not exist yet (CLD-04,
+  SYNC-05, CLD-06). Writing it now would invent a schema. `adherence.sql` is written (it only needs `events`,
+  which exists) but has not been run against a database.
 - A CSV-reading command line tool: add it after the open points in OQ-35 are decided, so the bar
   evaluation is not hard-wired to a guess.
 - The kill criterion for MET-01 (below 90% zone accuracy after four weeks across three facilities) is not
