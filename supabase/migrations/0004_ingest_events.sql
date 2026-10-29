@@ -32,6 +32,7 @@ declare
     ev_time timestamptz;
     ev_source text;
     ev_version integer;
+    schema_number numeric;
     ev_payload jsonb;
     inserted_id uuid;
     existing public.events%rowtype;
@@ -76,6 +77,13 @@ begin
                or jsonb_typeof(item -> 'schema_version') is distinct from 'number' then
                 raise exception 'malformed envelope field' using errcode = '22023';
             end if;
+            -- schema_version must be a whole number that fits the integer column. 1.0 is accepted because it is the
+            -- same number as 1 (the contract's z.number().int() accepts it too; JSON.stringify never emits it).
+            -- 1.4 is rejected here, before any cast, instead of relying on the cast's error.
+            schema_number := (item -> 'schema_version')::numeric;
+            if schema_number <> trunc(schema_number) or schema_number not between -2147483648 and 2147483647 then
+                raise exception 'schema_version must be an integer' using errcode = '22023';
+            end if;
             ev_id := (item ->> 'id')::uuid;
             ev_type := item ->> 'type';
             ev_facility := (item ->> 'facility_id')::uuid;
@@ -84,7 +92,7 @@ begin
             ev_session := (item ->> 'session_id')::uuid;
             ev_time := (item ->> 'device_time')::timestamptz;
             ev_source := item ->> 'source';
-            ev_version := (item ->> 'schema_version')::integer;
+            ev_version := schema_number::integer;
             ev_payload := item -> 'payload';
 
             if ev_id is null or ev_type is null or ev_facility is null or ev_device is null or ev_staff is null

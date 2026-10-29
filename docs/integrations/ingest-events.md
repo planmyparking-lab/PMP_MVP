@@ -31,11 +31,22 @@ Each event is handled in its own subtransaction: a rejected event never rolls ba
 `SCHEMA_VERSION_TOO_OLD`, `SCHEMA_VERSION_TOO_NEW`, `ID_COLLISION` (same id, different content). A rejected event is a permanent failure:
 the outbox must not retry it unchanged.
 
-## What SQL validates
+## What SQL validates, and who guarantees the rest
 
-Envelope only: UUIDv7 `id`, `device_time` as UTC ISO with `Z`, numeric `schema_version`, type and `source` vocabularies, the session rule, and that
-required payload keys exist. Full payload validation stays in the zod schemas (source of truth). The SQL/zod parity test (T-IC01-C1) is still open.
+SQL checks the **envelope**: UUIDv7 `id`, `device_time` as UTC ISO with `Z`, `schema_version` as a JSON number holding a whole number
+(`1` and `1.0` are accepted as the same number, matching zod's `z.number().int()`; `1.4` and values outside the integer range are
+`REJECTED: INVALID_ENVELOPE`), the type and `source` vocabularies, the session rule, and that the **required payload keys exist and are not null**.
+
+SQL does **not** check payload value types (for example that `fare_paise` is a non-negative integer). Full payload validation is
+guaranteed by a trusted client layer, not by the database boundary: the gate app validates with `parseEvent` from `packages/contracts` before
+storing an event, and the outbox (`packages/sync-rules`) validates again before every upload. The zod schemas are the single source of truth
+(owner decision, 26 Oct 2026). A client that bypasses zod could still store a wrongly typed payload; the claim checks above (device, facility,
+active staff) bound who can do that, and projections (`open_sessions`) reject values they cannot cast.
+
+The gap between the two layers is closed by the SQL/zod parity test (T-IC01-C1), still open: it runs the shared fixtures in
+`packages/contracts/fixtures/events` through `ingest_events` and fails when SQL accepts an event that zod rejects, or the reverse for the
+envelope fields. Until it exists, treat SQL as a safety net for the envelope, not as a payload validator.
 
 ## Tests
 
-`supabase/tests/ingest_events.test.sql` (33 assertions). Open: `open_sessions` and conflict detection (0005, 0006) will hook in after the insert.
+`supabase/tests/ingest_events.test.sql` (36 assertions). Open: `open_sessions` and conflict detection (0005, 0006) will hook in after the insert.

@@ -3,7 +3,7 @@
 -- directly. Fixtures are inserted as the superuser; the function is called as `authenticated` with a JWT subject.
 -- Results are collected into a helper table so the assertions themselves run as the superuser.
 begin;
-select plan(33);
+select plan(36);
 
 insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000a1'), ('00000000-0000-0000-0000-0000000000a2');
@@ -56,6 +56,9 @@ select pg_temp.call('entry_no_session', array['{"id":"018f0000-0000-7000-8000-00
 select pg_temp.call('version_new', array['{"id":"018f0000-0000-7000-8000-00000000000b","schema_version":2}'::jsonb]);
 select pg_temp.call('version_old', array['{"id":"018f0000-0000-7000-8000-00000000000c","schema_version":0}'::jsonb]);
 select pg_temp.call('version_string', array['{"id":"018f0000-0000-7000-8000-00000000000d","schema_version":"1"}'::jsonb]);
+select pg_temp.call('version_fraction', array['{"id":"018f0000-0000-7000-8000-000000000012","schema_version":1.4}'::jsonb]);
+select pg_temp.call('version_whole_decimal', array['{"id":"018f0000-0000-7000-8000-000000000013","schema_version":1.0}'::jsonb]);
+select pg_temp.call('version_huge', array['{"id":"018f0000-0000-7000-8000-000000000014","schema_version":3000000000}'::jsonb]);
 select pg_temp.call('bad_source', array['{"id":"018f0000-0000-7000-8000-00000000000e","source":"HACK"}'::jsonb]);
 select pg_temp.call('not_v7', array['{"id":"018f0000-0000-4000-8000-00000000000f"}'::jsonb]);
 -- one batch mixing an accepted, a duplicate and a rejected event: the rejection must not roll back the rest
@@ -84,6 +87,9 @@ select is(pg_temp.status('entry_no_session'), 'REJECTED:INVALID_ENVELOPE', 'ENTR
 select is(pg_temp.status('version_new'), 'REJECTED:SCHEMA_VERSION_TOO_NEW', 'a newer schema_version is rejected');
 select is(pg_temp.status('version_old'), 'REJECTED:SCHEMA_VERSION_TOO_OLD', 'an older schema_version is rejected');
 select is(pg_temp.status('version_string'), 'REJECTED:INVALID_ENVELOPE', 'schema_version must be a JSON number');
+select is(pg_temp.status('version_fraction'), 'REJECTED:INVALID_ENVELOPE', 'a fractional schema_version (1.4) is rejected');
+select is(pg_temp.status('version_whole_decimal'), 'ACCEPTED', 'schema_version 1.0 is the whole number 1 and is accepted');
+select is(pg_temp.status('version_huge'), 'REJECTED:INVALID_ENVELOPE', 'a schema_version beyond the integer range is rejected');
 select is(pg_temp.status('bad_source'), 'REJECTED:INVALID_ENVELOPE', 'unknown source is rejected');
 select is(pg_temp.status('not_v7'), 'REJECTED:INVALID_ENVELOPE', 'a non-UUIDv7 id is rejected');
 select is(pg_temp.status('mixed', 0), 'ACCEPTED', 'mixed batch: new event accepted');
@@ -93,7 +99,7 @@ select is(
   (select result ->> 'accepted' || '/' || (result ->> 'duplicates') || '/' || (result ->> 'rejected')
    from public.test_results where label = 'mixed'),
   '1/1/1', 'batch counters add up');
-select is((select count(*)::int from public.events), 2, 'only the two valid events were stored');
+select is((select count(*)::int from public.events), 3, 'only the three valid events were stored (first, 1.0, mixed)');
 select is(
   (select (select result -> 'min_supported_version' from public.test_results where label = 'first')::int),
   1, 'response carries min_supported_version');
