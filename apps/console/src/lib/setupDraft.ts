@@ -153,14 +153,21 @@ export interface BuiltTariff {
   tariff?: Tariff;
 }
 
+/**
+ * Tariff.id is a required uuid (PR #6 review, merged in #13). A wizard draft is never stored, so it only needs a valid,
+ * distinct placeholder per tariff. The nil-style prefix makes it obvious that it is not a real row.
+ */
+export const draftTariffId = (index: number): string =>
+  `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
+
 /** Converts each tariff draft to the IC-04 shape and validates it with the shared schema. */
 export function buildTariffs(d: SetupDraft): BuiltTariff[] {
-  return d.tariffs.map((t) => {
+  return d.tariffs.map((t, index) => {
     const fe: TariffFieldErrors = { slabs: [], schema: [] };
     if (t.vehicleClass.trim() === "") fe.vehicleClass = "Choose a vehicle class.";
     const grace = whole(d.grace);
     const out: Record<string, unknown> = {
-      id: `${t.vehicleClass.trim() || "class"}-draft`,
+      id: draftTariffId(index),
       facilityId: "draft",
       vehicleClass: t.vehicleClass.trim(),
       effectiveFrom: d.effectiveFrom,

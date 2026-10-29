@@ -22,6 +22,13 @@ describe("setup wizard analysis", () => {
     expect(a.tariffs.every((t) => t.tariff !== undefined)).toBe(true);
   });
 
+  it("gives each draft tariff a valid, distinct uuid id (Tariff.id is a uuid)", () => {
+    const built = buildTariffs(exampleDraft(TODAY));
+    const ids = built.map((b) => b.tariff?.id);
+    expect(ids.every((id) => typeof id === "string")).toBe(true);
+    expect(new Set(ids).size).toBe(built.length);
+  });
+
   it("builds tariffs in the shared IC-04 shape", () => {
     const [car, bike] = buildTariffs(exampleDraft(TODAY));
     expect(car.tariff).toMatchObject({
