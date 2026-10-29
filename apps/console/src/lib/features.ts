@@ -33,11 +33,11 @@ export const FEATURES: FeatureStatus[] = [
     title: "Setup wizard",
     href: "/setup",
     state: "partial",
-    works: "Tariff, capacity, grace-minute and PIN rule checks exist and are tested.",
+    works:
+      "Tariffs are built in the real contract shape and checked with the shared schema. The try-a-fare panel runs the shared fare engine. Capacity, time-rule and PIN checks run live.",
     needs: [
       "facility_setup_drafts table to save drafts (Akanksha)",
-      "Fare engine for the try-it panel (Nikhil; on feature/gate-03-fare-engine, not on main)",
-      "Sign-in and security policies",
+      "Sign-in and security policies, then the save and activate flow",
     ],
   },
   {
