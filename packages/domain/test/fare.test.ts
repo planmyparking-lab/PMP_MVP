@@ -519,6 +519,22 @@ describe("boundary behaviour beyond the table", () => {
 });
 
 describe("explainFare() (T-GATE-03 step breakdown for the Console try-it panel)", () => {
+  it("blocks is empty for grace-applied results and PER_ENTRY tariffs (no block records)", () => {
+    const grace = explainFare(tariffs["CAR-A"], propertyEntry, propertyEntry, "Car");
+    expect(grace.graceApplied).toBe(true);
+    expect(grace.blocks).toEqual([]);
+
+    const perEntry = explainFare(
+      tariffs["TRUCK-A"],
+      "2026-11-10T08:00:00+05:30",
+      "2026-11-13T08:00:00+05:30",
+      "Truck",
+    );
+    expect(perEntry.farePaise).toBe(perEntry.steps[1]?.paiseAfter ?? 0); // priced once, not per day
+    expect(perEntry.blocks).toEqual([]);
+    expect(perEntry.steps.find((step) => step.label === "blocks")?.detail).toBe("per entry, once");
+  });
+
   it("a capped, multi-block stay exposes blocks, cap and the build-up (F4-2 shape)", () => {
     const r = explainFare(
       tariffs["CAR-A"],
@@ -551,6 +567,7 @@ describe("explainFare() (T-GATE-03 step breakdown for the Console try-it panel)"
     expect(r.steps.find((step) => step.label === "blocks")?.detail).toBe(
       "3 full block(s) at 30000 paise",
     );
+    expect(r.steps.find((step) => step.label === "blocks")?.paiseAfter).toBe(90000);
   });
 
   it("minimum raises the fare only when it is under the minimum (F12-2 shape)", () => {

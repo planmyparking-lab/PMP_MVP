@@ -77,8 +77,11 @@ export type FareComputation = {
   durationMinutes: number;
   graceApplied: boolean;
   /**
-   * One representative entry for repeated full 1440-minute blocks, followed by an optional remainder.
-   * The number of full blocks is included in the `blocks` step detail and derivable from durationMinutes.
+   * Empty when `graceApplied` is true (a grace stay prices 0, nothing is block-priced) and for
+   * PER_ENTRY tariffs (their whole stay is one "per entry, once" step; no block record exists).
+   * Otherwise one representative entry for the identical full 1440-minute blocks — their count is
+   * only in the `blocks` step `detail` (and derivable from `durationMinutes`), NOT the array length —
+   * followed by the fractional remainder block when one exists.
    */
   blocks: { index: number; minutes: number; rawPaise: Paise; cappedPaise: Paise }[];
   /** True when any minute of the stay falls inside the tariff's night window. */

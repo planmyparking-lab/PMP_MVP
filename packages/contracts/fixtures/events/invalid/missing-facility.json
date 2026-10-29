@@ -1,0 +1,18 @@
+{
+  "expect_path": "facility_id",
+  "event": {
+    "id": "0192f0a0-0000-7000-8000-000000000001",
+    "type": "ENTRY",
+    "device_id": "5f1d2c3e-0000-4000-8000-000000000002",
+    "staff_id": "5f1d2c3e-0000-4000-8000-000000000003",
+    "session_id": "0192f0a0-0000-7000-8000-000000000900",
+    "device_time": "2026-10-26T04:30:00Z",
+    "source": "LIVE",
+    "schema_version": 1,
+    "payload": {
+      "vehicle_class": "CAR",
+      "zone_id": "5f1d2c3e-0000-4000-8000-000000000010",
+      "short_code": "7K3QX"
+    }
+  }
+}

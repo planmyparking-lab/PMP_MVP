@@ -15,7 +15,10 @@
     "test": "pnpm -r --if-present run test",
     "check:repo": "node scripts/check-repo.mjs",
     "check:branch": "node scripts/check-branch-name.mjs",
-    "check": "pnpm check:repo && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "check:migrations": "node scripts/check-migrations.mjs",
+    "test:scripts": "node --test scripts/check-migrations.test.mjs scripts/test-db.test.mjs",
+    "test:db": "node scripts/test-db.mjs",
+    "check": "pnpm check:repo && pnpm check:migrations && pnpm test:scripts && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "build": "pnpm -r --if-present run build"
   },
   "devDependencies": {
@@ -30,7 +33,8 @@
     "auditConfig": {
       "ignoreGhsas": [
         "GHSA-86w9-cpqp-85rv",
-        "GHSA-mrhx-c7xc-m3w5"
+        "GHSA-mrhx-c7xc-m3w5",
+        "GHSA-gcqx-w48m-w2h4"
       ]
     }
   }

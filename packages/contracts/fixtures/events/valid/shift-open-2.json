@@ -1,0 +1,15 @@
+{
+  "id": "0192f0a0-0000-7000-8000-000000000012",
+  "type": "SHIFT_OPEN",
+  "facility_id": "5f1d2c3e-0000-4000-8000-000000000001",
+  "device_id": "5f1d2c3e-0000-4000-8000-000000000002",
+  "staff_id": "5f1d2c3e-0000-4000-8000-000000000003",
+  "session_id": null,
+  "device_time": "2026-10-26T04:30:00Z",
+  "source": "LIVE",
+  "schema_version": 1,
+  "payload": {
+    "shift_id": "0192f0a0-0000-7000-8000-000000000701",
+    "opening_float_paise": 0
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "expect_path": "payload.shift_id",
+  "event": {
+    "id": "0192f0a0-0000-7000-8000-000000000013",
+    "type": "SHIFT_CLOSE",
+    "facility_id": "5f1d2c3e-0000-4000-8000-000000000001",
+    "device_id": "5f1d2c3e-0000-4000-8000-000000000002",
+    "staff_id": "5f1d2c3e-0000-4000-8000-000000000003",
+    "session_id": null,
+    "device_time": "2026-10-26T04:30:00Z",
+    "source": "LIVE",
+    "schema_version": 1,
+    "payload": {
+      "counted_cash_paise": 120000,
+      "expected_cash_paise": 120000,
+      "upi_total_declared_paise": 80000,
+      "upi_attested_sum_paise": 80000,
+      "variance_cash_paise": 0,
+      "variance_upi_paise": 0
+    }
+  }
+}
