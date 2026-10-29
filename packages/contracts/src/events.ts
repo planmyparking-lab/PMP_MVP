@@ -42,6 +42,10 @@ const envelope = {
   device_id: uuid, // matches devices.id and the device claim
   staff_id: uuid, // active staff of the facility (checked by ingest)
   device_time: utcTime,
+  // OQ-42: when and only when source is PAPER_BACKFILL, the time the guard actually keyed the
+  // paper record in (device_time there carries the stay's claimed time, not the keying time).
+  // Absent for LIVE events, where device_time already is the recorded time.
+  recorded_at: utcTime.optional(),
   source: EventSource,
   schema_version: z.number().int().positive().max(MAX_SCHEMA_VERSION),
 };
