@@ -36,22 +36,12 @@ the outbox must not retry it unchanged.
 `ingest_events` is callable directly by any enrolled device, so it cannot rely on the gate app's zod validation. Every event is validated in SQL before
 it is stored, in two steps that mirror `packages/contracts/src/events.ts`:
 
-<<<<<<< HEAD
-SQL does **not** check payload value types (for example that `fare_paise` is a non-negative integer). Full payload validation is
-guaranteed by a trusted client layer, not by the database boundary: the gate app validates with `parseEvent` from `packages/contracts` before
-storing an event, and the outbox (`packages/sync-rules`) validates again before every upload. The zod schemas are the single source of truth
-(owner decision, 26 Oct 2026). A client that bypasses zod could still store a wrongly typed payload; the claim checks above (device, facility,
-active staff) bound who can do that, and projections (`open_sessions`) skip values they cannot cast without refusing the event.
-=======
-
 - `event_envelope_error(item)`: only the known envelope keys; UUIDv7 `id`; UUID `facility_id`, `device_id`, `staff_id`; `session_id` a UUID for
   `ENTRY`, `EXIT`, `PAYMENT`, `OVERRIDE` and `null` for the other types; `device_time` and the optional `recorded_at` as real UTC ISO times with `Z`;
   `source`; `schema_version` a whole number (`1.0` is the same number as `1`; `1.4` is rejected); `payload` an object.
 - `event_payload_error(type, payload)`: per type, exactly the keys zod allows (unknown keys rejected, optional keys may be absent but not `null`),
   integer amounts and counts within JavaScript's safe-integer range, the enums (`exit_method`, payment `mode`, `reason_code`), the short-code format, and
   the cross-field rules (`upi_attested` only with `UPI`; `note` required for reason `OTHER`).
-
-> > > > > > > feature/sync-02-ingest-events
 
 A rejected event returns `REJECTED` with reason `INVALID_ENVELOPE` or `INVALID_PAYLOAD` and a `detail` such as `payload.fare_paise` (field name only,
 never the value). Order of checks: envelope, schema version range, device and facility claims, active staff, then payload, so an unauthorized caller
@@ -67,8 +57,7 @@ sign convention of the shift-close variances is an open specification item, so n
 
 ## Tests
 
-<<<<<<< HEAD
-`supabase/tests/ingest_events.test.sql` (36 assertions). Open: `open_sessions` and conflict detection (0005, 0006) will hook in after the insert.
+`supabase/tests/ingest_events.test.sql` (47 assertions) and `supabase/tests/event_parity.test.sql` (37 assertions, generated).
 
 ## open_sessions (0005)
 
@@ -81,7 +70,3 @@ sign convention of the shift-close variances is an open specification item, so n
   `events`; no session is opened and a `WARNING` is logged. The event log is the source of truth and can be re-projected after a fix.
 - **Access (CLD-03 requirement):** a device or guard may read only the rows of its own `facility_id`; nobody writes the table directly. A TODO
   assertion in `supabase/tests/open_sessions.test.sql` fails the suite once policies exist until its wrapper is removed.
-  \=======
-  `supabase/tests/ingest_events.test.sql` (47 assertions) and `supabase/tests/event_parity.test.sql` (37 assertions, generated).
-
-> > > > > > > feature/sync-02-ingest-events
