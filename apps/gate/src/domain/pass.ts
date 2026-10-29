@@ -70,3 +70,13 @@ export function lookupPass(
   }
   return { state: "VALID", pass: best };
 }
+
+/** Pass list is considered stale 24h after the last sync, or if never synced (T-GATE-05-N3). */
+export const PASS_LIST_STALE_AFTER_MS = 24 * 60 * 60_000;
+
+export function isPassListStale(lastSyncAt: string | null, nowMs: number): boolean {
+  if (lastSyncAt === null) return true;
+  const syncedAtMs = Date.parse(lastSyncAt);
+  if (Number.isNaN(syncedAtMs)) return true;
+  return nowMs - syncedAtMs > PASS_LIST_STALE_AFTER_MS;
+}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 
-import { lookupPass, type PassLookupResult } from "../src/domain/pass";
+import { isPassListStale, lookupPass, type PassLookupResult } from "../src/domain/pass";
 import { formatPaise } from "../src/domain/paise";
 import { istClockTime } from "../src/domain/istClock";
 import { useHealth, useI18n } from "../src/ui/useSyncState";
@@ -20,8 +20,6 @@ import { afterPassLookupNavigation } from "../src/domain/navigation";
  * - stale-data warning shows when lastSyncAt is null (never synced) or older than 24 h;
  * - the pass-QR path stays disabled (payload format pending with Anamika — pass.ts documents).
  */
-
-const STALE_AFTER_MS = 24 * 60 * 60_000;
 
 const STATE_KEYS: Record<PassLookupResult["state"], string> = {
   VALID: "pass.stateValid",
@@ -51,7 +49,7 @@ export default function PassScreen() {
   }
 
   const lastSyncAt = health?.lastSyncAt ?? null;
-  const stale = lastSyncAt === null || Date.now() - Date.parse(lastSyncAt) > STALE_AFTER_MS;
+  const stale = isPassListStale(lastSyncAt, Date.now());
 
   function returnToExit() {
     const destination = afterPassLookupNavigation(router.canGoBack());

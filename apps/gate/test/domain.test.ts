@@ -14,7 +14,7 @@ import { suggestZone } from "../src/domain/suggestZone";
 import type { GateZone } from "../src/domain/suggestZone";
 import { parseQrPayload } from "../src/domain/payload";
 import { tariffFor } from "../src/domain/tariffFor";
-import { lookupPass } from "../src/domain/pass";
+import { isPassListStale, lookupPass } from "../src/domain/pass";
 import type { PassRow } from "../src/domain/pass";
 import { isWithinCorrectionWindow, validateOverrideInput } from "../src/domain/override";
 
@@ -333,6 +333,25 @@ describe("GATE-05 pass lookup (T-GATE-05-U1/U2)", () => {
 
   it("an unparseable 'now' throws (device_time contract violation)", () => {
     expect(() => lookupPass("UP32AB1111", passRows, "yesterday")).toThrow();
+  });
+});
+
+describe("GATE-05 pass list staleness (T-GATE-05-N3)", () => {
+  const SYNCED_AT = "2026-11-10T06:00:00Z";
+  const DAY_MS = 24 * 60 * 60_000;
+
+  it("never synced is stale", () => {
+    expect(isPassListStale(null, Date.parse(SYNCED_AT))).toBe(true);
+  });
+
+  it("exactly 24h since sync is not yet stale; one ms over is", () => {
+    const syncedMs = Date.parse(SYNCED_AT);
+    expect(isPassListStale(SYNCED_AT, syncedMs + DAY_MS)).toBe(false);
+    expect(isPassListStale(SYNCED_AT, syncedMs + DAY_MS + 1)).toBe(true);
+  });
+
+  it("a corrupt lastSyncAt timestamp fails closed (stale)", () => {
+    expect(isPassListStale("not-a-date", Date.parse(SYNCED_AT))).toBe(true);
   });
 });
 
