@@ -22,6 +22,7 @@ const OPERATIONS: NavItem[] = [
   { href: "/shifts", label: "Shifts", icon: "clock", dot: "off" },
   { href: "/conflicts", label: "Conflicts", icon: "swap", dot: "off" },
   { href: "/devices", label: "Devices", icon: "device", dot: "warn" },
+  { href: "/overstay", label: "Overstay", icon: "alert", dot: "warn" },
 ];
 const MANAGE: NavItem[] = [
   { href: "/setup", label: "Setup", icon: "settings", dot: "warn" },
