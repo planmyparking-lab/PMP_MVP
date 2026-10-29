@@ -441,7 +441,23 @@ describe("tariff schema rejections (T-GATE-03-N1 vs parseTariff)", () => {
     ...base,
     dayCapPaisee: 30000,
   });
+  rejects("a wholly unrelated unknown top-level key is rejected, not silently stripped", {
+    ...base,
+    partnerNotes: "internal only",
+  });
+  rejects("an unknown key nested inside a slab is rejected", {
+    ...base,
+    slabs: [{ upToMinutes: 60, pricePaise: 3000, note: "typo-prone free text" }],
+  });
+  rejects("an unknown key nested inside night is rejected", {
+    ...base,
+    night: { fromHHMM: "2200", toHHMM: "0600", surchargePaise: 1000, surcharge_paise: 1000 },
+  });
   rejects("id must be a uuid, not a bare config label", { ...base, id: "CAR-A" });
+
+  it("a tariff with every field intact (real uuid id, no stray keys) is accepted", () => {
+    expect(parseTariff(requireTariff("CAR-A")).ok).toBe(true);
+  });
 
   it("accepts a null-ended tail when repeat is present", () => {
     const hourlyBase = requireTariff("CAR-A") as Extract<Tariff, { model: "HOURLY_SLABS" }>;
