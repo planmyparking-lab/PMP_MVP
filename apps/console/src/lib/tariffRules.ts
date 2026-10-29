@@ -74,3 +74,43 @@ export function capacityWarning(
     ? null
     : `Zone capacities add up to ${sum}, but the facility has ${slotCount} slots.`;
 }
+
+/** Grace minutes: a whole number of 0 or more. */
+export function validateGraceMinutes(value: unknown): boolean {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+}
+
+const CIVIL_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * A NEW tariff version may not take effect in the past. Both arguments are `yyyy-mm-dd` civil dates (the
+ * caller passes today's IST date); the same day is allowed. Nothing else about the date is checked here.
+ */
+export function validateEffectiveFrom(effectiveFrom: string, todayIst: string): boolean {
+  return CIVIL_DATE.test(effectiveFrom) && CIVIL_DATE.test(todayIst) && effectiveFrom >= todayIst;
+}
+
+/** Vehicle classes a facility allows (from its zones) that have no tariff: each needs one before activation. */
+export function classesWithoutTariff(
+  zones: readonly { vehicleClass: string }[],
+  tariffs: readonly { vehicleClass: string }[],
+): string[] {
+  const priced = new Set(tariffs.map((t) => t.vehicleClass));
+  return [...new Set(zones.map((z) => z.vehicleClass))].filter((c) => !priced.has(c)).sort();
+}
+
+/** Tariffs whose vehicle class no zone allows any more: a warning when a class is removed from a zone. */
+export function tariffClassesWithoutZone(
+  zones: readonly { vehicleClass: string }[],
+  tariffs: readonly { vehicleClass: string }[],
+): string[] {
+  const allowed = new Set(zones.map((z) => z.vehicleClass));
+  return [...new Set(tariffs.map((t) => t.vehicleClass))].filter((c) => !allowed.has(c)).sort();
+}
+
+export type WizardStep = 1 | 2 | 3 | 4 | 5;
+
+/** "Activate" is enabled only when steps 1 to 5 are valid; returns the steps still to fix (empty = ready). */
+export function activationBlockers(valid: Readonly<Record<WizardStep, boolean>>): WizardStep[] {
+  return ([1, 2, 3, 4, 5] as const).filter((step) => valid[step] !== true);
+}

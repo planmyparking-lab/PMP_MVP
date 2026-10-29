@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 import { deviceHealthStatus } from "../src/lib/deviceHealth";
 import { can, canMutateEvents, switcherFacilities, type Role } from "../src/lib/permissions";
 import { validatePin } from "../src/lib/pinPolicy";
+import { canOpenFacility, resolveSessionContext } from "../src/lib/session";
 import {
+  activationBlockers,
+  classesWithoutTariff,
+  tariffClassesWithoutZone,
+  validateEffectiveFrom,
+  validateGraceMinutes,
   capacityWarning,
   dayCapBelowSlab,
   validateNightWindow,
@@ -99,5 +105,63 @@ describe("T-CON-10-U1 device health status", () => {
   });
   it("healthy device is green", () => {
     expect(deviceHealthStatus(base)).toBe("green");
+  });
+});
+
+describe("T-CON-01 remaining form rules", () => {
+  it("grace minutes are whole numbers of 0 or more", () => {
+    for (const ok of [0, 15]) expect(validateGraceMinutes(ok)).toBe(true);
+    for (const bad of [-1, 1.5, "5", NaN, null]) expect(validateGraceMinutes(bad)).toBe(false);
+  });
+  it("effective-from may not be in the past", () => {
+    expect(validateEffectiveFrom("2026-10-29", "2026-10-29")).toBe(true);
+    expect(validateEffectiveFrom("2026-10-30", "2026-10-29")).toBe(true);
+    expect(validateEffectiveFrom("2026-10-28", "2026-10-29")).toBe(false);
+    expect(validateEffectiveFrom("29-10-2026", "2026-10-29")).toBe(false);
+  });
+  it("every allowed class needs a tariff, and a tariff needs an allowing zone", () => {
+    const zones = [
+      { vehicleClass: "CAR" },
+      { vehicleClass: "TWO_WHEELER" },
+      { vehicleClass: "CAR" },
+    ];
+    expect(classesWithoutTariff(zones, [{ vehicleClass: "CAR" }])).toEqual(["TWO_WHEELER"]);
+    expect(classesWithoutTariff(zones, [])).toEqual(["CAR", "TWO_WHEELER"]);
+    expect(tariffClassesWithoutZone([{ vehicleClass: "CAR" }], [{ vehicleClass: "BUS" }])).toEqual([
+      "BUS",
+    ]);
+  });
+  it("activation needs steps 1 to 5 valid (T-CON-01-I2)", () => {
+    const all = { 1: true, 2: true, 3: true, 4: true, 5: true } as const;
+    expect(activationBlockers(all)).toEqual([]);
+    expect(activationBlockers({ ...all, 4: false })).toEqual([4]);
+  });
+});
+
+describe("T-CON-03 session context", () => {
+  const m = (role: "owner" | "manager" | "guard", facilityId: string | null, orgId = "o1") => ({
+    orgId,
+    facilityId,
+    role,
+  });
+  it("denies a user with no console membership, including guards", () => {
+    expect(resolveSessionContext([])).toEqual({ access: "denied", reason: "no_access" });
+    expect(resolveSessionContext([m("guard", "f1")]).access).toBe("denied");
+  });
+  it("owner is organisation-wide, manager only on their facility", () => {
+    const owner = resolveSessionContext([m("owner", null)]);
+    const manager = resolveSessionContext([m("manager", "f1")]);
+    expect(canOpenFacility(owner, { id: "f9", orgId: "o1" })).toBe(true);
+    expect(canOpenFacility(owner, { id: "f9", orgId: "o2" })).toBe(false);
+    expect(canOpenFacility(manager, { id: "f1", orgId: "o1" })).toBe(true);
+    expect(canOpenFacility(manager, { id: "f2", orgId: "o1" })).toBe(false);
+  });
+  it("a manager row with no facility does not open every facility", () => {
+    expect(
+      canOpenFacility(resolveSessionContext([m("manager", null)]), { id: "f1", orgId: "o1" }),
+    ).toBe(false);
+  });
+  it("a denied context opens nothing", () => {
+    expect(canOpenFacility(resolveSessionContext([]), { id: "f1", orgId: "o1" })).toBe(false);
   });
 });
