@@ -4,12 +4,12 @@ Owner: Anamika. Source of truth: `docs/team/member-03-anamika.md` (C14 to C16, D
 sheets, the weekly pack template and the calculation library. No audit has been performed and no pilot data
 exists here. Never record vehicle numbers on any sheet.
 
-| File                              | Feature | Purpose                                                        |
-| --------------------------------- | ------- | -------------------------------------------------------------- |
-| `audit-sheet.csv`                 | MET-01  | One row per zone per moment per visit                          |
-| `adherence-sheet.csv`             | MET-02  | One row per audited hour                                       |
-| `weekly-pack.md`                  | MET-03  | Monday pack with the 10 fixed sections                         |
-| `pilot-metrics.mjs`, `*.test.mjs` | all     | Formulas, random hour draw, pack completeness check, and tests |
+| File                              | Feature | Purpose                                                                |
+| --------------------------------- | ------- | ---------------------------------------------------------------------- |
+| `audit-sheet.csv`                 | MET-01  | One row per zone per moment per visit                                  |
+| `adherence-sheet.csv`             | MET-02  | One row per audited hour                                               |
+| `weekly-pack.md`                  | MET-03  | Monday pack with the 10 fixed sections                                 |
+| `pilot-metrics.mjs`, `*.test.mjs` | all     | Formulas, audit completeness, random hour draw, pack checks, and tests |
 
 ## Running the tests
 
@@ -26,9 +26,13 @@ proposal is in the pull request discussion, not applied here.
 
 ## Not built, and why
 
-- `weekly.sql` and `adherence.sql`: they query `events`, `device_heartbeats`, `sync_conflicts` and `job_runs`,
-  whose columns do not exist yet (CLD-02, owner Akanksha). Writing them now would invent a schema.
+- `weekly.sql`: it needs `device_heartbeats`, `sync_conflicts` and `job_runs`, which do not exist yet (CLD-04,
+  SYNC-05, CLD-06). Writing it now would invent a schema. `adherence.sql` is written (it only needs `events`,
+  which exists) but has not been run against a database.
 - A CSV-reading command line tool: add it after the open points in OQ-35 are decided, so the bar
   evaluation is not hard-wired to a guess.
 - The kill criterion for MET-01 (below 90% zone accuracy after four weeks across three facilities) is not
   coded; the wording does not say whether it applies to every zone or an average (OQ-35).
+- The T-MET-01-X1 counter-disagreement percentage is not coded because the specification does not define
+  its denominator. `counter_a`, `counter_b` and the 5% flag are clear, but choosing counter A, the larger
+  count or their mean would produce different results; that decision needs to be recorded first.

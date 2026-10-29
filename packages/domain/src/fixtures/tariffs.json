@@ -1,6 +1,6 @@
 [
   {
-    "id": "CAR-A",
+    "id": "0192f0a0-0000-7000-9000-00000000a001",
     "facilityId": "fac-demo-1",
     "vehicleClass": "Car",
     "effectiveFrom": "2026-11-01",
@@ -8,39 +8,65 @@
     "graceMinutes": 15,
     "model": "HOURLY_SLABS",
     "slabs": [
-      { "upToMinutes": 60, "pricePaise": 3000 },
-      { "upToMinutes": 180, "pricePaise": 6000 }
+      {
+        "upToMinutes": 60,
+        "pricePaise": 3000
+      },
+      {
+        "upToMinutes": 180,
+        "pricePaise": 6000
+      }
     ],
-    "repeat": { "everyMinutes": 60, "pricePaise": 2000 },
+    "repeat": {
+      "everyMinutes": 60,
+      "pricePaise": 2000
+    },
     "dayCapPaise": 30000
   },
   {
-    "id": "CAR-B",
+    "id": "0192f0a0-0000-7000-9000-00000000a002",
     "facilityId": "fac-demo-1",
     "vehicleClass": "Car",
     "effectiveFrom": "2026-12-01",
     "graceMinutes": 15,
     "model": "HOURLY_SLABS",
     "slabs": [
-      { "upToMinutes": 60, "pricePaise": 4000 },
-      { "upToMinutes": 180, "pricePaise": 7000 }
+      {
+        "upToMinutes": 60,
+        "pricePaise": 4000
+      },
+      {
+        "upToMinutes": 180,
+        "pricePaise": 7000
+      }
     ],
-    "repeat": { "everyMinutes": 60, "pricePaise": 2500 },
+    "repeat": {
+      "everyMinutes": 60,
+      "pricePaise": 2500
+    },
     "dayCapPaise": 35000
   },
   {
-    "id": "BIKE-A",
+    "id": "0192f0a0-0000-7000-9000-00000000a003",
     "facilityId": "fac-demo-1",
     "vehicleClass": "Bike",
     "effectiveFrom": "2026-11-01",
     "graceMinutes": 15,
     "model": "HOURLY_SLABS",
-    "slabs": [{ "upToMinutes": 120, "pricePaise": 1000 }],
-    "repeat": { "everyMinutes": 60, "pricePaise": 500 },
+    "slabs": [
+      {
+        "upToMinutes": 120,
+        "pricePaise": 1000
+      }
+    ],
+    "repeat": {
+      "everyMinutes": 60,
+      "pricePaise": 500
+    },
     "dayCapPaise": 10000
   },
   {
-    "id": "TRUCK-A",
+    "id": "0192f0a0-0000-7000-9000-00000000a004",
     "facilityId": "fac-demo-1",
     "vehicleClass": "Truck",
     "effectiveFrom": "2026-11-01",
@@ -49,7 +75,7 @@
     "flatPaise": 20000
   },
   {
-    "id": "FLAT-A",
+    "id": "0192f0a0-0000-7000-9000-00000000a005",
     "facilityId": "fac-demo-1",
     "vehicleClass": "Car",
     "effectiveFrom": "2026-11-01",
@@ -58,7 +84,7 @@
     "flatPaise": 2000
   },
   {
-    "id": "NIGHT-A",
+    "id": "0192f0a0-0000-7000-9000-00000000a006",
     "facilityId": "fac-demo-1",
     "vehicleClass": "Car",
     "effectiveFrom": "2026-11-01",
@@ -66,39 +92,70 @@
     "graceMinutes": 15,
     "model": "HOURLY_SLABS",
     "slabs": [
-      { "upToMinutes": 60, "pricePaise": 3000 },
-      { "upToMinutes": 180, "pricePaise": 6000 }
+      {
+        "upToMinutes": 60,
+        "pricePaise": 3000
+      },
+      {
+        "upToMinutes": 180,
+        "pricePaise": 6000
+      }
     ],
-    "repeat": { "everyMinutes": 60, "pricePaise": 2000 },
+    "repeat": {
+      "everyMinutes": 60,
+      "pricePaise": 2000
+    },
     "dayCapPaise": 30000,
-    "night": { "fromHHMM": "2200", "toHHMM": "0600", "surchargePaise": 1000 }
+    "night": {
+      "fromHHMM": "2200",
+      "toHHMM": "0600",
+      "surchargePaise": 1000
+    }
   },
   {
-    "id": "CAR-A-WIDE",
+    "id": "0192f0a0-0000-7000-9000-00000000a007",
     "facilityId": "fac-demo-1",
     "vehicleClass": "Car",
     "effectiveFrom": "2026-11-01",
     "graceMinutes": 15,
     "model": "HOURLY_SLABS",
     "slabs": [
-      { "upToMinutes": 60, "pricePaise": 3000 },
-      { "upToMinutes": 180, "pricePaise": 6000 }
+      {
+        "upToMinutes": 60,
+        "pricePaise": 3000
+      },
+      {
+        "upToMinutes": 180,
+        "pricePaise": 6000
+      }
     ],
-    "repeat": { "everyMinutes": 60, "pricePaise": 2000 },
+    "repeat": {
+      "everyMinutes": 60,
+      "pricePaise": 2000
+    },
     "dayCapPaise": 30000
   },
   {
-    "id": "MIN-A",
+    "id": "0192f0a0-0000-7000-9000-00000000a008",
     "facilityId": "fac-demo-1",
     "vehicleClass": "Car",
     "effectiveFrom": "2026-11-01",
     "graceMinutes": 10,
     "model": "HOURLY_SLABS",
     "slabs": [
-      { "upToMinutes": 60, "pricePaise": 1500 },
-      { "upToMinutes": 180, "pricePaise": 3000 }
+      {
+        "upToMinutes": 60,
+        "pricePaise": 1500
+      },
+      {
+        "upToMinutes": 180,
+        "pricePaise": 3000
+      }
     ],
-    "repeat": { "everyMinutes": 60, "pricePaise": 1000 },
+    "repeat": {
+      "everyMinutes": 60,
+      "pricePaise": 1000
+    },
     "minimumPaise": 2000
   }
 ]

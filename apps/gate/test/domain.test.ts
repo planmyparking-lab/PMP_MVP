@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { REASON_CODES, parseTariff } from "@pmp/contracts";
 import type { Tariff } from "@pmp/contracts";
 import { FareError } from "@pmp/domain";
+import { TARIFF_IDS } from "@pmp/domain/src/fixtures/tariffIds";
 import {
   SHORT_CODE_PATTERN,
   defaultUuidV7,
@@ -209,7 +210,7 @@ function mustTariff(input: unknown): Tariff {
 }
 
 const carA = mustTariff({
-  id: "CAR-A",
+  id: TARIFF_IDS["CAR-A"],
   facilityId: FACILITY_ID,
   vehicleClass: "Car",
   effectiveFrom: "2026-11-01",
@@ -224,7 +225,7 @@ const carA = mustTariff({
   dayCapPaise: 30000,
 });
 const carB = mustTariff({
-  id: "CAR-B",
+  id: TARIFF_IDS["CAR-B"],
   facilityId: FACILITY_ID,
   vehicleClass: "Car",
   effectiveFrom: "2026-12-01",
@@ -243,9 +244,9 @@ describe("GATE-02 effective tariff selection (T-GATE-02-U4, OQ-20 default)", () 
 
   it("selects by the session's entry IST date (tariff at entry, the OQ-20 default)", () => {
     // A stay entered 2026-11-30 that exits on 2026-12-01 still uses CAR-A (F9-1).
-    expect(tariffFor(tariffs, "Car", "2026-11-30T23:00:00+05:30")?.id).toBe("CAR-A");
-    expect(tariffFor(tariffs, "Car", "2026-12-01T00:00:00+05:30")?.id).toBe("CAR-B");
-    expect(tariffFor(tariffs, "Car", "2026-11-10T10:00:00+05:30")?.id).toBe("CAR-A");
+    expect(tariffFor(tariffs, "Car", "2026-11-30T23:00:00+05:30")?.id).toBe(TARIFF_IDS["CAR-A"]);
+    expect(tariffFor(tariffs, "Car", "2026-12-01T00:00:00+05:30")?.id).toBe(TARIFF_IDS["CAR-B"]);
+    expect(tariffFor(tariffs, "Car", "2026-11-10T10:00:00+05:30")?.id).toBe(TARIFF_IDS["CAR-A"]);
   });
 
   it("no effective tariff -> null (screen: 'No tariff for this class')", () => {
@@ -255,9 +256,10 @@ describe("GATE-02 effective tariff selection (T-GATE-02-U4, OQ-20 default)", () 
   });
 
   it("the first list entry wins when two windows overlap (documented interim)", () => {
-    const openEnded = mustTariff({ ...carA, id: "CAR-WIDE", effectiveTo: undefined });
+    const CAR_WIDE_ID = "0192f0a0-0000-7000-9000-00000000a009";
+    const openEnded = mustTariff({ ...carA, id: CAR_WIDE_ID, effectiveTo: undefined });
     const mixed = [openEnded, ...tariffs];
-    expect(tariffFor(mixed, "Car", "2026-11-10T10:00:00+05:30")?.id).toBe("CAR-WIDE");
+    expect(tariffFor(mixed, "Car", "2026-11-10T10:00:00+05:30")?.id).toBe(CAR_WIDE_ID);
   });
 
   it("an unparseable instant throws the shared INVALID_RANGE FareError", () => {

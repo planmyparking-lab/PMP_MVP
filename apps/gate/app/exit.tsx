@@ -47,8 +47,10 @@ import { elapsedFlowMs, resetFlowTimer, startFlowTimer } from "../src/domain/flo
  * - all four payment modes are IC-01-payable (SYNC-01); a PASS exit needs the session's plate and
  *   a VALID pass row (dues settlement at the gate itself is an open partner decision, OQ-41) —
  *   without them the screen shows the pass lookup screen and the explanation note;
- * - the tariff id rides the EXIT payload only when it is an IC-01 uuid (dev fixture ids like
- *   "CAR-A" are not; `tariff_version` is not emitted until the contract grows a version field);
+ * - the tariff id rides the EXIT payload only when it is an IC-01 uuid; Tariff.id is a uuid for
+ *   every fixture too since PR #6's review (traceable to the tariffs row and EXIT.tariff_id), so
+ *   this is now a defensive guard rather than a dev/fixture-only gap. `tariff_version` is not
+ *   emitted until the contract grows a version field;
  * - a waiver is a WAIVED-exit: EXIT + PAYMENT(mode WAIVED, 0) + reason OVERRIDE in one
  *   transaction per the sheet mapping;
  * - NO_TARIFF offers waiver/call-manager (T-GATE-02-N4), never an invisible zero fare.
@@ -58,8 +60,9 @@ type Mode = "scan" | "code" | "lost";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** The EXIT payload's tariff_id must be an IC-01 uuid; dev fixture ids ("CAR-A") are omitted
- * rather than producing an invalid event (they are remappable on real synced config). */
+/** The EXIT payload's tariff_id must be an IC-01 uuid. A defensive guard, not a normal path:
+ * Tariff.id is schema-enforced as a uuid, so this only omits the field if that invariant is
+ * ever violated, rather than producing an invalid event. */
 function tariffAuditId(tariffId: string): string | undefined {
   return UUID_PATTERN.test(tariffId) ? tariffId : undefined;
 }

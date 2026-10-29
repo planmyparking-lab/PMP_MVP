@@ -182,6 +182,26 @@ describe("T-CON-12-U1 computation", () => {
       RangeError,
     );
   });
+  it("rejects unsafe inputs or a monthly result outside the safe integer range", () => {
+    assert.throws(
+      () =>
+        paisePerMonth({
+          hoursPerDay: 1,
+          wagePerHourPaise: Number.MAX_SAFE_INTEGER + 1,
+          operatingDays: 1,
+        }),
+      /wagePerHourPaise.*safe range/,
+    );
+    assert.throws(
+      () =>
+        paisePerMonth({
+          hoursPerDay: Number.MAX_SAFE_INTEGER,
+          wagePerHourPaise: 2,
+          operatingDays: 1,
+        }),
+      /outside the safe integer range/,
+    );
+  });
 });
 
 describe("median", () => {
@@ -253,6 +273,14 @@ describe("pass bar and kill criterion (D12)", () => {
       () => evaluateBaseline({ facilities: [f(1, 1)], proposedMonthlyPricePaise: 0 }),
       RangeError,
     );
+    assert.throws(
+      () =>
+        evaluateBaseline({
+          facilities: [f(2, 2000000)],
+          proposedMonthlyPricePaise: Number.MAX_SAFE_INTEGER + 1,
+        }),
+      /positive safe integer/,
+    );
   });
   it("rejects malformed facility entries instead of returning 'neither'", () => {
     const bad = (facility) => () =>
@@ -265,6 +293,10 @@ describe("pass bar and kill criterion (D12)", () => {
     assert.throws(bad({ hoursPerDay: 2 }), /facilities\[1\]\.paisePerMonth/);
     assert.throws(bad({ hoursPerDay: 2, paisePerMonth: 10.5 }), /paisePerMonth/);
     assert.throws(bad({ hoursPerDay: 2, paisePerMonth: -5 }), /paisePerMonth/);
+    assert.throws(
+      bad({ hoursPerDay: 2, paisePerMonth: Number.MAX_SAFE_INTEGER + 1 }),
+      /safe range/,
+    );
     assert.throws(bad(null), /facilities\[1\] must be an object/);
     assert.throws(bad(undefined), RangeError);
   });
@@ -274,5 +306,65 @@ describe("pass bar and kill criterion (D12)", () => {
       proposedMonthlyPricePaise: price,
     });
     assert.deepEqual(r, { result: "pass", medianHoursPerDay: 2, medianPaisePerMonth: 2000000 });
+  });
+});
+
+// OQ-36: the reported median is rounded half up, but pass/kill uses the EXACT median.
+describe("pass bar uses the exact median, not the rounded one (OQ-36)", () => {
+  const price = 500000; // threshold is 3 x price = 1,500,000 paise
+  const threshold = 3 * price;
+  const f = (paise) => ({ hoursPerDay: 2, paisePerMonth: paise });
+  const run = (...paise) =>
+    evaluateBaseline({ facilities: paise.map(f), proposedMonthlyPricePaise: price });
+
+  it("does NOT pass when the exact median is a half paisa below the threshold", () => {
+    // Exact median of [1499999, 1500000] is 1499999.5, which is below 1500000.
+    // Rounded half up it is 1500000, which would reach the threshold.
+    assert.equal(medianPaise([threshold - 1, threshold]), threshold); // the rounded figure reaches it...
+    const r = run(threshold - 1, threshold);
+    assert.equal(r.medianPaisePerMonth, threshold); // ...and that rounded figure is what is reported,
+    assert.equal(r.result, "neither"); // but the decision used the exact value, so no pass.
+  });
+  it("shows the rounded figure would have wrongly passed (the test is meaningful)", () => {
+    const r = run(threshold - 1, threshold);
+    // The old rule compared the rounded median with the threshold. That would have said pass:
+    assert.ok(r.medianPaisePerMonth >= threshold);
+    assert.notEqual(r.result, "pass");
+  });
+  it("passes when the exact median is exactly the threshold", () => {
+    assert.equal(run(threshold, threshold).result, "pass");
+    assert.equal(run(threshold - 1, threshold + 1).result, "pass"); // exact median 1500000
+    assert.equal(run(threshold - 5, threshold, threshold + 5).result, "pass"); // odd count, middle value
+  });
+  it("passes when the exact median is a half paisa above the threshold", () => {
+    const r = run(threshold, threshold + 1); // exact 1500000.5, reported 1500001
+    assert.equal(r.result, "pass");
+    assert.equal(r.medianPaisePerMonth, threshold + 1);
+  });
+  it("does not pass one whole paisa below the threshold", () => {
+    assert.equal(run(threshold - 1, threshold - 1).result, "neither");
+    assert.equal(run(threshold - 2, threshold - 1).result, "neither"); // exact 1499998.5
+  });
+  it("still reports half-up whole paise and never changes the returned shape", () => {
+    const r = run(threshold - 1, threshold);
+    assert.deepEqual(Object.keys(r).sort(), ["medianHoursPerDay", "medianPaisePerMonth", "result"]);
+    assert.ok(Number.isInteger(r.medianPaisePerMonth));
+  });
+  it("is exact for very large amounts where doubling would overflow a plain number", () => {
+    const big = Number.MAX_SAFE_INTEGER; // 9007199254740991
+    const r = evaluateBaseline({
+      facilities: [f(big), f(big - 1)],
+      proposedMonthlyPricePaise: 1,
+    });
+    assert.equal(r.result, "pass");
+    assert.equal(r.medianPaisePerMonth, big); // exact (2^53 - 1.5) rounds half up to 2^53 - 1
+  });
+  it("leaves the kill rule and the hours test unchanged", () => {
+    const hours = (h, paise) => ({ hoursPerDay: h, paisePerMonth: paise });
+    const eval2 = (a, b) =>
+      evaluateBaseline({ facilities: [a, b], proposedMonthlyPricePaise: price }).result;
+    assert.equal(eval2(hours(0.5, threshold * 9), hours(0.7, threshold * 9)), "kill");
+    assert.equal(eval2(hours(1, threshold * 9), hours(1, threshold * 9)), "neither");
+    assert.equal(eval2(hours(1.5, threshold), hours(2, threshold)), "pass");
   });
 });

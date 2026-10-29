@@ -23,6 +23,7 @@ import {
 import type { OpenSessionRecord } from "../src/domain/findOpenSession";
 import { exitEventForSession } from "../src/domain/paymentRules";
 import tariffFixturesJson from "@pmp/domain/src/fixtures/tariffs.json";
+import { TARIFF_IDS } from "@pmp/domain/src/fixtures/tariffIds";
 import { fare } from "@pmp/domain";
 
 /**
@@ -284,7 +285,9 @@ describe("double exit + missing tariff + skew (T-GATE-02-N2/N4/N5, D.2)", () => 
   // The frozen GATE-03 fixture tariff (packages/domain/src/fixtures/tariffs.json): slabs
   // ≤60→3000, ≤180→6000, grace 15 — the sheet's T-GATE-02-I2 "CAR-A 90 min → 6000".
   type TariffFix = Tariff;
-  const carA = (tariffFixturesJson as TariffFix[]).find((t) => t.id === "CAR-A") as TariffFix;
+  const carA = (tariffFixturesJson as TariffFix[]).find(
+    (t) => t.id === TARIFF_IDS["CAR-A"],
+  ) as TariffFix;
   const ENTRY = "2026-11-01T02:00:00.000Z"; // IST 07:30, inside CAR-A's effective window
   const session: OpenSessionRecord = {
     sessionId: "01833333-3333-7333-8333-333333333331",
@@ -325,7 +328,7 @@ describe("double exit + missing tariff + skew (T-GATE-02-N2/N4/N5, D.2)", () => 
       expect(out.farePaise).toBe(direct);
       expect(out.farePaise).toBe(6000);
       expect(out.skewHint).toBe(false);
-      expect(out.tariffId).toBe("CAR-A");
+      expect(out.tariffId).toBe(TARIFF_IDS["CAR-A"]);
       expect(out.tariffEffectiveFrom).toBe("2026-11-01");
     }
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DEV_APP_CONFIG, configIssues, tariffForView } from "../src/data/appConfig";
+import { TARIFF_IDS } from "@pmp/domain/src/fixtures/tariffIds";
 
 /**
  * DEV seed honesty (dev-mode config comes from here, never from a synced snapshot): the seed
@@ -17,7 +18,7 @@ describe("DEV_APP_CONFIG seed", () => {
       expect(tariffForView(DEV_APP_CONFIG, cls, "2026-10-25T05:00:00Z")).not.toBeNull();
     }
     const car = tariffForView(DEV_APP_CONFIG, "Car", "2026-10-25T05:00:00Z");
-    expect(car?.id).toBe("CAR-A");
+    expect(car?.id).toBe(TARIFF_IDS["CAR-A"]);
     expect(car?.effectiveFrom).toBe("2026-01-01"); // widened window (fixture: 2026-11-01)
   });
 

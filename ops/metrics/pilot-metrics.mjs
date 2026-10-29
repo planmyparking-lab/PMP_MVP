@@ -5,20 +5,25 @@
 export const ZONE_BAR = 0.95;
 export const FACILITY_BAR = 0.97;
 
-// Input contract for counts: these functions read raw CSV cells, which arrive as strings, so a plain integer
-// string ("92", " 100 ") is accepted and converted here, at the boundary. Rejected: fractional, blank or
-// whitespace-only, booleans, null, undefined, arrays and objects, signed, hexadecimal or exponent text
-// ("-1", "+5", "5.5", "0x10", "1e3"), non-numeric text, NaN, infinities and negative numbers.
-const INTEGER_TEXT = /^\d+$/;
+// Input contract for vehicle counts (physical_count, system_count and the adherence entry counts), decided in
+// OQ-38 (Afzal): a count is a whole number of vehicles, 0 or more. These functions read raw CSV cells, which
+// arrive as strings, so digits-only text ("92", " 100 ", "007") is accepted and converted here, at the
+// boundary. Rejected: fractions in any form ("5.5", "5.0", 5.5), blank or whitespace-only text, booleans,
+// null, undefined, arrays and objects, signed, hexadecimal or exponent text ("-1", "+5", "0x10", "1e3"),
+// non-numeric text, NaN, infinities and negative numbers. (field/cons12/roi.mjs differs on purpose: it takes
+// numbers only.)
+const WHOLE_NUMBER_TEXT = /^\d+$/;
 
 function count(name, value) {
+  const fail = () => {
+    throw new RangeError(`${name} must be a whole number of 0 or more, got ${value}`);
+  };
   let n;
   if (typeof value === "number") n = value;
-  else if (typeof value === "string" && INTEGER_TEXT.test(value.trim())) n = Number(value.trim());
-  else throw new RangeError(`${name} must be a non-negative integer, got ${value}`);
-  if (!Number.isSafeInteger(n) || n < 0) {
-    throw new RangeError(`${name} must be a non-negative integer, got ${value}`);
-  }
+  else if (typeof value === "string" && WHOLE_NUMBER_TEXT.test(value.trim()))
+    n = Number(value.trim());
+  else return fail();
+  if (!Number.isSafeInteger(n) || n < 0) return fail();
   return n;
 }
 
@@ -46,9 +51,10 @@ export function zoneAccuracy(rows) {
 export function facilityAccuracy(rows) {
   const rounds = new Map();
   for (const r of rows) {
-    // JSON of a pair cannot collide (a plain "a|b" join can: ["a|b","1"] vs ["a","b|1"]). Both parts are
-    // converted to text first so that moment 1 and "1" (a CSV cell) still land in the same round.
-    const key = JSON.stringify([String(r.visit_id), String(r.moment)]);
+    // JSON of the raw pair cannot collide (a plain "a|b" join can: ["a|b","1"] vs ["a","b|1"]). Keeping
+    // the original values also prevents distinct typed identifiers such as moment 1 and moment "1" from
+    // being silently merged.
+    const key = JSON.stringify([r.visit_id, r.moment]);
     const g = rounds.get(key) ?? { abs: 0, physical: 0 };
     g.abs += rowError(r).absError;
     g.physical += count("physical_count", r.physical_count);
@@ -84,6 +90,23 @@ export function weeklyOccupancySummary(rows) {
     zoneMean: mean(values),
     facility: facilityAccuracy(rows),
   };
+}
+
+/**
+ * T-MET-01-N1: compare the recorded audit rows with an explicit expected schedule.
+ * Row identity is the typed tuple `[visit_id, moment, zone_id]`; no value is coerced, so callers cannot
+ * accidentally hide a data-entry type mismatch. The expected list comes from the facility's audit plan,
+ * because this library must not invent visits, moments or zones that are absent from the sheet.
+ */
+export function auditCompleteness(rows, expectedRows) {
+  if (!Array.isArray(rows)) throw new RangeError(`rows must be an array, got ${rows}`);
+  if (!Array.isArray(expectedRows)) {
+    throw new RangeError(`expectedRows must be an array, got ${expectedRows}`);
+  }
+  const key = (row) => JSON.stringify([row?.visit_id, row?.moment, row?.zone_id]);
+  const present = new Set(rows.map(key));
+  const missing = expectedRows.filter((row) => !present.has(key(row)));
+  return { complete: missing.length === 0, missing };
 }
 
 /**

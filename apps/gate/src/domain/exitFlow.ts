@@ -173,8 +173,8 @@ export function lostTokenSearch(
  * caller who skipped resolveFare cannot accidentally write a zero-amount Cash payment).
  * `method` is how the session was found (GATE-02: scan, typed code, or lookup search) and is
  * recorded on the EXIT payload (`exit_method`); `tariffId`/`tariffVersion` ride along when the
- * resolved tariff id is an IC-01 uuid (dev fixture ids like "CAR-A" are not, so the audit
- * field stays omitted rather than producing an invalid event).
+ * resolved tariff id is an IC-01 uuid, which Tariff.id always is since PR #6's review (the audit
+ * field is omitted only as a defensive fallback, not a normal dev/fixture gap).
  */
 export function exitBundleFor(
   session: OpenSessionRecord,

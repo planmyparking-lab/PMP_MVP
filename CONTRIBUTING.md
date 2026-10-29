@@ -54,7 +54,7 @@ refactor(sync-rules): simplify outbox retry
 chore(ci): pin action versions
 ```
 
-Scope is the area (`gate`, `console`, `contracts`, `domain`, `sync-rules`, `supabase`, `ci`, `team`).
+Scope is the area (`gate`, `console`, `contracts`, `domain`, `sync-rules`, `supabase`, `ci`, `team`, `field`, `ops`).
 There is no commit-lint tool; reviewers enforce this.
 
 ## 5. Day-to-day flow
