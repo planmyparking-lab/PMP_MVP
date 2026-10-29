@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { EventIssue } from "./events";
 
 /**
  * Tariff rule JSON (integration contract IC-04, owner: Nikhil, schema home here per
@@ -32,20 +33,20 @@ const paise = z
 const istDate = z.string().date(); // YYYY-MM-DD, semantic: IST calendar date
 const hhmm = z.string().regex(/^([01]\d|2[0-3])[0-5]\d$/, "expected 4-digit HHMM, 0000-2359");
 
-const TariffSlab = z.object({
+const TariffSlab = z.strictObject({
   /** Upper bound of the cumulative band in minutes (inclusive); null marks the open-ended tail. */
   upToMinutes: z.number().int().positive().nullable(),
   pricePaise: paise,
 });
 
-const TariffRepeat = z.object({
+const TariffRepeat = z.strictObject({
   /** Length of one repeat unit in minutes. */
   everyMinutes: z.number().int().positive(),
   /** Price of one started repeat unit. */
   pricePaise: paise,
 });
 
-const TariffNight = z.object({
+const TariffNight = z.strictObject({
   /** IST wall clock, digits, e.g. "2200". */
   fromHHMM: hhmm,
   /** IST wall clock, digits, e.g. "0600"; may be earlier than fromHHMM (window wraps midnight). */
@@ -61,7 +62,8 @@ const TariffNight = z.object({
 });
 
 const base = {
-  id: z.string().min(1), // config id (e.g. "CAR-A"); may be any non-empty string, not a UUID
+  // Must trace back to tariffs.id (DB) and EXIT.payload.tariff_id (IC-01), both uuid (PR #6 review).
+  id: z.uuid(),
   facilityId: z.string().min(1),
   vehicleClass: z.string().min(1),
   effectiveFrom: istDate,
@@ -73,7 +75,7 @@ const base = {
 };
 
 const HourlySlabsTariff = z
-  .object({
+  .strictObject({
     ...base,
     model: z.literal("HOURLY_SLABS"),
     slabs: z.array(TariffSlab).min(1, "HOURLY_SLABS needs at least one slab"),
@@ -117,9 +119,13 @@ const HourlySlabsTariff = z
     }
   });
 
-const FlatTariff = z.object({ ...base, model: z.literal("FLAT"), flatPaise: paise });
+const FlatTariff = z.strictObject({ ...base, model: z.literal("FLAT"), flatPaise: paise });
 
-const PerEntryTariff = z.object({ ...base, model: z.literal("PER_ENTRY"), flatPaise: paise });
+const PerEntryTariff = z.strictObject({
+  ...base,
+  model: z.literal("PER_ENTRY"),
+  flatPaise: paise,
+});
 
 export const Tariff = z
   .discriminatedUnion("model", [HourlySlabsTariff, FlatTariff, PerEntryTariff])
@@ -159,10 +165,13 @@ export const Tariff = z
 export type Tariff = z.output<typeof Tariff>;
 
 /** Parse envelope for the tariff schema (same shape as events.ts ParseResult, but for Tariff). */
-export type TariffParseResult =
-  { ok: true; value: Tariff } | { ok: false; issues: z.core.$ZodIssue[] };
+export type TariffParseResult = { ok: true; value: Tariff } | { ok: false; issues: EventIssue[] };
 
 export function parseTariff(input: unknown): TariffParseResult {
   const r = Tariff.safeParse(input);
-  return r.success ? { ok: true, value: r.data } : { ok: false, issues: r.error.issues };
+  if (r.success) return { ok: true, value: r.data };
+  return {
+    ok: false,
+    issues: r.error.issues.map((i) => ({ path: i.path, message: i.message })),
+  };
 }

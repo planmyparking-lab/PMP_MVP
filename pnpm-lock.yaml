@@ -35,6 +35,9 @@ importers:
       '@pmp/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@pmp/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@sparticuz/chromium':
         specifier: 152.0.0
         version: 152.0.0

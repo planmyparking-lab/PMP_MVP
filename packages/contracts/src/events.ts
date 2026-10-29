@@ -5,8 +5,8 @@ import { MAX_SCHEMA_VERSION } from "./version";
 
 /**
  * Cloud event envelope + per-type payloads (IC-01). Specification and decisions:
- * docs/integrations/event-envelope.md. Zod is the source of truth for payload shape; SQL enforces
- * only the envelope (type, source, schema_version, key columns).
+ * docs/integrations/event-envelope.md. Zod is the source of truth. ingest_events (migration 0004) validates the
+ * envelope and every payload in SQL too, because it can be called directly; event_parity.test.sql checks the two agree.
  *
  * Strictness: unknown keys are REJECTED (envelope and payload). Compatibility across versions is
  * handled by schema_version / min_supported_version, not by silently ignoring fields.
@@ -42,6 +42,10 @@ const envelope = {
   device_id: uuid, // matches devices.id and the device claim
   staff_id: uuid, // active staff of the facility (checked by ingest)
   device_time: utcTime,
+  // OQ-42: when and only when source is PAPER_BACKFILL, the time the guard actually keyed the
+  // paper record in (device_time there carries the stay's claimed time, not the keying time).
+  // Absent for LIVE events, where device_time already is the recorded time.
+  recorded_at: utcTime.optional(),
   source: EventSource,
   schema_version: z.number().int().positive().max(MAX_SCHEMA_VERSION),
 };
