@@ -19,7 +19,7 @@ Output:
 
 ```json
 {
-  "results": [{ "id": "…", "status": "ACCEPTED" | "DUPLICATE" | "REJECTED", "reason": "…" }],
+  "results": [{ "id": "…", "status": "ACCEPTED" | "DUPLICATE" | "REJECTED", "reason": "…", "detail": "payload.fare_paise" }],
   "accepted": 1, "duplicates": 0, "rejected": 0,
   "min_supported_version": 1,
   "server_time": "2026-10-29T10:00:00.000Z"
@@ -31,22 +31,30 @@ Each event is handled in its own subtransaction: a rejected event never rolls ba
 `SCHEMA_VERSION_TOO_OLD`, `SCHEMA_VERSION_TOO_NEW`, `ID_COLLISION` (same id, different content). A rejected event is a permanent failure:
 the outbox must not retry it unchanged.
 
-## What SQL validates, and who guarantees the rest
+## Validation: the database checks everything
 
-SQL checks the **envelope**: UUIDv7 `id`, `device_time` as UTC ISO with `Z`, `schema_version` as a JSON number holding a whole number
-(`1` and `1.0` are accepted as the same number, matching zod's `z.number().int()`; `1.4` and values outside the integer range are
-`REJECTED: INVALID_ENVELOPE`), the type and `source` vocabularies, the session rule, and that the **required payload keys exist and are not null**.
+`ingest_events` is callable directly by any enrolled device, so it cannot rely on the gate app's zod validation. Every event is validated in SQL before
+it is stored, in two steps that mirror `packages/contracts/src/events.ts`:
 
-SQL does **not** check payload value types (for example that `fare_paise` is a non-negative integer). Full payload validation is
-guaranteed by a trusted client layer, not by the database boundary: the gate app validates with `parseEvent` from `packages/contracts` before
-storing an event, and the outbox (`packages/sync-rules`) validates again before every upload. The zod schemas are the single source of truth
-(owner decision, 26 Oct 2026). A client that bypasses zod could still store a wrongly typed payload; the claim checks above (device, facility,
-active staff) bound who can do that, and projections (`open_sessions`) reject values they cannot cast.
+- `event_envelope_error(item)`: only the known envelope keys; UUIDv7 `id`; UUID `facility_id`, `device_id`, `staff_id`; `session_id` a UUID for
+  `ENTRY`, `EXIT`, `PAYMENT`, `OVERRIDE` and `null` for the other types; `device_time` and the optional `recorded_at` as real UTC ISO times with `Z`;
+  `source`; `schema_version` a whole number (`1.0` is the same number as `1`; `1.4` is rejected); `payload` an object.
+- `event_payload_error(type, payload)`: per type, exactly the keys zod allows (unknown keys rejected, optional keys may be absent but not `null`),
+  integer amounts and counts within JavaScript's safe-integer range, the enums (`exit_method`, payment `mode`, `reason_code`), the short-code format, and
+  the cross-field rules (`upi_attested` only with `UPI`; `note` required for reason `OTHER`).
 
-The gap between the two layers is closed by the SQL/zod parity test (T-IC01-C1), still open: it runs the shared fixtures in
-`packages/contracts/fixtures/events` through `ingest_events` and fails when SQL accepts an event that zod rejects, or the reverse for the
-envelope fields. Until it exists, treat SQL as a safety net for the envelope, not as a payload validator.
+A rejected event returns `REJECTED` with reason `INVALID_ENVELOPE` or `INVALID_PAYLOAD` and a `detail` such as `payload.fare_paise` (field name only,
+never the value). Order of checks: envelope, schema version range, device and facility claims, active staff, then payload, so an unauthorized caller
+learns nothing about payload rules.
+
+Zod stays the source of truth. **T-IC01-C1:** `supabase/tests/event_parity.test.sql` is generated from the shared fixtures in
+`packages/contracts/fixtures/events` (`node scripts/gen-event-parity.mjs --write`) and sends each one through `ingest_events`: every valid fixture must be
+`ACCEPTED`, every invalid one `REJECTED`. `pnpm test:scripts` fails when the generated file is out of date, so a new fixture or a rule changed on one side
+only is caught. When you change a rule in `events.ts`, change `event_payload_error` / `event_envelope_error` in the same PR and add a fixture.
+
+Not validated in SQL: nothing from the zod schemas. The `change` object of an override is only checked to be an object (zod also accepts any object). The
+sign convention of the shift-close variances is an open specification item, so no cross-check exists in either layer.
 
 ## Tests
 
-`supabase/tests/ingest_events.test.sql` (36 assertions). Open: `open_sessions` and conflict detection (0005, 0006) will hook in after the insert.
+`supabase/tests/ingest_events.test.sql` (47 assertions) and `supabase/tests/event_parity.test.sql` (37 assertions, generated).
