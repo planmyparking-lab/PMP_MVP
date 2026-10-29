@@ -6,3 +6,8 @@
 - Shared packages (`packages/*`, `supabase/migrations`) need a second workstream owner's review.
 - Never claim a test passes unless you ran it. Run `pnpm check` before opening a PR.
 - Do not commit secrets or `.env` files.
+
+## Occupancy rule: two phones at one gate
+
+Occupancy is derived (`computeOccupancy` in `packages/sync-rules`), never kept as an incremented counter. Each phone sees its own events at once and the other
+phone's only after sync, so counts on two phones can differ briefly. The Console shows the merged truth. Do not add a stored per-zone counter to fix this.
