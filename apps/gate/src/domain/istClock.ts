@@ -1,8 +1,10 @@
+import { IST_OFFSET_MINUTES } from "@pmp/domain";
+
 /**
  * IST display time (HH:MM) for receipts, banners and shift summaries (GATE-06/10 display
  * times are IST; storage stays UTC instants per the repo invariant).
  */
-export const IST_OFFSET_MINUTES = 330;
+export { IST_OFFSET_MINUTES };
 
 /** 1761_ish → "14:35" — the UTC-shifted wall clock, no seconds (display-only). */
 export function istClockTime(ms: number): string {

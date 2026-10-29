@@ -9,7 +9,13 @@
  * - recognized PIN/password assignments and PIN digit values are masked without dropping
  *   otherwise useful diagnostic text;
  * - `parkos:` QR payloads are replaced with the stable label `[qr-token-payload]`;
- * - digit runs of 7+ become `[number]`, except explicitly named diagnostic metrics.
+ * - digit runs of 7+ become `[number]`, except explicitly named diagnostic metrics;
+ * - vehicle-plate-shaped tokens (6-12 uppercase letters/digits, normalizeVehicleNo's shape,
+ *   PR #7 review item 3) become `[plate]`. No current call site logs `vehicleNo`/`plate` (traced
+ *   every `addLogLine` site in apps/gate; error-message formatting only ever surfaces field paths
+ *   and generic Zod messages, never raw input values) — this is defense-in-depth for if one ever
+ *   does. Uppercase-only so it never touches lowercase-hex uuids (session/device/zone ids) that
+ *   ARE legitimately logged; 6+ chars so it never touches the 5-char short code.
  */
 
 export const LOG_CAP = 500;
@@ -17,11 +23,14 @@ export const LOG_CAP = 500;
 export const PHONE_MASK = "[removed-number]";
 export const TOKEN_MASK = "[qr-token-payload]";
 export const SECRET_MASK = "[redacted]";
+export const PLATE_MASK = "[plate]";
 
 const CREDENTIAL_ASSIGNMENT =
   /\b(pin|password|passwd)\b\s*(?::|=|\bis\b|\bwas\b)\s*(?:"[^"]*"|'[^']*'|[^\s,;'"`]+)/gi;
 const PIN_DIGITS = /\bpin\s+(\d{4,8})\b/gi;
 const PARKOS_PAYLOAD = /parkos:[A-Za-z0-9:-]{8,}/g;
+const VEHICLE_PLATE_SHAPED =
+  /\b(?=[A-Z0-9]{6,12}\b)(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*[0-9])[A-Z0-9]{6,12}\b/g;
 const DIGIT_RUN_7PLUS = /\d[\d\s-]{5,}\d/g;
 const SAFE_LONG_NUMBER_FIELD =
   /(?:^|\b)(?:entry_ms|entry_taps|entry_save_ms|short_code_regenerations|exit_ms|exit_save_ms)=\s*$/i;
@@ -33,6 +42,7 @@ export function scrubLogLine(line: string): string | null {
     .replace(CREDENTIAL_ASSIGNMENT, (_match, key: string) => `${key}=${SECRET_MASK}`)
     .replace(PIN_DIGITS, `pin ${SECRET_MASK}`)
     .replace(PARKOS_PAYLOAD, TOKEN_MASK)
+    .replace(VEHICLE_PLATE_SHAPED, PLATE_MASK)
     .replace(DIGIT_RUN_7PLUS, (number, offset: number, source: string) => {
       const prefix = source.slice(Math.max(0, offset - 48), offset);
       return SAFE_LONG_NUMBER_FIELD.test(prefix) ? number : PHONE_MASK;

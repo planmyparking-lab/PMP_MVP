@@ -1,4 +1,10 @@
-import { parseEvent, type Event, type EventOf, type ReasonCode } from "@pmp/contracts";
+import {
+  parseEvent,
+  SCHEMA_VERSION,
+  type Event,
+  type EventOf,
+  type ReasonCode,
+} from "@pmp/contracts";
 
 import { defaultUuidV7 } from "../domain/token";
 import {
@@ -36,7 +42,7 @@ import { formatEventIssues } from "./eventIssues";
  */
 
 /** Envelope schema version stamped on every event (IC-01 base uses a positive int; SQL parity). */
-export const SCHEMA_VERSION = 1;
+export { SCHEMA_VERSION };
 
 export type WriteDeps = {
   /** The IC-02 client (FakeSync in tests; Afzal's package in the app shell). */

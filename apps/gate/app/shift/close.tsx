@@ -115,9 +115,9 @@ export default function ShiftCloseScreen() {
           counted_cash_paise: countedCash,
           expected_cash_paise: variance.expectedCashPaise,
           upi_total_declared_paise: upiDeclared ?? 0,
-          upi_attested_sum_paise: variance.upiAttestedTotalPaise,
-          variance_cash_paise: variance.cashVariancePaise,
-          variance_upi_paise: variance.upiVariancePaise,
+          upi_attested_sum_paise: variance.upiAttestedSumPaise,
+          variance_cash_paise: variance.varianceCashPaise,
+          variance_upi_paise: variance.varianceUpiPaise,
           reason: reason.trim() === "" ? undefined : reason.trim(),
         },
       });
@@ -162,7 +162,7 @@ export default function ShiftCloseScreen() {
       />
       <KVRow
         label={t("payment.upi")}
-        value={variance === null ? "—" : formatPaise(variance.upiAttestedTotalPaise)}
+        value={variance === null ? "—" : formatPaise(variance.upiAttestedSumPaise)}
       />
 
       <Field
@@ -184,11 +184,11 @@ export default function ShiftCloseScreen() {
         <View>
           <KVRow
             label={`${t("shift.variance")} · ${t("payment.cash")}`}
-            value={`${formatPaise(variance.cashVariancePaise)}`}
+            value={`${formatPaise(variance.varianceCashPaise)}`}
           />
           <KVRow
             label={`${t("shift.variance")} · ${t("payment.upi")}`}
-            value={`${formatPaise(variance.upiVariancePaise)}`}
+            value={`${formatPaise(variance.varianceUpiPaise)}`}
           />
           {(variance.cashReasonRequired || variance.upiReasonRequired) && (
             <Field

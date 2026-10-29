@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   LOG_CAP,
   PHONE_MASK,
+  PLATE_MASK,
   SECRET_MASK,
   TOKEN_MASK,
   addLogLine,
@@ -48,6 +49,22 @@ describe("scrubLogLine", () => {
   it("retains long values only for explicitly named safe timing metrics", () => {
     expect(scrubLogLine("entry_ms=12345678 entry_taps=4")).toBe("entry_ms=12345678 entry_taps=4");
     expect(scrubLogLine("serial=12345678")).toBe(`serial=${PHONE_MASK}`);
+  });
+
+  it("masks vehicle-plate-shaped tokens (PR #7 review item 3) without touching ids or short codes", () => {
+    expect(scrubLogLine("backfill match vehicle=DL01AB1234 window=10m")).toBe(
+      `backfill match vehicle=${PLATE_MASK} window=10m`,
+    );
+    // No current call site logs a raw plate (traced every addLogLine site); this masks the shape
+    // defensively in case one ever does, via normalizeVehicleNo's own output (uppercase, 4-12
+    // alnum) — a lowercase plate would already have been normalized before reaching a log call.
+    expect(scrubLogLine("vehicle=dl01ab1234")).toBe("vehicle=dl01ab1234");
+    // Session/device/zone ids are lowercase-hex uuids and ARE legitimately logged; must survive.
+    expect(
+      scrubLogLine("override saved session=0192f0a0-aaaa-7aaa-8aaa-aaaaaaaaaaaa reason=OTHER"),
+    ).toBe("override saved session=0192f0a0-aaaa-7aaa-8aaa-aaaaaaaaaaaa reason=OTHER");
+    // The 5-char short code and pure-letter reason codes must also survive (too short / no digit).
+    expect(scrubLogLine("code=A0B1C reason=WRONG_VEHICLE")).toBe("code=A0B1C reason=WRONG_VEHICLE");
   });
 
   it("returns null for whitespace-only lines and trims retained lines", () => {

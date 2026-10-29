@@ -170,11 +170,14 @@ export type ShiftVarianceInput = {
   thresholdPaise: number | null;
 };
 
+// Field names mirror the confirmed SHIFT_CLOSE payload (packages/contracts/src/events.ts,
+// ShiftClosePayload) now that SYNC-01 is merged — camelCase of expected_cash_paise,
+// variance_cash_paise, upi_attested_sum_paise, variance_upi_paise (PR #7 review item 2).
 export type ShiftVariance = {
   expectedCashPaise: number;
-  cashVariancePaise: number;
-  upiAttestedTotalPaise: number;
-  upiVariancePaise: number;
+  varianceCashPaise: number;
+  upiAttestedSumPaise: number;
+  varianceUpiPaise: number;
   thresholdPaise: number;
   cashReasonRequired: boolean;
   upiReasonRequired: boolean;
@@ -197,17 +200,17 @@ export function computeShiftVariance(input: ShiftVarianceInput): ShiftVariance {
       ? 0 // documented default (seq 4.3): require a reason for any non-zero variance
       : input.thresholdPaise;
   const expectedCashPaise = float + cash;
-  const cashVariancePaise = counted - expectedCashPaise;
-  const upiAttestedTotalPaise = input.totals.upiAttested.amountPaise;
-  const upiVariancePaise = declared - upiAttestedTotalPaise;
+  const varianceCashPaise = counted - expectedCashPaise;
+  const upiAttestedSumPaise = input.totals.upiAttested.amountPaise;
+  const varianceUpiPaise = declared - upiAttestedSumPaise;
   return {
     expectedCashPaise,
-    cashVariancePaise,
-    upiAttestedTotalPaise,
-    upiVariancePaise,
+    varianceCashPaise,
+    upiAttestedSumPaise,
+    varianceUpiPaise,
     thresholdPaise: threshold,
-    cashReasonRequired: Math.abs(cashVariancePaise) > threshold,
-    upiReasonRequired: Math.abs(upiVariancePaise) > threshold,
+    cashReasonRequired: Math.abs(varianceCashPaise) > threshold,
+    upiReasonRequired: Math.abs(varianceUpiPaise) > threshold,
   };
 }
 

@@ -393,18 +393,18 @@ describe("variance and close rules (T-GATE-06-U2/U3/N1/N2)", () => {
     // float 40000 + CASH 80000 = 120000 expected; counted 119500 → −500 (matches the sheet row)
     const variance = computeShiftVariance(base);
     expect(variance.expectedCashPaise).toBe(120000);
-    expect(variance.cashVariancePaise).toBe(-500);
-    expect(variance.upiAttestedTotalPaise).toBe(80000);
-    expect(variance.upiVariancePaise).toBe(1000);
+    expect(variance.varianceCashPaise).toBe(-500);
+    expect(variance.upiAttestedSumPaise).toBe(80000);
+    expect(variance.varianceUpiPaise).toBe(1000);
   });
 
   it("threshold is inclusive-beyond: variance == threshold needs no reason, beyond it does (T-GATE-06-U3)", () => {
     const equals = computeShiftVariance({ ...base, upiDeclaredPaise: 80050 });
-    expect(equals.upiVariancePaise).toBe(50);
+    expect(equals.varianceUpiPaise).toBe(50);
     expect(equals.upiReasonRequired).toBe(false);
 
     const at500 = computeShiftVariance({ ...base, upiDeclaredPaise: 80500 });
-    expect(at500.upiVariancePaise).toBe(500);
+    expect(at500.varianceUpiPaise).toBe(500);
     expect(at500.upiReasonRequired).toBe(false);
 
     const at501 = computeShiftVariance({ ...base, upiDeclaredPaise: 80501 });
