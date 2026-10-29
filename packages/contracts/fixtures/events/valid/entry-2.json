@@ -6,6 +6,7 @@
   "staff_id": "5f1d2c3e-0000-4000-8000-000000000003",
   "session_id": "0192f0a0-0000-7000-8000-000000000901",
   "device_time": "2026-10-26T04:30:00Z",
+  "recorded_at": "2026-10-26T09:15:00Z",
   "source": "PAPER_BACKFILL",
   "schema_version": 1,
   "payload": {

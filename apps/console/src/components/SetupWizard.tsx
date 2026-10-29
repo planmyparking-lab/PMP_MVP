@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { validatePin } from "../lib/pinPolicy";
 import { analyse, draftToJson, emptyDraft, exampleDraft, todayInIst } from "../lib/setupDraft";
 import type { SetupDraft } from "../lib/setupDraft";
+import { TariffStep } from "./TariffStep";
 import { Icon } from "./ui/Icon";
 import { Modal } from "./ui/Modal";
 import {
@@ -20,7 +21,7 @@ import { useToast } from "./ui/Toast";
 
 const STEPS = [
   { title: "Facility", sub: "Details and zones" },
-  { title: "Tariffs", sub: "Slabs by vehicle class" },
+  { title: "Tariffs", sub: "Prices and try a fare" },
   { title: "Time rules", sub: "Grace, night, start date" },
   { title: "Staff & alerts", sub: "PIN policy, overstay" },
   { title: "Review", sub: "Check everything" },
@@ -53,7 +54,7 @@ export function SetupWizard() {
   const pinCheck = pin === "" ? null : validatePin(pin);
 
   const download = () => {
-    const blob = new Blob([JSON.stringify(draftToJson(draft), null, 2)], {
+    const blob = new Blob([JSON.stringify(draftToJson(draft, today || todayInIst()), null, 2)], {
       type: "application/json",
     });
     const url = URL.createObjectURL(blob);
@@ -71,14 +72,6 @@ export function SetupWizard() {
 
   const setZone = (i: number, p: Partial<SetupDraft["zones"][number]>) =>
     patch({ zones: draft.zones.map((z, j) => (j === i ? { ...z, ...p } : z)) });
-  const setTariff = (i: number, p: Partial<SetupDraft["tariffs"][number]>) =>
-    patch({ tariffs: draft.tariffs.map((t, j) => (j === i ? { ...t, ...p } : t)) });
-  const setSlab = (
-    i: number,
-    j: number,
-    p: Partial<SetupDraft["tariffs"][number]["slabs"][number]>,
-  ) =>
-    setTariff(i, { slabs: draft.tariffs[i].slabs.map((s, k) => (k === j ? { ...s, ...p } : s)) });
 
   return (
     <>
@@ -255,175 +248,7 @@ export function SetupWizard() {
           )}
 
           {step === 1 && (
-            <>
-              {draft.tariffs.map((t, i) => (
-                <Card
-                  key={i}
-                  title={`Tariff ${i + 1}`}
-                  subtitle="Slabs must follow each other with no gap and no overlap"
-                  action={
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      disabled={draft.tariffs.length === 1}
-                      onClick={() => patch({ tariffs: draft.tariffs.filter((_, j) => j !== i) })}
-                    >
-                      Remove tariff
-                    </Button>
-                  }
-                >
-                  <div className="stack">
-                    <div className="grid grid-2">
-                      <Field id={`t-class-${i}`} label="Vehicle class">
-                        <select
-                          id={`t-class-${i}`}
-                          className="select"
-                          value={t.vehicleClass}
-                          onChange={(e) => setTariff(i, { vehicleClass: e.target.value })}
-                        >
-                          {CLASSES.map((c) => (
-                            <option key={c}>{c}</option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field
-                        id={`t-cap-${i}`}
-                        label="Day cap (optional)"
-                        hint="Most a vehicle pays in one day."
-                        error={a.tariffs[i]?.dayCap}
-                      >
-                        <div className="input-group">
-                          <span className="prefix">₹</span>
-                          <input
-                            id={`t-cap-${i}`}
-                            className="input num has-prefix"
-                            inputMode="decimal"
-                            value={t.dayCap}
-                            onChange={(e) => setTariff(i, { dayCap: e.target.value })}
-                            aria-invalid={!!a.tariffs[i]?.dayCap}
-                          />
-                        </div>
-                      </Field>
-                    </div>
-                    {t.slabs.map((s, j) => (
-                      <div className="row" key={j} style={{ alignItems: "flex-start" }}>
-                        <div style={{ flex: "1 1 100px" }}>
-                          <Field id={`s-from-${i}-${j}`} label={j === 0 ? "From minute" : "From"}>
-                            <input
-                              id={`s-from-${i}-${j}`}
-                              className="input num"
-                              inputMode="numeric"
-                              value={s.from}
-                              onChange={(e) => setSlab(i, j, { from: e.target.value })}
-                            />
-                          </Field>
-                        </div>
-                        <div style={{ flex: "1 1 100px" }}>
-                          <Field id={`s-to-${i}-${j}`} label={j === 0 ? "To minute" : "To"}>
-                            <input
-                              id={`s-to-${i}-${j}`}
-                              className="input num"
-                              inputMode="numeric"
-                              value={s.to}
-                              onChange={(e) => setSlab(i, j, { to: e.target.value })}
-                            />
-                          </Field>
-                        </div>
-                        <div style={{ flex: "1 1 120px" }}>
-                          <Field
-                            id={`s-price-${i}-${j}`}
-                            label={j === 0 ? "Price" : "Price"}
-                            error={a.tariffs[i]?.slabs[j]}
-                          >
-                            <div className="input-group">
-                              <span className="prefix">₹</span>
-                              <input
-                                id={`s-price-${i}-${j}`}
-                                className="input num has-prefix"
-                                inputMode="decimal"
-                                value={s.price}
-                                onChange={(e) => setSlab(i, j, { price: e.target.value })}
-                                aria-invalid={!!a.tariffs[i]?.slabs[j]}
-                              />
-                            </div>
-                          </Field>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          aria-label={`Remove slab ${j + 1}`}
-                          disabled={t.slabs.length === 1}
-                          onClick={() => setTariff(i, { slabs: t.slabs.filter((_, k) => k !== j) })}
-                          style={{ marginTop: 24 }}
-                        >
-                          <Icon name="x" size={16} />
-                        </Button>
-                      </div>
-                    ))}
-                    <div>
-                      <Button
-                        size="sm"
-                        onClick={() =>
-                          setTariff(i, {
-                            slabs: [
-                              ...t.slabs,
-                              { from: t.slabs.at(-1)?.to ?? "0", to: "", price: "" },
-                            ],
-                          })
-                        }
-                      >
-                        Add slab
-                      </Button>
-                    </div>
-                    {a.tariffs[i]?.slabProblems.map((p) => (
-                      <Issue key={p} tone="bad">
-                        {p}
-                      </Issue>
-                    ))}
-                    {a.tariffs[i]?.slabProblems.length === 0 &&
-                      !a.tariffs[i]?.slabs.some(Boolean) && (
-                        <Issue tone="ok">Slabs are valid.</Issue>
-                      )}
-                  </div>
-                </Card>
-              ))}
-              <div>
-                <Button
-                  icon="check"
-                  onClick={() =>
-                    patch({
-                      tariffs: [
-                        ...draft.tariffs,
-                        {
-                          vehicleClass: "Two-wheeler",
-                          slabs: [{ from: "0", to: "60", price: "" }],
-                          dayCap: "",
-                        },
-                      ],
-                    })
-                  }
-                >
-                  Add another tariff
-                </Button>
-              </div>
-              {a.classProblems.map((p) => (
-                <Issue key={p} tone="bad">
-                  {p}
-                </Issue>
-              ))}
-              {a.classWarnings.map((p) => (
-                <Issue key={p} tone="warn">
-                  {p}
-                </Issue>
-              ))}
-              <Card title="Try a fare">
-                <p className="muted">
-                  <Icon name="info" size={15} style={{ verticalAlign: -3 }} /> A fare preview needs
-                  the shared fare engine, which is not on the main branch yet. It will use the same
-                  function as the gate app so both always agree.
-                </p>
-              </Card>
-            </>
+            <TariffStep draft={draft} analysis={a} onChange={(tariffs) => patch({ tariffs })} />
           )}
 
           {step === 2 && (
@@ -497,6 +322,45 @@ export function SetupWizard() {
                     </Field>
                   </div>
                 )}
+                {draft.nightOn && (
+                  <div className="grid grid-2">
+                    <Field id="n-kind" label="Night rate type">
+                      <select
+                        id="n-kind"
+                        className="select"
+                        value={draft.nightKind}
+                        onChange={(e) =>
+                          patch({
+                            nightKind: e.target.value as SetupDraft["nightKind"],
+                            nightValue: "",
+                          })
+                        }
+                      >
+                        <option value="surcharge">Fixed surcharge (rupees)</option>
+                        <option value="multiplier">Percentage of the fare</option>
+                      </select>
+                    </Field>
+                    <Field
+                      id="n-value"
+                      label={draft.nightKind === "surcharge" ? "Surcharge (₹)" : "Percentage (%)"}
+                      hint="Applies once to a stay that touches the night window."
+                      error={a.nightValue}
+                    >
+                      <input
+                        id="n-value"
+                        className="input num"
+                        inputMode="decimal"
+                        value={draft.nightValue}
+                        onChange={(e) => patch({ nightValue: e.target.value })}
+                        aria-invalid={!!a.nightValue}
+                      />
+                    </Field>
+                  </div>
+                )}
+                <p className="small muted">
+                  Grace, the night rule and the start date apply to every tariff. The night
+                  percentage rule is still provisional in the fare engine.
+                </p>
               </div>
             </Card>
           )}
@@ -593,7 +457,7 @@ export function SetupWizard() {
                     {draft.tariffs
                       .map(
                         (t) =>
-                          `${t.vehicleClass}: ${t.slabs.length} slab${t.slabs.length === 1 ? "" : "s"}`,
+                          `${t.vehicleClass}: ${t.model === "HOURLY_SLABS" ? `${t.slabs.length} band${t.slabs.length === 1 ? "" : "s"} + repeat` : t.model === "FLAT" ? "flat per day" : "flat per entry"}`,
                       )
                       .join("; ")}
                   </dd>

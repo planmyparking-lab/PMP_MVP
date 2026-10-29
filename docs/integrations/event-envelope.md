@@ -1,7 +1,8 @@
 # Event envelope and payloads (IC-01)
 
 Implemented in `packages/contracts` (`src/events.ts`). Zod is the source of truth for payload shape.
-SQL (`events` table, migration `0003`) enforces only the envelope. Owner: Afzal (SYNC-01). A contract change
+`public.ingest_events` (migration `0004`) re-validates the envelope and every payload in SQL, because it can be called directly (see
+`docs/integrations/ingest-events.md`). Owner: Afzal (SYNC-01). A contract change
 needs a second workstream owner's review and, if breaking, a `SCHEMA_VERSION` bump.
 
 ## Envelope (one row in `events`)
@@ -21,6 +22,14 @@ needs a second workstream owner's review and, if breaking, a `SCHEMA_VERSION` bu
 | `received_at`    | Server only (`default now()`); not part of the client contract.                                                                              |
 
 Unknown keys are **rejected** in the envelope and in every payload (not stripped).
+
+`parseEvent(input)` returns `{ ok: true, value }` or `{ ok: false, issues: [{ path, message }] }`,
+never a partial event. Each issue's `path` is an array of Zod path components (for example
+`["payload", "amount_paise"]`), not a dotted string — changed in `0751f38` so a path segment that
+itself contains a dot (unlikely today, but not ruled out) cannot be misread; join with `.` only for
+display. `packages/contracts/README.md` documents the same shape; see
+`packages/contracts/test/events.test.ts` ("preserves array-shaped issue paths for existing
+parseEvent consumers").
 
 ## Payloads
 
@@ -60,5 +69,6 @@ decimal strings only, never floating-point numbers.
 ## Tests
 
 `packages/contracts/test/*.test.ts` and `packages/contracts/fixtures/events/{valid,invalid}`: T-SYNC-01-U1..U7, N1, R1.
-Not yet written: T-SYNC-01-I1 (gate and console parse a shared sample) and T-SYNC-01-I2 / T-IC01-C1 (SQL mirrors the
-contract). The SQL test needs migration `0003` from the CLD-02 PR; add it after that PR is merged.
+T-IC01-C1 (SQL mirrors the contract) is `supabase/tests/event_parity.test.sql`, generated from the same fixtures
+(`node scripts/gen-event-parity.mjs --write`); every valid fixture must be accepted by `ingest_events` and every invalid one rejected.
+Not yet written: T-SYNC-01-I1 (gate and console parse a shared sample).
