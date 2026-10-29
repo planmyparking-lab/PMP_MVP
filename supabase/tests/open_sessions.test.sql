@@ -2,9 +2,9 @@
 -- Events are inserted as the superuser (the trigger fires for any inserter); one end-to-end case goes through
 -- ingest_events. The transaction is rolled back at the end.
 begin;
-select plan(23);
+select plan(27);
 
-insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000a1');
+insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000a1'), ('00000000-0000-0000-0000-0000000000a3');
 insert into public.organizations (id, name) values ('00000000-0000-0000-0000-00000000000f', 'Org');
 insert into public.facilities (id, org_id, name, timezone, slot_count) values
   ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000000f', 'F1', 'Asia/Kolkata', 10),
@@ -15,7 +15,8 @@ insert into public.staff (id, facility_id, name, pin_hash, pin_salt) values
 insert into public.devices (id, facility_id, name, auth_user_id) values
   ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000f1', 'Gate 1',
    '00000000-0000-0000-0000-0000000000a1'),
-  ('00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000f2', 'Gate 2', null);
+  ('00000000-0000-0000-0000-0000000000d2', '00000000-0000-0000-0000-0000000000f2', 'Gate 2',
+   '00000000-0000-0000-0000-0000000000a3');
 
 -- helpers: n builds ids, entry/exit insert one event for facility F1 device d1
 create function pg_temp.id(n int) returns uuid language sql as
@@ -93,6 +94,12 @@ select pg_temp.exit(13, 104);  -- F1 exit with the same session id
 select is((select count(*)::int from public.open_sessions where session_id = pg_temp.id(104)), 1,
   'an EXIT does not close a session of another facility');
 
+-- the same session id in two facilities: both stay open (keyed per facility)
+select pg_temp.entry(20, 105, null, 1);
+select pg_temp.entry(21, 105, null, 2);
+select is((select count(*)::int from public.open_sessions where session_id = pg_temp.id(105)), 2,
+  'one session id used in two facilities opens one session in each');
+
 -- an ENTRY stored without the required payload keys is kept but opens nothing
 select lives_ok(
   $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version)
@@ -112,12 +119,35 @@ reset role;
 select is((select count(*)::int from public.open_sessions where session_id = '018f0000-0000-7000-8000-000000000301'), 1,
   'an event ingested through ingest_events opens a session');
 select is((select r ->> 'accepted' from public.t_out), '1', 'ingest_events reports it accepted');
-select throws_ok(
+-- a malformed zone_id or pass_id never stops the event from being stored: no session, a warning, the event stays
+select lives_ok(
   $$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version, payload)
     values ('018f0000-0000-7000-8000-000000000202', '00000000-0000-0000-0000-0000000000f1',
             '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000b1', 'ENTRY',
-            '018f0000-0000-7000-8000-000000000105', now(), 1,
+            '018f0000-0000-7000-8000-000000000107', now(), 1,
             '{"vehicle_class":"CAR","zone_id":"not-a-uuid","short_code":"7K2QX"}')$$,
-  '22P02', null, 'an ENTRY with a malformed zone_id is refused (ingest_events reports it as rejected)');
+  'an ENTRY with a malformed zone_id is still stored');
+select is((select count(*)::int from public.events where id = '018f0000-0000-7000-8000-000000000202')
+        + (select count(*)::int from public.open_sessions where session_id = '018f0000-0000-7000-8000-000000000107'),
+  1, 'the event is kept and no session was opened for it');
+
+-- Facility isolation. No policies exist yet (CLD-03 / 0010_rls.sql), so a device sees nothing today. Another facility's
+-- device must never see this facility's sessions; the assertion for the device's OWN sessions is blocked until CLD-03.
+create table public.t_seen (label text primary key, n int);
+grant all on public.t_seen to authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a3', true);   -- device of F2
+set local role authenticated;
+insert into public.t_seen select 'f2_sees_f1', count(*)::int from public.open_sessions
+  where facility_id = '00000000-0000-0000-0000-0000000000f1';
+insert into public.t_seen select 'f2_sees_f2', count(*)::int from public.open_sessions
+  where facility_id = '00000000-0000-0000-0000-0000000000f2';
+reset role;
+select is((select n from public.t_seen where label = 'f2_sees_f1'), 0,
+  'a device of facility 2 sees none of facility 1''s open sessions');
+select todo_start('blocked: CLD-03 policies. A device must see ITS OWN facility''s sessions (remove this wrapper in the CLD-03 PR)');
+select cmp_ok((select n from public.t_seen where label = 'f2_sees_f2'), '>', 0,
+  'a device of facility 2 sees its own open sessions');
+select todo_end();
+
 select * from finish();
 rollback;

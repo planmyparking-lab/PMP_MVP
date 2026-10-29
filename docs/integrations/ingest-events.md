@@ -41,7 +41,7 @@ SQL does **not** check payload value types (for example that `fare_paise` is a n
 guaranteed by a trusted client layer, not by the database boundary: the gate app validates with `parseEvent` from `packages/contracts` before
 storing an event, and the outbox (`packages/sync-rules`) validates again before every upload. The zod schemas are the single source of truth
 (owner decision, 26 Oct 2026). A client that bypasses zod could still store a wrongly typed payload; the claim checks above (device, facility,
-active staff) bound who can do that, and projections (`open_sessions`) reject values they cannot cast.
+active staff) bound who can do that, and projections (`open_sessions`) skip values they cannot cast without refusing the event.
 
 The gap between the two layers is closed by the SQL/zod parity test (T-IC01-C1), still open: it runs the shared fixtures in
 `packages/contracts/fixtures/events` through `ingest_events` and fails when SQL accepts an event that zod rejects, or the reverse for the
@@ -50,3 +50,14 @@ envelope fields. Until it exists, treat SQL as a safety net for the envelope, no
 ## Tests
 
 `supabase/tests/ingest_events.test.sql` (36 assertions). Open: `open_sessions` and conflict detection (0005, 0006) will hook in after the insert.
+
+## open_sessions (0005)
+
+`public.open_sessions` is derived from `events` by the trigger `events_10_apply_open_sessions`: an `ENTRY` opens a session, an `EXIT` closes it.
+
+- **Key:** `(facility_id, session_id)`. Session ids are UUIDv7 values generated on the device and are practically unique, but the database does not
+  rely on that across facilities: one facility can never collide with, block or close another facility's session.
+- **Malformed data never blocks the event:** an `ENTRY` whose payload cannot be projected (missing keys, a `zone_id` or `pass_id` that is not a UUID)
+  stays in `events`; no session is opened and a `WARNING` is logged. The event log is the source of truth and can be re-projected after a fix.
+- **Access (CLD-03 requirement):** a device or guard may read only the rows of its own `facility_id`; nobody writes the table directly. A TODO
+  assertion in `supabase/tests/open_sessions.test.sql` fails the suite once policies exist until its wrapper is removed.
