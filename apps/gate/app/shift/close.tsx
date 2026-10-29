@@ -8,8 +8,10 @@ import {
   shiftTotals,
   validateShiftClose,
 } from "../../src/domain/shiftTotals";
+import { WriteRuleError, writeEvent } from "../../src/data/writeEvent";
 import { formatPaise, parseRupeeInput } from "../../src/domain/paise";
 import { istClockTime } from "../../src/domain/istClock";
+import { cancelZoneReminders } from "../../src/notifications/schedule";
 import { useOccupancy, useI18n } from "../../src/ui/useSyncState";
 import { usePortRequired } from "../../src/ui/port";
 import { BigButton, Field, KVRow, Muted, Note, Screen } from "../../src/ui/ui";
@@ -18,14 +20,18 @@ import { BigButton, Field, KVRow, Muted, Note, Screen } from "../../src/ui/ui";
  * Shift CLOSE screen (GATE-06 sequences 2-5; T-GATE-06-U1/U3/N1/N2): expected cash shows
  * float + CASH payments of the window; UPI compares the DECLARED number against the attested
  * local total; variances beyond the facility threshold REQUIRE a reason (strictly-greater
- * rule). IC-01 does not yet carry the totals/variance fields, so the screen reviews the
- * reconciliation but does not persist a bare SHIFT_CLOSE event or cancel the shift reminders.
+ * rule). The SHIFT_CLOSE payload (SYNC-01) persists the reconciliation row: counted/expected
+ * cash, declared/attested UPI and both signed variances, paired with the SHIFT_OPEN's shift_id
+ * — the open/close pair is append-only (no correction events; corrections ride OVERRIDE, OQ-30).
  *
  * Honesty notes:
  * - counted cash is a required integer (0 valid, empty not — T-GATE-06-N1);
- * - float lost by restart → the screen demands it again with the explainer (it cannot be
- *   derived — INPUT-not-derivable rule, shiftTotals.ts header);
- * - unsynced payments never block the close; the count is displayed instead.
+ * - the opening float prefers the persisted SHIFT_OPEN payload (findOpenShift); only a
+ *   pre-payload event falls back to the manual re-entry field;
+ * - variance sign convention: counted − expected cash and declared − attested UPI (the sheet's
+ *   U2 numbers); the contract does not pin the sign for SQL, see event-envelope.md open items;
+ * - unsynced payments never block the close; the count is displayed instead;
+ * - the shift's zone reminders are cancelled ONLY after the close event actually commits.
  */
 
 export default function ShiftCloseScreen() {
@@ -42,7 +48,8 @@ export default function ShiftCloseScreen() {
   const events = port.readEvents();
   const openShift = port.deviceId === null ? null : findOpenShift(events, port.deviceId);
 
-  const floatPaise = port.openingFloatPaise ?? parseRupeeInput(floatText);
+  const floatPaise =
+    openShift?.openingFloatPaise ?? port.openingFloatPaise ?? parseRupeeInput(floatText);
   const totals = useMemo(
     () => (openShift === null ? null : shiftTotals(events, openShift)),
     [openShift, port.eventsVersion, floatPaise],
@@ -73,7 +80,7 @@ export default function ShiftCloseScreen() {
   const closeValidation =
     variance !== null ? validateShiftClose(countedCash, variance, reason) : null;
 
-  function close() {
+  async function close() {
     if (openShift === null || totals === null) {
       setError(t("home.noShift"));
       return;
@@ -92,7 +99,39 @@ export default function ShiftCloseScreen() {
       );
       return;
     }
-    setError(t("shift.closeUnavailable"));
+    if (openShift.shiftId == null) {
+      // the close must pair with the open's shift_id; a pre-SYNC-01 SHIFT_OPEN cannot provide
+      // one, so the reconciliation stays review-only rather than inventing an id
+      setError(t("errors.writeRejected", { detail: "open shift has no shift id payload" }));
+      return;
+    }
+    try {
+      // SHIFT_CLOSE payload (SYNC-01): full reconciliation, signed variances, paired by
+      // shift_id; reason travels in the payload's `reason` when one was required/given.
+      await writeEvent(port.writeDeps, {
+        type: "SHIFT_CLOSE",
+        payload: {
+          shift_id: openShift.shiftId,
+          counted_cash_paise: countedCash,
+          expected_cash_paise: variance.expectedCashPaise,
+          upi_total_declared_paise: upiDeclared ?? 0,
+          upi_attested_sum_paise: variance.upiAttestedTotalPaise,
+          variance_cash_paise: variance.cashVariancePaise,
+          variance_upi_paise: variance.upiVariancePaise,
+          reason: reason.trim() === "" ? undefined : reason.trim(),
+        },
+      });
+      // only AFTER the close commits: cancel exactly what was scheduled for this shift
+      if (port.reminderIds.length > 0) {
+        await cancelZoneReminders(port.reminderIds);
+        port.setReminderIds([]);
+      }
+      port.setOpeningFloat(null);
+      port.bump();
+      setError(null);
+    } catch (err) {
+      setError(err instanceof WriteRuleError ? err.message : String(err));
+    }
   }
 
   const unsyncedCount = port.devClient.health().queueDepth;
@@ -103,7 +142,7 @@ export default function ShiftCloseScreen() {
 
   return (
     <Screen title={t("shift.closeTitle")} onBack={() => router.back()}>
-      {port.openingFloatPaise === null && (
+      {port.openingFloatPaise === null && openShift.openingFloatPaise === null && (
         <Field
           label={`${t("shift.openingFloat")} · ${t("shift.floatUnknown")}`}
           value={floatText}
@@ -166,9 +205,13 @@ export default function ShiftCloseScreen() {
       {unsyncedCount > 0 && <Note>{t("shift.notSyncedCount", { count: unsyncedCount })}</Note>}
       {stillInside > 0 && <Note>{`${t("shift.stillInside")} (${String(stillInside)})`}</Note>}
       {error !== null && <Note tone="danger">{error}</Note>}
-      <Note tone="warn">{t("shift.closeUnavailable")}</Note>
+      {openShift.shiftId === null && (
+        <Note tone="warn">
+          {t("errors.writeRejected", { detail: "open shift has no shift id payload" })}
+        </Note>
+      )}
 
-      <BigButton title={t("shift.reviewClose")} onPress={close} />
+      <BigButton title={t("shift.reviewClose")} onPress={() => void close()} />
       <Muted>{`${t("home.currentShift", { time: istClockTime(Date.parse(openShift.openAt)) })} · ${t("shift.vehicles")}: ${String(totals.vehicles)}`}</Muted>
     </Screen>
   );

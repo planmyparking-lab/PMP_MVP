@@ -16,7 +16,7 @@ describe("safe timing diagnostics", () => {
     resetLogForTests();
     addLogLine(exitTimingLine(2300.3, 12.8, "UPI"), "2026-10-26T00:00:00Z");
     expect(recentLogLines(1)[0]?.line).toBe("exit_ms=2300 exit_save_ms=13 outcome=UPI");
-    expect(exitTimingLine(500, 10, "waived")).toBe("exit_ms=500 exit_save_ms=10 outcome=waived");
+    expect(exitTimingLine(500, 10, "WAIVED")).toBe("exit_ms=500 exit_save_ms=10 outcome=WAIVED");
   });
 
   it("includes the active zone safety-limit mode in the support diagnostics blob", () => {

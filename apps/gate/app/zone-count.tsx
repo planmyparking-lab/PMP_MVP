@@ -9,6 +9,7 @@ import {
   ACTIVE_SAFETY_LIMIT_MODE,
 } from "../src/domain/zoneCount";
 import { findOpenShift } from "../src/domain/shiftTotals";
+import { writeEvent } from "../src/data/writeEvent";
 import { zoneReminderTimes } from "../src/notifications/zoneReminders";
 import { istClockTime } from "../src/domain/istClock";
 import { useOccupancy, useI18n } from "../src/ui/useSyncState";
@@ -17,14 +18,14 @@ import { BigButton, Field, KVRow, Muted, Note, P, Screen, ToggleRow } from "../s
 
 /**
  * Zone-count screen (GATE-08 sequences 4.2-4.5, T-GATE-08-U1/U2): zone → counted number (0 to
- * safety limit) → system value + gap → confirm above capacity → review (persistence is blocked
- * until IC-01 supports the count payload).
+ * safety limit) → system value + gap → confirm above capacity → review → persist via writeEvent.
  *
  * Honesty notes:
  * - safety limit mode is ABSOLUTE_PLUS_50 (capacity + 50) so the D.8-U2 case (50 cap, 76 counted
- *   → warn + accept) holds; OQ-39 documents the conflict with the proportional reading;
- * - IC-01 does not yet define the ZONE_COUNT payload, so counts can be validated and reviewed but
- *   are not written as an empty event that would falsely imply the count was saved;
+ *   → warn + accept) holds; OQ-47 documents the conflict with the proportional reading;
+ * - the ZONE_COUNT payload needs the system value AT COUNT TIME; without an occupancy snapshot
+ *   the write is refused (never a fabricated "system" baseline), and above-capacity counts
+ *   require the explicit confirm before the save;
  * - shift reminders display from the pure plan; when notifications were denied (empty
  *   reminderIds with an open shift) the in-app banner path is announced here instead.
  */
@@ -70,7 +71,7 @@ export default function ZoneCountScreen() {
     openShift !== null ? zoneReminderTimes(openShift.openAt, port.config.shiftLengthMinutes) : null;
   const remindersDenied = openShift !== null && port.reminderIds.length === 0;
 
-  function save() {
+  async function save() {
     if (zone === null || actual === null || !Number.isInteger(actual)) {
       setError(t("zoneCount.notInteger"));
       return;
@@ -88,7 +89,34 @@ export default function ZoneCountScreen() {
       setConfirmedAbove(true);
       return;
     }
-    setError(t("zoneCount.writeUnavailable"));
+    if (systemCount === null) {
+      // ZONE_COUNT requires system_count_at_time; without the occupancy snapshot the write
+      // would invent a baseline — blocked, surfaced (never a fabricated "system" value)
+      setError(t("zoneCount.unknownSystem"));
+      return;
+    }
+    try {
+      // ZONE_COUNT payload (SYNC-01): zone uuid, the guard's whole-number count and the system
+      // value shown AT COUNT TIME (the gap row above) — session-less envelope (session_id null).
+      await writeEvent(port.writeDeps, {
+        type: "ZONE_COUNT",
+        payload: {
+          zone_id: zone.id,
+          counted: actual,
+          system_count_at_time: systemCount,
+        },
+      });
+      setCountText("");
+      setConfirmedAbove(false);
+      setError(null);
+      port.bump();
+    } catch (err) {
+      setError(
+        t("errors.writeRejected", {
+          detail: err instanceof Error ? err.message : String(err),
+        }),
+      );
+    }
   }
 
   return (
@@ -143,8 +171,7 @@ export default function ZoneCountScreen() {
             />
           )}
           {error !== null && <Note tone="danger">{error}</Note>}
-          <Note tone="warn">{t("zoneCount.writeUnavailable")}</Note>
-          <BigButton title={t("zoneCount.confirmReview")} onPress={save} />
+          <BigButton title={t("zoneCount.confirmReview")} onPress={() => void save()} />
         </View>
       )}
 

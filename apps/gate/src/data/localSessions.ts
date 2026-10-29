@@ -4,10 +4,10 @@ import type { OpenSessionRecord } from "../domain/findOpenSession";
  * In-memory open-session registry — the app-shell stand-in for the SYNC-03 `open_sessions`
  * snapshot (Afzal) plus this device's local ENTRY events.
  *
- * IC-01 `ENTRY` payloads are envelope-only today (no class/plate/short_code/zone), so a session's
- * searchable attributes live only where the
- * entry was made. Until the payload fields land (or the synced snapshot arrives), screens keep
- * this runtime registry — explicitly a DEV-MODE behaviour, not the port: everything here dies
+ * The merged IC-01 `ENTRY` payload does carry class/plate/short_code/zone, but until IC-02 (or the
+ * SYNC-03 snapshot) exposes open-session rows to read, screens keep this runtime registry as the
+ * local view of this device's own writes — explicitly a DEV-MODE behaviour, not the port:
+ * everything here dies
  * with the process and the status screen labels the whole shell "DEV MODE — local only".
  *
  * When the real client lands, `PortProvider` swaps the registry read for the snapshot + derived

@@ -4,12 +4,12 @@
  * Search paths from the sheet: by short code, by plate, or by vehicle class plus an entry-time
  * window ("default: last 6 hours, adjustable"). One match, many matches (list), or none.
  *
- * IMPORTANT (contract gap): IC-01 `ENTRY` payloads are envelope-only today (only `session_id`;
- * TODO(owner: Afzal/Akanksha) in packages/contracts/src/events.ts), so a session's class, plate,
- * short code and entry instant cannot yet be derived from stored events. This module is therefore
- * parametric: it takes `OpenSessionRecord` view inputs that the caller builds once the payload
- * fields land (or from the synced `open_sessions` snapshot). No rule here touches the IC-01
- * schema, so it needs no contract change.
+ * The merged IC-01 `ENTRY` payload carries class, zone, short code and (optional) plate, so the
+ * searchable attributes are representable in stored events; the entry instant is the envelope's
+ * `device_time`. This module is nevertheless parametric: it takes `OpenSessionRecord` view inputs
+ * that the caller builds from IC-02's read surface (FakeSync's local view today, the synced
+ * `open_sessions` snapshot / an events read from Afzal once OQ-45 is resolved). No rule here
+ * touches the IC-01 schema, so it needs no contract change.
  *
  * Inputs are pre-normalized: the screen normalizes typed short codes with
  * `normalizeShortCode` (token.ts) and plates with `normalizeVehicleNo` (plates.ts) BEFORE calling,

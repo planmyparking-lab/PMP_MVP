@@ -4,15 +4,13 @@ import type { Event } from "@pmp/contracts";
  * Shift totals and closing rules (GATE-06, tests T-GATE-06-U1/U2/U3, N1/N2; rules 2, 7).
  *
  * Matching model: totals come from local events whose `device_time` falls in
- * [open, close) and whose shift id matches — but IC-01 `SHIFT_OPEN`/`SHIFT_CLOSE` payloads are
- * envelope-only today (no `shift_id`/`float_paise`; TODO owner Afzal/Akanksha in contracts),
- * and no event carries a shift id yet. Per OQ-23's default the shift is per guard per device,
- * so the window is scoped by `device_id` (option `includeOtherDevices` mirrors the facility
- * setting "shifts span devices"). Matching can tighten to a real `shift_id` the moment the
- * payload fields land in IC-01; this module stays the single change point.
+ * [open, close) and whose shift id matches. IC-01 SHIFT_OPEN/SHIFT_CLOSE carry `shift_id` and
+ * the totals/variance payloads (SYNC-01), so a persisted close pairs with its open by `shift_id`;
+ * the open shift itself is scoped by `device_id` per OQ-23's default (the shift is per guard per
+ * device), `includeOtherDevices` mirroring the facility setting "shifts span devices".
  *
- * The opening float is an INPUT, not derivable: the open screen holds it for the session until
- * the SHIFT_OPEN payload exists (write wrappers in src/data/writeEvent.ts document this).
+ * The opening float comes from the SHIFT_OPEN payload (the source of truth since SYNC-01); the
+ * close screen prefers this event value over stale UI state.
  *
  * Variance semantics exactly per the sheet:
  *   expected_cash = float + sum(CASH payments in shift)
@@ -32,7 +30,17 @@ export type ShiftOpenWindow = {
   closeAt?: string;
   /** Facility setting "shifts span devices" (OQ-23; default false = per guard per device). */
   includeOtherDevices?: boolean;
+  /** The SHIFT_OPEN payload's shift_id of the open shift (undefined for pre-SYNC-01 envelope).
+   * SHIFT_CLOSE must carry the same id so open and close pair up. */
+  shiftId?: string | null;
+  /** The SHIFT_OPEN payload's opening float (undefined when the event predates the payload). */
+  openingFloatPaise?: number | null;
 };
+
+function shiftOpenFields(event: Event): { shiftId: string; openingFloatPaise: number } | null {
+  if (event.type !== "SHIFT_OPEN") return null;
+  return { shiftId: event.payload.shift_id, openingFloatPaise: event.payload.opening_float_paise };
+}
 
 function parsedMs(iso: string): number | null {
   const ms = Date.parse(iso);
@@ -61,10 +69,10 @@ export type ModeTotals = Record<string, { count: number; amountPaise: number }>;
 
 export type ShiftTotals = {
   window: { openAt: string; closeAt?: string };
-  /** ENTRY events in the window (vehicle count; envelope events carry session_id today). */
+  /** ENTRY events in the window (vehicle count; one row per entry envelope event). */
   vehicles: number;
-  /** Totals by payment mode from the events present; PASS/WAIVED sums appear automatically
-   * once IC-01 gains those modes (parametric — T-GATE-06-U1 mixes "known modes"). */
+  /** Totals by payment mode from the events present (all four IC-01 modes since SYNC-01;
+   * buckets are parametric over what the shift actually recorded). */
   paymentsByMode: ModeTotals;
   upiAttested: { count: number; amountPaise: number };
   overrides: number;
@@ -84,13 +92,13 @@ export function shiftTotals(events: readonly Event[], window: ShiftOpenWindow): 
     if (e.type === "ENTRY") {
       vehicles += 1;
     } else if (e.type === "PAYMENT") {
-      const bucket = paymentsByMode[e.mode] ?? { count: 0, amountPaise: 0 };
+      const bucket = paymentsByMode[e.payload.mode] ?? { count: 0, amountPaise: 0 };
       bucket.count += 1;
-      bucket.amountPaise += e.amount_paise;
-      paymentsByMode[e.mode] = bucket;
-      if (e.mode === "UPI" && e.upi_attested) {
+      bucket.amountPaise += e.payload.amount_paise;
+      paymentsByMode[e.payload.mode] = bucket;
+      if (e.payload.mode === "UPI" && e.payload.upi_attested) {
         upiAttested.count += 1;
-        upiAttested.amountPaise += e.amount_paise;
+        upiAttested.amountPaise += e.payload.amount_paise;
       }
     } else if (e.type === "OVERRIDE") {
       overrides += 1;
@@ -106,31 +114,52 @@ export function shiftTotals(events: readonly Event[], window: ShiftOpenWindow): 
 }
 
 /**
- * The currently open shift on a device: the latest SHIFT_OPEN envelope event on that device
- * that has no later SHIFT_CLOSE on the same device (terminally. One open shift per guard per
- * device, rule 7). Shift OPEN/CLOSE payload fields (shift_id, float, totals) are pending IC-01,
- * so identity is (deviceId, openAt) until they land.
+ * The currently open shift on a device: the latest SHIFT_OPEN event on that device (with its
+ * `shift_id`/`opening_float_paise` payload since SYNC-01) that has no later SHIFT_CLOSE on the
+ * same device. One open shift per guard per device (rule 7); the shift id from the payload is
+ * the identity the close event must repeat.
  */
 export function findOpenShift(events: readonly Event[], deviceId: string): ShiftOpenWindow | null {
   const opens = events
     .filter((e) => e.type === "SHIFT_OPEN" && e.device_id === deviceId)
-    .map((e) => ({ at: parsedMs(e.device_time), iso: e.device_time }))
-    .filter((o): o is { at: number; iso: string } => o.at !== null)
+    .map((e) => ({
+      at: parsedMs(e.device_time),
+      iso: e.device_time,
+      fields: shiftOpenFields(e),
+    }))
+    .filter(
+      (
+        o,
+      ): o is { at: number; iso: string; fields: { shiftId: string; openingFloatPaise: number } } =>
+        o.at !== null,
+    )
     .sort((a, b) => a.at - b.at);
   const closes = events
     .filter((e) => e.type === "SHIFT_CLOSE" && e.device_id === deviceId)
     .map((e) => parsedMs(e.device_time))
     .filter((at): at is number => at !== null);
   for (let i = opens.length - 1; i >= 0; i -= 1) {
-    const open = opens[i] as { at: number; iso: string };
+    const open = opens[i] as {
+      at: number;
+      iso: string;
+      fields: { shiftId: string; openingFloatPaise: number };
+    };
     const laterClose = closes.find((at) => at >= open.at);
-    if (laterClose === undefined) return { deviceId, openAt: open.iso };
+    if (laterClose === undefined) {
+      return {
+        deviceId,
+        openAt: open.iso,
+        shiftId: open.fields?.shiftId ?? null,
+        openingFloatPaise: open.fields?.openingFloatPaise ?? null,
+      };
+    }
   }
   return null;
 }
 
 export type ShiftVarianceInput = {
-  /** Opening float entered at shift open (paise). INPUT: SHIFT_OPEN payload is pending IC-01. */
+  /** Opening float (paise); the close screen prefers the SHIFT_OPEN payload's value via
+   * findOpenShift().openingFloatPaise (the caller's argument stays the fallback/login input). */
   openingFloatPaise: number;
   /** Counted cash at close (paise); 0 is valid. */
   countedCashPaise: number;

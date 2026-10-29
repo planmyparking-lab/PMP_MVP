@@ -91,8 +91,7 @@ export type FareResolution =
       ok: true;
       farePaise: number;
       tariffId: string;
-      /** ISO date the chosen tariff became effective (recorded on the EXIT payload when it
-       * lands; the EXIT event envelope cannot carry it yet). */
+      /** ISO date the chosen tariff became effective (GATE-03 selection rule). */
       tariffEffectiveFrom: string;
       skewHint: boolean;
     }
@@ -172,14 +171,26 @@ export function lostTokenSearch(
  * The writeExit bundle for the resolved fare and chosen payment button (the GATE-04 mapping
  * happens in paymentRules; this only wires the resolved numbers in — the fare is REQUIRED, so a
  * caller who skipped resolveFare cannot accidentally write a zero-amount Cash payment).
+ * `method` is how the session was found (GATE-02: scan, typed code, or lookup search) and is
+ * recorded on the EXIT payload (`exit_method`); `tariffId`/`tariffVersion` ride along when the
+ * resolved tariff id is an IC-01 uuid (dev fixture ids like "CAR-A" are not, so the audit
+ * field stays omitted rather than producing an invalid event).
  */
 export function exitBundleFor(
   session: OpenSessionRecord,
   farePaise: number,
-  button: "CASH" | "UPI",
+  input: {
+    button: "CASH" | "UPI";
+    method: "SCAN" | "CODE" | "LOOKUP";
+    tariffId?: string;
+    tariffVersion?: number;
+  },
 ): {
   sessionId: string;
   farePaise: number;
+  exitMethod: "SCAN" | "CODE" | "LOOKUP";
+  tariffId?: string;
+  tariffVersion?: number;
   payment: { mode: "CASH" | "UPI"; amountPaise: number };
 } {
   if (!Number.isSafeInteger(farePaise) || farePaise < 0) {
@@ -188,7 +199,10 @@ export function exitBundleFor(
   return {
     sessionId: session.sessionId,
     farePaise,
-    payment: { mode: button, amountPaise: farePaise },
+    exitMethod: input.method,
+    tariffId: input.tariffId,
+    tariffVersion: input.tariffVersion,
+    payment: { mode: input.button, amountPaise: farePaise },
   };
 }
 

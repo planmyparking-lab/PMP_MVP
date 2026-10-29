@@ -16,16 +16,14 @@ export type PaymentShape = Extract<Event, { type: "PAYMENT" }>;
  * - Waive  -> PAYMENT {mode:'WAIVED', amount_paise = 0} + OVERRIDE with the reason code
  *            (created in the same transaction, GATE-04 sequence 4.6 / T-GATE-04-I2)
  *
- * CONTRACT GAP (owner: Afzal, IC-01): packages/contracts/src/events.ts only enumerates modes
- * `CASH` and `UPI`; `PASS` and `WAIVED` are pending. `paymentIntentFor` produces the sheet's
- * full mapping (so screens/tests can be complete), while the write path must check
- * `isContractPayableMode` and refuse to persist intents whose mode IC-01 cannot represent yet —
- * never save an event the schema would strip or reject. The owe/zero rules for PASS/WAIVED are
- * still validated here so only the mode enum is blocking.
+ * All four modes are writeable in the merged IC-01 contract (SYNC-01: PAYMENT_MODES = CASH, UPI,
+ * PASS, WAIVED; the zod refine enforces `upi_attested` true only with UPI). `paymentIntentFor`
+ * produces this mapping and the write path validates amount, attestation and mode via
+ * validatePaymentAmount/validateUpiAttestation before anything is stamped.
  */
 
-export type ContractPaymentMode = PaymentShape["mode"]; // "CASH" | "UPI"
-export type PaymentButton = ContractPaymentMode | "PASS" | "WAIVED";
+export type ContractPaymentMode = PaymentShape["payload"]["mode"]; // "CASH" | "UPI" | "PASS" | "WAIVED"
+export type PaymentButton = ContractPaymentMode;
 
 export type PaymentIntent = {
   button: PaymentButton;
@@ -47,8 +45,13 @@ export function paymentIntentFor(button: PaymentButton, farePaise: number): Paym
   }
 }
 
-/** Modes the IC-01 schema can represent today (contracts events.ts, TODO pending Afzal). */
-export const CONTRACT_PAYABLE_MODES: readonly ContractPaymentMode[] = ["CASH", "UPI"];
+/** Modes the IC-01 schema can represent (contracts events.ts; all four since SYNC-01). */
+export const CONTRACT_PAYABLE_MODES: readonly ContractPaymentMode[] = [
+  "CASH",
+  "UPI",
+  "PASS",
+  "WAIVED",
+];
 
 export function isContractPayableMode(mode: string): mode is ContractPaymentMode {
   return (CONTRACT_PAYABLE_MODES as readonly string[]).includes(mode);

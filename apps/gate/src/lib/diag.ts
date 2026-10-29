@@ -40,7 +40,7 @@ export function entryTimingLine(
 export function exitTimingLine(
   exitMs: number,
   saveMs: number,
-  payment: "CASH" | "UPI" | "waived",
+  payment: "CASH" | "UPI" | "PASS" | "WAIVED",
 ): string {
   return `exit_ms=${Math.round(exitMs)} exit_save_ms=${Math.round(saveMs)} outcome=${payment}`;
 }

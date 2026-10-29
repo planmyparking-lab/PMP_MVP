@@ -15,12 +15,13 @@ import { formatEventIssues } from "./eventIssues";
  * (nothing is "synced" until the test calls markAllSynced).
  *
  * Test-only view helpers (clearly NOT IC-02 surface): `attachSessionZone` and `markAllSynced`.
- * ZONE ↔ session association can't be derived from events yet (ENTRY payloads are envelope-only
- * in IC-01 today), so tests attach it the way SYNC-03's `open_sessions` snapshot will.
+ * ZONE ↔ session association is attached explicitly at setup (the way SYNC-03's `open_sessions`
+ * snapshot will provide it) instead of being derived from stored ENTRY payloads — this keeps the
+ * fake's occupancy baseline deterministic regardless of which events each test writes.
  *
  * The fake deliberately does NOT write SQLite, call the network, or emulate Afzal's conflict
  * detectors — production code consumes the `SyncClient` port, never this fake (integration with
- * the real package is Afzal's wave; see writeEvent.ts and OQ-37).
+ * the real package is Afzal's wave; see writeEvent.ts and OQ-45).
  */
 
 export type FakeSyncOptions = {

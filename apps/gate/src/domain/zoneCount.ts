@@ -4,22 +4,22 @@
  * Rule (GATE-08 seq 4.3): "On submit: validate integer 0 to capacity + 50% (warn above capacity,
  * allow with confirmation)".
  *
- * DOCUMENTED CONFLICT (OQ-39, awaiting review): the D.8-U2 table expects capacity 50 with count
+ * DOCUMENTED CONFLICT (OQ-47, awaiting review): the D.8-U2 table expects capacity 50 with count
  * 76 to be "warn + confirm", but a proportional limit (50 × 1.5 = 75) would reject 76 — the two
  * readings cannot both hold. `safetyLimitMode` makes the reading explicit instead of hiding it:
  * - `PROPORTIONAL_50PCT` (default, the C-section's literal text): reject above capacity × 1.5;
  * - `ABSOLUTE_PLUS_50` (the reading that satisfies D.8-U2): reject above capacity + 50.
  * Both modes warn+confirm in (capacity, limit]. Pivot to the other mode with one call-site
- * change once OQ-39 is decided.
+ * change once OQ-47 is decided.
  *
- * IC-01 does not yet define the ZONE_COUNT payload (zone_id, actual_count, system_count). This
- * module validates counts, but the screen blocks persistence until that contract can represent
- * the submitted data.
+ * Persistence: the merged IC-01 ZONE_COUNT payload (zone_id, counted, system_count_at_time) can
+ * represent the submitted data; the screen writes it through writeEvent (see app/zone-count.tsx).
+
  */
 
 export type SafetyLimitMode = "PROPORTIONAL_50PCT" | "ABSOLUTE_PLUS_50";
 
-/** Current Gate UI mode, surfaced in status/diagnostics without resolving OQ-39. */
+/** Current Gate UI mode, surfaced in status/diagnostics without resolving OQ-47. */
 export const ACTIVE_SAFETY_LIMIT_MODE: SafetyLimitMode = "ABSOLUTE_PLUS_50";
 
 export type ZoneCountValidation =

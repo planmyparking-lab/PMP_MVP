@@ -17,14 +17,13 @@ import type { OpenSessionRecord } from "./findOpenSession";
  * any typed positive paise amount forces the reason.
  *
  * Duplicate rule (D.11-U2): a matching short code or plate on an ENTRY saved within 10 minutes of
- * the paper time triggers a warning (never a hard block — duplicates of events saved by OTHER
- * devices cannot be detected locally until the contracts carry source metadata; this check covers
- * what this device demonstrably knows).
+ * the paper time triggers a warning (never a hard block — cross-device events are not readable
+ * locally yet; this check covers what this device demonstrably knows).
  *
- * NOTE (contracts gap): IC-01 events cannot yet carry `source = PAPER_BACKFILL` (or `recorded_at`),
- * so the app may NOT persist backfill events the
- * drafts it validates here would produce indistinguishable live events. The write call in the
- * screen is therefore blocked with an explicit explanation until Afzal's envelope TODO lands.
+ * NOTE (remaining contracts gap): the merged IC-01 envelope now carries `source = PAPER_BACKFILL`,
+ * but there is still no `recorded_at` (paper-time provenance) field, so persisting is withheld:
+ * drafts validated here would otherwise look identical to live-written events. The screen keeps
+ * the explicit blocked panel until the `recorded_at` decision lands (GATE-11, OQ-46).
  */
 
 const DUPLICATE_WINDOW_MINUTES = 10;

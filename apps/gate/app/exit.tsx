@@ -4,7 +4,12 @@ import { useRouter } from "expo-router";
 import type { ReasonCode } from "@pmp/contracts";
 
 import { Scanner } from "../src/ui/Scanner";
-import { WriteRuleError, waiveExitBundle, writeExit } from "../src/data/writeEvent";
+import {
+  WriteRuleError,
+  waiveExitBundle,
+  writeExit,
+  type ExitBundle,
+} from "../src/data/writeEvent";
 import {
   doubleExitCheck,
   exitBundleFor,
@@ -17,6 +22,7 @@ import {
 } from "../src/domain/exitFlow";
 import { findOpenShift } from "../src/domain/shiftTotals";
 import { cashChangePaise } from "../src/domain/paymentRules";
+import { lookupPass } from "../src/domain/pass";
 import {
   OVERRIDE_REASON_CODES,
   isWithinCorrectionWindow,
@@ -35,17 +41,28 @@ import { elapsedFlowMs, resetFlowTimer, startFlowTimer } from "../src/domain/flo
  * Exit screen (GATE-02 sequences 4.2-4.7 + GATE-04 payment + GATE-05 pass states):
  * resolve input (scan / typed code / lost-token search by plate or class-window) → local
  * double-exit guard → fare (entry-tariff rule) → payment → writeExit in ONE transaction
- * (EXIT + PAYMENT [+ OVERRIDE on waiver]) → close the registry row.
+ * (EXIT + PAYMENT [+ PAYMENT(WAIVED)/OVERRIDE on waiver]) → close the registry row.
  *
  * Contract-honest states here (never papered over):
- * - PASS payment is blocked with the pending-contract explanation — IC-01 has no mode PASS yet;
- *   the write layer refuses it, so the screen offers no fake alternative;
- * - a waiver is a WAIVED-exit: EXIT + reason OVERRIDE in one transaction (the PAYMENT(mode
- *   WAIVED) event follows when the enum lands — documented in src/data/writeEvent.ts);
+ * - all four payment modes are IC-01-payable (SYNC-01); a PASS exit needs the session's plate and
+ *   a VALID pass row (dues settlement at the gate itself is an open partner decision, OQ-44) —
+ *   without them the screen shows the pass lookup screen and the explanation note;
+ * - the tariff id rides the EXIT payload only when it is an IC-01 uuid (dev fixture ids like
+ *   "CAR-A" are not; `tariff_version` is not emitted until the contract grows a version field);
+ * - a waiver is a WAIVED-exit: EXIT + PAYMENT(mode WAIVED, 0) + reason OVERRIDE in one
+ *   transaction per the sheet mapping;
  * - NO_TARIFF offers waiver/call-manager (T-GATE-02-N4), never an invisible zero fare.
  */
 
 type Mode = "scan" | "code" | "lost";
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The EXIT payload's tariff_id must be an IC-01 uuid; dev fixture ids ("CAR-A") are omitted
+ * rather than producing an invalid event (they are remappable on real synced config). */
+function tariffAuditId(tariffId: string): string | undefined {
+  return UUID_PATTERN.test(tariffId) ? tariffId : undefined;
+}
 
 type Pick =
   | { kind: "idle" }
@@ -70,6 +87,8 @@ export default function ExitScreen() {
   const [lostPlate, setLostPlate] = useState("");
   const [lostClass, setLostClass] = useState<string | null>(null);
   const [pick, setPick] = useState<Pick>({ kind: "idle" });
+  // How this session was found — recorded on the EXIT payload as exit_method (GATE-02 rule 12).
+  const [foundVia, setFoundVia] = useState<ExitBundle["exitMethod"] | null>(null);
   const [waiveReason, setWaiveReason] = useState<string | null>(null);
   const [waiveNote, setWaiveNote] = useState("");
   const [showWaive, setShowWaive] = useState(false);
@@ -102,6 +121,7 @@ export default function ExitScreen() {
   function resetFlow() {
     flowStartedAt.current = resetFlowTimer(performance.now());
     setPick({ kind: "idle" });
+    setFoundVia(null);
     setTyped("");
     setLostPlate("");
     setLostClass(null);
@@ -123,6 +143,7 @@ export default function ExitScreen() {
     setSaveError(null);
     if (resolved.kind === "INVALID") return setPick({ kind: "invalid" });
     if (resolved.kind === "WRONG_FACILITY") return setPick({ kind: "wrongFacility" });
+    setFoundVia(input.kind === "scan" ? "SCAN" : "CODE");
     if (outcome.kind === "none") return setPick({ kind: "none" });
     if (outcome.kind === "many") {
       return setPick({ kind: "many", ids: outcome.sessions.map((s) => s.sessionId) });
@@ -144,6 +165,7 @@ export default function ExitScreen() {
 
   function applyOutcome(outcome: ReturnType<typeof lostTokenSearch>) {
     setSaveError(null);
+    setFoundVia("LOOKUP");
     if (outcome.kind === "none") return setPick({ kind: "none" });
     if (outcome.kind === "many") {
       return setPick({ kind: "many", ids: outcome.sessions.map((s) => s.sessionId) });
@@ -158,13 +180,33 @@ export default function ExitScreen() {
     session !== null && exited !== null && exited.ok
       ? resolveFare(session, nowIso, port.config.tariffs)
       : null;
+  // GATE-05 exit path: PASS payment rides a VALID pass row matched by the session's plate
+  // (lookupPass precedence: DUES/EXPIRED never open the gate silently — states stay on /pass).
+  const passForExit =
+    session !== null && session.vehicleNo !== null && fare !== null && fare.ok
+      ? lookupPass(session.vehicleNo ?? "", port.config.passes, nowIso)
+      : null;
 
-  async function commitPay(button: "CASH" | "UPI") {
+  async function commitPay(button: "CASH" | "UPI" | "PASS") {
     if (session === null || fare === null || !fare.ok) return;
     startFlowIfNeeded();
     setSaveError(null);
     try {
-      const bundle = exitBundleFor(session, fare.farePaise, button);
+      const method = foundVia ?? "LOOKUP";
+      const bundle =
+        button === "PASS"
+          ? {
+              sessionId: session.sessionId,
+              farePaise: fare.farePaise,
+              exitMethod: method,
+              tariffId: tariffAuditId(fare.tariffId),
+              payment: { mode: "PASS" as const, amountPaise: 0 },
+            }
+          : exitBundleFor(session, fare.farePaise, {
+              button,
+              method,
+              tariffId: tariffAuditId(fare.tariffId),
+            });
       const saveStartedAt = performance.now();
       await writeExit(port.writeDeps, bundle);
       const savedAt = performance.now();
@@ -202,7 +244,7 @@ export default function ExitScreen() {
     const entryEvent = events.find((e) => e.type === "ENTRY" && e.session_id === session.sessionId);
     if (entryEvent === undefined) {
       // the OVERRIDE schema requires target_event_id; without the local ENTRY event id this
-      // write is impossible (never silently skipped — surfaced, OQ-37 read-API note)
+      // write is impossible (never silently skipped — surfaced, OQ-45 read-API note)
       setSaveError(t("errors.writeRejected", { detail: "no local ENTRY event id" }));
       return;
     }
@@ -214,6 +256,7 @@ export default function ExitScreen() {
         // validateOverrideInput above proved this is one of the fixed reason codes
         reasonCode: waiveReason as ReasonCode,
         note: waiveNote,
+        exitMethod: foundVia ?? "LOOKUP",
       });
       const saveStartedAt = performance.now();
       await writeExit(port.writeDeps, bundle);
@@ -224,7 +267,7 @@ export default function ExitScreen() {
         exitTimingLine(
           elapsedFlowMs(flowStartedAt.current, savedAt),
           savedAt - saveStartedAt,
-          "waived",
+          "WAIVED",
         ),
         new Date().toISOString(),
       );
@@ -452,12 +495,20 @@ export default function ExitScreen() {
                 </View>
               )}
               <Note>{t("payment.attestedLabel")}</Note>
+              {passForExit?.state === "VALID" ? (
+                <BigButton
+                  title={`${t("payment.pass")} · ${t("exit.passValidNote")}`}
+                  onPress={() => void commitPay("PASS")}
+                />
+              ) : (
+                <Note>{t("exit.passPending")}</Note>
+              )}
               <BigButton
                 title={`→ ${t("nav.pass")}`}
                 kind="secondary"
                 onPress={() => router.push("/pass")}
               />
-              <Note>{t("exit.passPending")}</Note>
+              <Note>{t("exit.passLookupHint")}</Note>
               <BigButton
                 title={t("payment.waive")}
                 kind="secondary"

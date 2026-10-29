@@ -25,12 +25,12 @@ import { addLogLine } from "../src/lib/log";
  * amount + (reason) for exits; duplicate warning against locally-known rows; supervisor-only
  * rule for times older than 24 h.
  *
- * THE WRITE PATH IS DELIBERATELY BLOCKED: IC-01 events cannot carry a `source =
- * PAPER_BACKFILL` flag yet, so a persisted backfill event today would be
- * INDISTINGUISHABLE from a live event — fabrication of provenance is prohibited. This screen
+ * THE WRITE PATH REMAINS DELIBERATELY BLOCKED: the merged IC-01 envelope carries
+ * `source = PAPER_BACKFILL`, but there is still no `recorded_at` (paper-time provenance) field —
+ * a persisted backfill event today would be INDISTINGUISHABLE from a live event with respect to
+ * when it was actually written, and fabricating provenance is prohibited (OQ-46). This screen
  * validates drafts to full completeness and displays the blocked panel; NOTHING is written by
- * this flow (the reason panel cites the exact contract gap). When the envelope TODO lands, the
- * write wrapper goes here and nowhere else.
+ * this flow. When the `recorded_at` decision lands, the write wrapper goes here and nowhere else.
  */
 
 type Tab = "entries" | "exits";
@@ -97,7 +97,7 @@ export default function BackfillScreen() {
       const rule = validateOverrideInput({ reasonCode: reasonCode ?? "", note: null });
       if (!rule.ok) {
         addLogLine(
-          `backfill exit draft: typed amount ${String(amount)} requires a fixed reason (event write remains blocked by the IC-01 contract gap)`,
+          `backfill exit draft: typed amount ${String(amount)} requires a fixed reason (event write remains blocked: no recorded_at provenance field)`,
           nowIso,
         );
       }

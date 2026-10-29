@@ -30,9 +30,14 @@ describe("DEV_APP_CONFIG seed", () => {
   });
 
   it("carries the demo facility's demo-only surfaces", () => {
-    expect(DEV_APP_CONFIG.facilityId).toBe("fac-demo-1");
+    // Well-known demo uuid: every IC-01 envelope field (facility_id) must be a uuid.
+    expect(DEV_APP_CONFIG.facilityId).toBe("fac11111-0000-7000-8000-000000000001");
     expect(DEV_APP_CONFIG.classes).toEqual(["Car", "Bike", "Truck"]);
-    expect(DEV_APP_CONFIG.zones.map((zone) => zone.id)).toEqual(["Z1", "Z2", "ZTR"]);
+    expect(DEV_APP_CONFIG.zones.map((zone) => zone.id)).toEqual([
+      "2b111111-1111-7111-8111-111111111101",
+      "2b222222-2222-7222-8222-222222222202",
+      "2bbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbb303",
+    ]);
     expect(DEV_APP_CONFIG.varianceThresholdPaise).toBe(500);
     expect(DEV_APP_CONFIG.shiftLengthMinutes).toBeNull(); // exercise the 480 default
     expect(DEV_APP_CONFIG.minSupportedVersion).toBe(1);

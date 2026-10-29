@@ -92,7 +92,9 @@
     "amountDue": "Fare",
     "choosePayment": "Choose payment",
     "passGeneric": "Pass",
-    "passPending": "Pass payments cannot be recorded yet — the payment-mode contract is pending",
+    "passPending": "Pass exit needs this session's vehicle number and a VALID pass (dues are settled on the pass screen first)",
+    "passValidNote": "valid pass — no charge",
+    "passLookupHint": "Pass screen: look up a vehicle, dues state included",
     "waiveNeedsReason": "Waive needs a reason",
     "confirmExit": "Save exit",
     "exitSaved": "Exit saved",
@@ -151,8 +153,7 @@
     "alreadyOpen": "Shift already open — close it first",
     "openNow": "Open shift",
     "closeNow": "Close shift",
-    "reviewClose": "Review shift close",
-    "closeUnavailable": "Shift totals are not saved because the event contract does not yet support shift-close details.",
+    "reviewClose": "Close the shift and save the totals",
     "floatUnknown": "Opening float unknown after restart — type it exactly as entered at open",
     "varianceReasonRequired": "Variance is beyond {{amount}} — write a reason",
     "vehicles": "Vehicles",
@@ -175,7 +176,6 @@
     "aboveCapacityWarning": "Above capacity — confirm",
     "saved": "Count saved",
     "confirmReview": "Confirm count review",
-    "writeUnavailable": "Count is not saved because the event contract does not yet support zone-count details.",
     "chooseZone": "Choose zone",
     "capacity": "Capacity {{n}}",
     "notInteger": "Enter a whole number",
@@ -185,7 +185,8 @@
     "safetyLimitMode": {
       "PROPORTIONAL_50PCT": "Proportional +50%",
       "ABSOLUTE_PLUS_50": "Capacity +50"
-    }
+    },
+    "unknownSystem": "System count unavailable — no occupancy snapshot; the count is not saved"
   },
   "banner": {
     "offline": "Offline — saved on this phone",
@@ -284,8 +285,8 @@
     "amountRequired": "Type the amount",
     "reasonRequired": "A typed amount needs a reason",
     "duplicate": "Possible duplicate: saved entry at {{time}}",
-    "writeBlockedTitle": "Saving blocked — contract pending",
-    "writeBlockedBody": "The event contract cannot carry the PAPER_BACKFILL source flag yet, so nothing is written (unchanged since the paper sheet). Validation only, no fake events.",
+    "writeBlockedTitle": "Saving blocked — recorded_at pending",
+    "writeBlockedBody": "The event envelope carries source = PAPER_BACKFILL, but has no recorded_at (paper-time provenance) field yet, so a saved event would be indistinguishable from one written live. Validation only, no fake events.",
     "draftReady": "Draft validated — not written (see notice)",
     "draftValid": "Draft valid"
   },

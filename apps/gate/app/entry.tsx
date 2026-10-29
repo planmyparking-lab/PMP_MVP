@@ -62,8 +62,7 @@ export default function EntryScreen() {
   const router = useRouter();
   const occupancy = useOccupancy(port.client, port.config.facilityId);
   // GATE-01 item 2: the plate is optional — an "Add number" affordance offers it, never requires
-  // it. The field stays collapsed until the guard asks (pass-holder mandatory plate is not yet
-  // reachable: PASS mode is unsupported by the current IC-01 contract).
+  // it. The pass-holder plate (mandatory per GATE-05) rides the pass-QR/lookup flow, not here.
   const [showPlate, setShowPlate] = useState(false);
   const flowStartedAt = useRef<number | null>(null);
 
@@ -106,7 +105,18 @@ export default function EntryScreen() {
         const openCodes = new Set(port.registry.list().map((row) => row.shortCode));
         const token = generateToken(openCodes, port.config.facilityId);
         const saveStartedAt = performance.now();
-        await writeEvent(port.writeDeps, { type: "ENTRY", session_id: token.sessionId });
+        // IC-01 ENTRY payload (SYNC-01): class + zone + short code plus the optional plate —
+        // what the entry screen collected, exactly, with no fabricated fields.
+        await writeEvent(port.writeDeps, {
+          type: "ENTRY",
+          session_id: token.sessionId,
+          payload: {
+            vehicle_class: classId,
+            zone_id: zoneId,
+            short_code: token.shortCode,
+            ...(ctx.vehicleNo !== undefined ? { vehicle_no: ctx.vehicleNo } : {}),
+          },
+        });
         const savedAt = performance.now();
         port.registry.record({
           sessionId: token.sessionId,

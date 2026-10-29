@@ -44,10 +44,19 @@ function entry(
   return {
     id: "c1111111-1111-7111-8111-111111111101",
     type: "ENTRY",
+    facility_id: "fa777777-7777-7777-8777-777777777777",
     device_id,
+    staff_id: "01877777-0000-7000-8000-00000000000a",
     device_time: at,
+    source: "LIVE",
     schema_version: 1,
     session_id: sessionId,
+    payload: {
+      vehicle_class: "Car",
+      zone_id: "01899999-8888-7888-8888-888888888801",
+      short_code: "ABCDE",
+      vehicle_no: "UP32AB1234",
+    },
   };
 }
 function payment(
@@ -61,13 +70,14 @@ function payment(
   return {
     id: "c2222222-2222-7222-8222-222222222221",
     type: "PAYMENT",
+    facility_id: "fa777777-7777-7777-8777-777777777777",
     device_id,
+    staff_id: "01877777-0000-7000-8000-00000000000a",
     device_time: at,
+    source: "LIVE",
     schema_version: 1,
     session_id: sessionId,
-    amount_paise: amount,
-    mode,
-    upi_attested,
+    payload: { mode, amount_paise: amount, upi_attested },
   };
 }
 function overrideEvent(
@@ -78,12 +88,17 @@ function overrideEvent(
   return {
     id: "c3333333-3333-7333-8333-333333333301",
     type: "OVERRIDE",
+    facility_id: "fa777777-7777-7777-8777-777777777777",
     device_id,
+    staff_id: "01877777-0000-7000-8000-00000000000a",
     device_time: at,
+    source: "LIVE",
     schema_version: 1,
     session_id: sessionId,
-    target_event_id: "c4444444-4444-7444-8444-444444444401",
-    reason_code: "MISREAD_NUMBER",
+    payload: {
+      target_event_id: "c4444444-4444-7444-8444-444444444401",
+      reason_code: "MISREAD_NUMBER",
+    },
   };
 }
 
@@ -221,12 +236,13 @@ describe("paymentRules (T-GATE-04-U1/U2, I1)", () => {
     });
   });
 
-  it("only CASH and UPI are IC-01 encodable today (contracts gap, owner Afzal)", () => {
+  it("every PAYMENT_MODES value is IC-01 encodable (merged SYNC-01 contract)", () => {
     expect(isContractPayableMode("CASH")).toBe(true);
     expect(isContractPayableMode("UPI")).toBe(true);
-    expect(isContractPayableMode("PASS")).toBe(false);
-    expect(isContractPayableMode("WAIVED")).toBe(false);
-    expect(CONTRACT_PAYABLE_MODES).toEqual(["CASH", "UPI"]);
+    expect(isContractPayableMode("PASS")).toBe(true);
+    expect(isContractPayableMode("WAIVED")).toBe(true);
+    expect(isContractPayableMode("COMP")).toBe(false);
+    expect(CONTRACT_PAYABLE_MODES).toEqual(["CASH", "UPI", "PASS", "WAIVED"]);
   });
 
   it("flags a second payment for the same session (T-GATE-04-I1 local guard)", () => {
@@ -284,31 +300,61 @@ describe("shiftTotals (T-GATE-06-U1)", () => {
   });
 
   it("computes the expected shift window from open/close envelopes per device", () => {
+    const shiftD1 = "01899999-1111-7111-8111-111111111101";
+    const shiftD2 = "01899999-1111-7111-8111-111111111102";
     const events: Event[] = [
       {
         id: "c5555555-5555-7555-8555-555555555501",
         type: "SHIFT_OPEN",
+        facility_id: "fa777777-7777-7777-8777-777777777777",
         device_id: "dev-1",
+        staff_id: "01877777-0000-7000-8000-00000000000a",
         device_time: open,
+        source: "LIVE",
         schema_version: 1,
+        session_id: null,
+        payload: { shift_id: shiftD1, opening_float_paise: 50000 },
       },
       {
         id: "c5555555-5555-7555-8555-555555555502",
         type: "SHIFT_CLOSE",
+        facility_id: "fa777777-7777-7777-8777-777777777777",
         device_id: "dev-1",
+        staff_id: "01877777-0000-7000-8000-00000000000a",
         device_time: close,
+        source: "LIVE",
         schema_version: 1,
+        session_id: null,
+        payload: {
+          shift_id: shiftD1,
+          counted_cash_paise: 119500,
+          expected_cash_paise: 120000,
+          upi_total_declared_paise: 81000,
+          upi_attested_sum_paise: 80000,
+          variance_cash_paise: -500,
+          variance_upi_paise: 1000,
+        },
       },
       {
         id: "c5555555-5555-7555-8555-555555555503",
         type: "SHIFT_OPEN",
+        facility_id: "fa777777-7777-7777-8777-777777777777",
         device_id: "dev-2",
+        staff_id: "01877777-0000-7000-8000-00000000000a",
         device_time: open,
+        source: "LIVE",
         schema_version: 1,
+        session_id: null,
+        payload: { shift_id: shiftD2, opening_float_paise: 20000 },
       },
     ];
     expect(findOpenShift(events, "dev-1")).toBeNull(); // closed
-    expect(findOpenShift(events, "dev-2")).toEqual({ deviceId: "dev-2", openAt: open });
+    expect(findOpenShift(events, "dev-2")).toEqual({
+      deviceId: "dev-2",
+      openAt: open,
+      shiftId: shiftD2,
+      openingFloatPaise: 20000,
+    });
     expect(
       findOpenShift(
         events.filter((e) => e.device_id === "dev-1"),
@@ -316,7 +362,12 @@ describe("shiftTotals (T-GATE-06-U1)", () => {
       ),
     ).toBeNull();
     const onlyOpen = events.filter((e) => e.type === "SHIFT_OPEN" && e.device_id === "dev-1");
-    expect(findOpenShift([...onlyOpen], "dev-1")).toEqual({ deviceId: "dev-1", openAt: open });
+    expect(findOpenShift([...onlyOpen], "dev-1")).toEqual({
+      deviceId: "dev-1",
+      openAt: open,
+      shiftId: shiftD1,
+      openingFloatPaise: 50000,
+    });
   });
 });
 
@@ -417,10 +468,10 @@ describe("zoneCount (GATE-08 seq 4.3)", () => {
     expect(validateZoneCount(5, -2)).toEqual({ ok: false, issue: "INVALID_CAPACITY" });
   });
 
-  it("documents the C-rule vs D-table limit conflict explicitly (OQ-39)", () => {
+  it("documents the C-rule vs D-table limit conflict explicitly (OQ-47)", () => {
     // D.8-U2 literal rows for capacity 50: "0 and 50 accepted; 76 warn+confirm; -1, 2.5 rejected".
     // The C-section's "capacity + 50%" (=75) would reject 76 — impossible under that reading —
-    // so the ABSOLUTE_PLUS_50 mode exists to satisfy the table until OQ-39 is decided.
+    // so the ABSOLUTE_PLUS_50 mode exists to satisfy the table until OQ-47 is decided.
     expect(validateZoneCount(76, 50, { safetyLimitMode: "ABSOLUTE_PLUS_50" })).toEqual({
       ok: true,
       warning: "ABOVE_CAPACITY",

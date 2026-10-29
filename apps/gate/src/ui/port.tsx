@@ -75,7 +75,8 @@ export type PortRuntime = {
   bump: () => void;
   /** Open-session stand-in for SYNC-03 (see src/data/localSessions.ts). */
   registry: SessionRegistry;
-  /** Opening float kept for the open shift (SHIFT_OPEN payload cannot carry it yet). */
+  /** Opening float kept for the open shift (provider state mirrors the SHIFT_OPEN payload's
+   * opening_float_paise; the event payload is the source of truth after SYNC-01). */
   openingFloatPaise: number | null;
   setOpeningFloat: (paise: number | null) => void;
   /** expo-notifications ids for the shift's zone reminders (cancelled at close). */
@@ -248,9 +249,13 @@ export function PortProvider({ children }: PropsWithChildren) {
       readEvents: () => sync.listEvents(),
       // unresolved device id → "" fails the IC-01 envelope (writes blocked, fail closed)
       deviceId: deviceIdState.id ?? "",
+      // the DEV seed facility stamp (a real install must match the JWT facility claim)
+      facilityId: config.facilityId,
+      // attribution from the PIN session; blank before login → validation fails closed
+      staffId: staffSession?.staffId ?? "",
       now: () => new Date().toISOString(),
     }),
-    [deviceIdState.id, sync],
+    [config.facilityId, deviceIdState.id, staffSession, sync],
   );
 
   const persistLockoutElapsed = useCallback(

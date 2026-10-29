@@ -7,6 +7,7 @@ import { zoneReminderTimes } from "../../src/notifications/zoneReminders";
 import { formatPaise, parseRupeeInput } from "../../src/domain/paise";
 import { istClockTime } from "../../src/domain/istClock";
 import { WriteRuleError, writeEvent } from "../../src/data/writeEvent";
+import { defaultUuidV7 } from "../../src/domain/token";
 import { useI18n } from "../../src/ui/useSyncState";
 import { usePortRequired } from "../../src/ui/port";
 import { scheduleZoneReminders } from "../../src/notifications/schedule";
@@ -20,8 +21,8 @@ import { afterShiftOpenNavigation } from "../../src/domain/navigation";
  * (1/3 and 2/3 of the shift length — config length or 480 default) are scheduled.
  *
  * Honesty notes:
- * - the float is provider state (ui/port.tsx) because the IC-01 SHIFT_OPEN payload cannot
- *   carry it yet; the value is required on the close screen, so it is preserved there;
+ * - the float is stamped into the SHIFT_OPEN payload (SYNC-01), so the close screen prefers the
+ *   event's value (findOpenShift) and the provider state is only a last-restart fallback;
  * - when a shift is ALREADY open on this device the screen blocks with a close-first note and
  *   never schedules a second reminder pair;
  * - reminders denied/not scheduled → null ids and a screen note (banner path covers it).
@@ -47,7 +48,12 @@ export default function ShiftOpenScreen() {
     setBusy(true);
     try {
       const atIso = new Date().toISOString();
-      await writeEvent(port.writeDeps, { type: "SHIFT_OPEN" });
+      // SHIFT_OPEN payload (SYNC-01): a device-generated shift id + the opening float — so the
+      // close event can pair with this open and the float survives a restart (findOpenShift).
+      await writeEvent(port.writeDeps, {
+        type: "SHIFT_OPEN",
+        payload: { shift_id: defaultUuidV7(), opening_float_paise: floatPaise },
+      });
       port.setOpeningFloat(floatPaise);
       addLogLine(`shift opened float=${String(floatPaise)}`, atIso);
       const plan = zoneReminderTimes(atIso, port.config.shiftLengthMinutes);
@@ -70,7 +76,7 @@ export default function ShiftOpenScreen() {
       {openShift !== null ? (
         <View>
           <Note tone="warn">{t("shift.alreadyOpen")}</Note>
-          <Muted>{`${t("home.currentShift", { time: istClockTime(Date.parse(openShift.openAt)) })} · ${t("shift.openingFloat")}: ${port.openingFloatPaise === null ? t("common.unknown") : formatPaise(port.openingFloatPaise)}`}</Muted>
+          <Muted>{`${t("home.currentShift", { time: istClockTime(Date.parse(openShift.openAt)) })} · ${t("shift.openingFloat")}: ${openShift.openingFloatPaise === null && port.openingFloatPaise === null ? t("common.unknown") : formatPaise(openShift.openingFloatPaise ?? port.openingFloatPaise ?? 0)}`}</Muted>
           <BigButton title={t("shift.closeTitle")} onPress={() => router.replace("/shift/close")} />
         </View>
       ) : (

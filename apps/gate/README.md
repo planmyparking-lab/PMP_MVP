@@ -60,7 +60,7 @@ The app runs a labeled **DEV_FAKE** runtime until the sync client lands:
 - `expo-notifications` for zone reminders (`SchedulableTriggerInputTypes.DATE` triggers;
   battery/storage of the reminder environment stays unclaimed — OQ-29 modules not approved).
 - `expo-secure-store` only (`gate.deviceId`, `gate.lockout`, `gate.language`); no MMKV/haptics/crypto installs —
-  all pending the open-questions register (OQ-40 for haptics).
+  all pending the open-questions register (OQ-48 for haptics).
 - `i18next` thin wrapper (`src/i18n/config.ts`) over the two JSON bundles (`src/i18n/*.json`)
   with the key-parity gate from `src/i18n/parity.ts`.
 - `qrcode-generator` (pure JS, typed, no transitive deps) for the receipt QR matrix;
@@ -71,7 +71,7 @@ The app runs a labeled **DEV_FAKE** runtime until the sync client lands:
 
 ## Not set up yet
 
-SQLite outbox + real sync client (Afzal, OQ-37/38), EAS builds + dev client (`expo-dev-client`)
+SQLite outbox + real sync client (Afzal, OQ-45/46), EAS builds + dev client (`expo-dev-client`)
 
 - Maestro trials (hardware wave), camera field trials, battery/storage modules (OQ-29),
   Bluetooth printing (OQ-31). Share code only via `packages/*`; do not fork vendor screens.

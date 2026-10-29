@@ -297,10 +297,14 @@ describe("double exit + missing tariff + skew (T-GATE-02-N2/N4/N5, D.2)", () => 
     const exitEvent = {
       id: "01844444-4444-7444-8444-444444444441",
       type: "EXIT" as const,
+      facility_id: "fa777777-7777-7777-8777-777777777777",
       device_id: "dev-1",
+      staff_id: "01877777-0000-7000-8000-00000000000a",
       device_time: "2026-10-28T05:00:00.000Z",
+      source: "LIVE" as const,
       schema_version: 1,
       session_id: session.sessionId,
+      payload: { fare_paise: 6000, exit_method: "CODE" as const },
     };
     const check = doubleExitCheck([exitEvent], session.sessionId);
     expect(check).toEqual({ ok: false, exitedAtIso: "2026-10-28T05:00:00.000Z" });
@@ -415,11 +419,12 @@ describe("exit bundle wiring", () => {
         enteredAt: "2026-10-28T02:00:00.000Z",
       },
       6000,
-      "CASH",
+      { button: "CASH", method: "CODE" },
     );
     expect(bundle).toEqual({
       sessionId: "s1",
       farePaise: 6000,
+      exitMethod: "CODE",
       payment: { mode: "CASH", amountPaise: 6000 },
     });
     expect(exitEventForSession([], "s1")).toBeNull();
@@ -430,7 +435,7 @@ describe("exit bundle wiring", () => {
       exitBundleFor(
         { sessionId: "s1", shortCode: "AAAAA", vehicleClass: "CAR", enteredAt: "x" },
         6000.5,
-        "CASH",
+        { button: "CASH", method: "CODE" },
       ),
     ).toThrow();
   });
