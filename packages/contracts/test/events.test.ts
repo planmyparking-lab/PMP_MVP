@@ -130,4 +130,14 @@ describe("rules (T-SYNC-01-U3, U4, N1)", () => {
     expect((EVENT_TYPES as readonly string[]).includes("PAYMENT_CORRECTION")).toBe(false);
     expect(parseEvent({ ...entry, type: "PAYMENT_CORRECTION" }).ok).toBe(false);
   });
+
+  it("recorded_at is optional and independent of device_time (OQ-42)", () => {
+    expect(parseEvent(entry).ok).toBe(true); // no recorded_at at all
+    const backfilled = load("valid").find((v) => v.name === "entry-2.json")!.json;
+    expect(backfilled.source).toBe("PAPER_BACKFILL");
+    const r = parseEvent(backfilled);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.value.recorded_at).toBe(backfilled.recorded_at);
+    expect(parseEvent({ ...entry, recorded_at: "not-a-date" }).ok).toBe(false);
+  });
 });
