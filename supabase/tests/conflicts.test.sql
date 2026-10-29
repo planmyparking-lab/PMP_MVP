@@ -1,7 +1,7 @@
 -- pgTAP tests for migration 0006_conflict_detector.sql (SYNC-05). Run with `pnpm test:db`.
 -- Events are inserted as the superuser; the triggers fire for any inserter. Rolled back at the end.
 begin;
-select plan(24);
+select plan(25);
 
 insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000a1');
 insert into public.organizations (id, name) values ('00000000-0000-0000-0000-00000000000f', 'Org');
@@ -80,6 +80,14 @@ select ok((select resolved_at is not null and status = 'RESOLVED' from public.sy
   'the resolved conflict has status and timestamp set');
 select is((select count(*)::int from public.sync_conflicts where type = 'ORPHAN_EXIT'), 1,
   'no further orphan conflict for an in-order entry/exit pair');
+
+-- the same session id in two facilities is two separate orphan conflicts (keys are per facility)
+select pg_temp.exit(40, 140);
+insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version, payload)
+values (pg_temp.id(41), '00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-0000000000d2',
+        '00000000-0000-0000-0000-0000000000b2', 'EXIT', pg_temp.id(140), now(), 1,
+        '{"fare_paise":5000,"exit_method":"SCAN"}');
+select is(pg_temp.n_open('ORPHAN_EXIT'), 2, 'orphan exits with one session id in two facilities give two conflicts');
 
 -- DUPLICATE_ENTRY: same plate (normalized), two sessions open at once, same facility
 select pg_temp.entry(10, 110, 'up32 AB 1234');

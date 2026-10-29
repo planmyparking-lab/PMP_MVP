@@ -1,6 +1,6 @@
 -- SYNC-05: conflict detection. Events are never edited or dropped; disagreement is recorded for a person (IC-10).
 -- Types: DUPLICATE_EXIT, ORPHAN_EXIT, DUPLICATE_ENTRY, CLOCK_SKEW. See docs/team/member-01-afzal.md (SYNC-05).
--- Rules: one OPEN conflict per (type, dedupe_key); detection never blocks or rolls back the event insert.
+-- Rules: one OPEN conflict per (facility, type, dedupe_key); detection never blocks or rolls back the event insert.
 
 create table public.sync_conflicts (
     id uuid primary key default gen_random_uuid(),
@@ -9,7 +9,7 @@ create table public.sync_conflicts (
         check (type in ('DUPLICATE_EXIT', 'ORPHAN_EXIT', 'DUPLICATE_ENTRY', 'CLOCK_SKEW')),
     event_ids uuid[] not null check (cardinality(event_ids) >= 1),
     session_id uuid,
-    -- What "the same conflict" means: the session for the three session types, the event itself for CLOCK_SKEW.
+    -- What "the same conflict" means (within one facility): the session for the three session types, the event itself for CLOCK_SKEW.
     dedupe_key uuid not null,
     status text not null default 'OPEN' check (status in ('OPEN', 'RESOLVED')),
     detail jsonb not null default '{}'::jsonb,
@@ -19,7 +19,7 @@ create table public.sync_conflicts (
     check ((status = 'RESOLVED') = (resolved_at is not null))
 );
 create unique index sync_conflicts_one_open_idx
-    on public.sync_conflicts (type, dedupe_key) where status = 'OPEN';
+    on public.sync_conflicts (facility_id, type, dedupe_key) where status = 'OPEN';
 create index sync_conflicts_facility_status_idx on public.sync_conflicts (facility_id, status, created_at);
 
 alter table public.sync_conflicts enable row level security;
@@ -49,7 +49,7 @@ begin
                         'device_time', new.device_time,
                         'received_at', new.received_at,
                         'skew_seconds', round(extract(epoch from (new.device_time - new.received_at)))))
-            on conflict (type, dedupe_key) where status = 'OPEN' do nothing;
+            on conflict (facility_id, type, dedupe_key) where status = 'OPEN' do nothing;
         end if;
 
         if new.type = 'EXIT' then
@@ -61,7 +61,7 @@ begin
                 -- Both (or all) exits go on one conflict; a third exit is appended to the open one.
                 insert into public.sync_conflicts (facility_id, type, event_ids, session_id, dedupe_key)
                 values (new.facility_id, 'DUPLICATE_EXIT', other_ids || new.id, new.session_id, new.session_id)
-                on conflict (type, dedupe_key) where status = 'OPEN' do update
+                on conflict (facility_id, type, dedupe_key) where status = 'OPEN' do update
                     set event_ids = case
                         when new.id = any (public.sync_conflicts.event_ids) then public.sync_conflicts.event_ids
                         else public.sync_conflicts.event_ids || new.id
@@ -74,7 +74,7 @@ begin
             ) then
                 insert into public.sync_conflicts (facility_id, type, event_ids, session_id, dedupe_key)
                 values (new.facility_id, 'ORPHAN_EXIT', array[new.id], new.session_id, new.session_id)
-                on conflict (type, dedupe_key) where status = 'OPEN' do nothing;
+                on conflict (facility_id, type, dedupe_key) where status = 'OPEN' do nothing;
             end if;
 
         elsif new.type = 'ENTRY' then
@@ -82,7 +82,7 @@ begin
             update public.sync_conflicts
                set status = 'RESOLVED', resolved_at = now(),
                    detail = detail || jsonb_build_object('resolution', 'entry_arrived')
-             where type = 'ORPHAN_EXIT' and dedupe_key = new.session_id and status = 'OPEN';
+             where facility_id = new.facility_id and type = 'ORPHAN_EXIT' and dedupe_key = new.session_id and status = 'OPEN';
 
             plate := public.normalize_vehicle_no(new.payload ->> 'vehicle_no');
             if plate is not null then
@@ -95,7 +95,7 @@ begin
                     values (new.facility_id, 'DUPLICATE_ENTRY', array[other_entry.entry_event_id, new.id],
                             new.session_id, new.session_id,
                             jsonb_build_object('other_session_id', other_entry.session_id))
-                    on conflict (type, dedupe_key) where status = 'OPEN' do nothing;
+                    on conflict (facility_id, type, dedupe_key) where status = 'OPEN' do nothing;
                 end if;
             end if;
         end if;
