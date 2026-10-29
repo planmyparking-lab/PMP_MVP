@@ -4,6 +4,7 @@ import { parseTariff } from "@pmp/contracts";
 import type { Tariff } from "@pmp/contracts";
 import tariffFixturesJson from "../src/fixtures/tariffs.json";
 import fareCasesJson from "../src/fixtures/fareCases.json";
+import { TARIFF_IDS } from "../src/fixtures/tariffIds";
 
 /**
  * GATE-03 fare engine tests (docs/team/member-02-nikhil.md D.3).
@@ -30,7 +31,18 @@ type FareCase = {
 const tariffFixtures = tariffFixturesJson as unknown as Tariff[];
 const fareCases = fareCasesJson as unknown as FareCase[];
 
-const tariffs: Record<string, Tariff> = Object.fromEntries(tariffFixtures.map((t) => [t.id, t]));
+/**
+ * Looked up by the friendly fixture name (e.g. "CAR-A"), not the schema's `id` field: `id` is now
+ * a uuid (PR #6 review item 1), so TARIFF_IDS is the name<->uuid mapping kept in sync with
+ * tariffs.json.
+ */
+const tariffs: Record<string, Tariff> = Object.fromEntries(
+  Object.entries(TARIFF_IDS).map(([name, id]) => {
+    const t = tariffFixtures.find((row) => row.id === id);
+    if (!t) throw new Error(`tariffIds.ts and tariffs.json are out of sync for ${name}`);
+    return [name, t];
+  }),
+);
 
 /** Indexed access under noUncheckedIndexedAccess resolves to Tariff | undefined; fixtures are fixed. */
 const requireTariff = (id: string): Tariff => {
@@ -41,7 +53,7 @@ const requireTariff = (id: string): Tariff => {
 
 /** Property tests need entry instants inside each fixture tariff's effective set. */
 const propertyEntryForTariff: Record<string, string> = {
-  "CAR-B": "2026-12-10T10:00:00+05:30", // effectiveFrom 2026-12-01
+  [TARIFF_IDS["CAR-B"]]: "2026-12-10T10:00:00+05:30", // effectiveFrom 2026-12-01
 };
 const entryFor = (t: Tariff): string => propertyEntryForTariff[t.id] ?? propertyEntry;
 
@@ -425,6 +437,11 @@ describe("tariff schema rejections (T-GATE-03-N1 vs parseTariff)", () => {
   rejects("effectiveTo before effectiveFrom", { ...base, effectiveTo: "2026-10-31" });
   rejects("non-ISO effective date", { ...base, effectiveFrom: "2026-1-1" });
   rejects("empty vehicleClass", { ...base, vehicleClass: "" });
+  rejects("a typo'd key is rejected, not silently stripped (PR #6 review item 2)", {
+    ...base,
+    dayCapPaisee: 30000,
+  });
+  rejects("id must be a uuid, not a bare config label", { ...base, id: "CAR-A" });
 
   it("accepts a null-ended tail when repeat is present", () => {
     const hourlyBase = requireTariff("CAR-A") as Extract<Tariff, { model: "HOURLY_SLABS" }>;

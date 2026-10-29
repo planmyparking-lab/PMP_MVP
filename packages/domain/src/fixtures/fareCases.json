@@ -435,7 +435,7 @@
     "id": "F10-5",
     "tariffId": null,
     "tariff": {
-      "id": "CAR-A",
+      "id": "0192f0a0-0000-7000-9000-00000000a001",
       "facilityId": "fac-demo-1",
       "vehicleClass": "Car",
       "effectiveFrom": "2026-11-01",
