@@ -1,0 +1,64 @@
+# Event envelope and payloads (IC-01)
+
+Implemented in `packages/contracts` (`src/events.ts`). Zod is the source of truth for payload shape.
+SQL (`events` table, migration `0003`) enforces only the envelope. Owner: Afzal (SYNC-01). A contract change
+needs a second workstream owner's review and, if breaking, a `SCHEMA_VERSION` bump.
+
+## Envelope (one row in `events`)
+
+| Field            | Type and rule                                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`             | UUIDv7, generated on the device (`newId()`), primary key. Version 7 is checked in the contract, not in SQL.                                  |
+| `type`           | One of `ENTRY`, `EXIT`, `PAYMENT`, `OVERRIDE`, `ZONE_COUNT`, `SHIFT_OPEN`, `SHIFT_CLOSE`. `PAYMENT_CORRECTION` is NOT accepted (OQ-30 open). |
+| `facility_id`    | uuid. `ingest_events` rejects a value different from the JWT facility claim.                                                                 |
+| `device_id`      | uuid, equal to `devices.id` and the device claim.                                                                                            |
+| `staff_id`       | uuid of an active staff member of the facility (checked by ingest).                                                                          |
+| `session_id`     | uuid for `ENTRY`, `EXIT`, `PAYMENT`, `OVERRIDE`; `null` for `ZONE_COUNT`, `SHIFT_OPEN`, `SHIFT_CLOSE`.                                       |
+| `device_time`    | UTC ISO 8601 with trailing `Z` (offsets rejected).                                                                                           |
+| `source`         | `LIVE` or `PAPER_BACKFILL`. Required in the contract; SQL also defaults to `LIVE`.                                                           |
+| `schema_version` | Integer from 1 to 32767. SQL column is `integer`, no default.                                                                                |
+| `payload`        | Object, per type (below).                                                                                                                    |
+| `received_at`    | Server only (`default now()`); not part of the client contract.                                                                              |
+
+Unknown keys are **rejected** in the envelope and in every payload (not stripped).
+
+## Payloads
+
+| Event         | Payload fields                                                                                                                                                                                  |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ENTRY`       | `vehicle_class` (non-empty text), `zone_id` (uuid), `short_code` (5-char Crockford base32), optional `vehicle_no`, optional `pass_id` (uuid)                                                    |
+| `EXIT`        | `fare_paise`, `exit_method` (`SCAN`, `CODE`, `LOOKUP`), optional `tariff_id` (uuid), optional `tariff_version` (int)                                                                            |
+| `PAYMENT`     | `mode` (`CASH`, `UPI`, `PASS`, `WAIVED`), `amount_paise`, `upi_attested` (boolean; true only with `UPI`)                                                                                        |
+| `OVERRIDE`    | `target_event_id` (UUIDv7), `reason_code`, optional `note` (required when `OTHER`), optional `change` (object)                                                                                  |
+| `ZONE_COUNT`  | `zone_id`, `counted`, `system_count_at_time` (whole numbers >= 0)                                                                                                                               |
+| `SHIFT_OPEN`  | `shift_id` (uuid), `opening_float_paise`                                                                                                                                                        |
+| `SHIFT_CLOSE` | `shift_id`, `counted_cash_paise`, `expected_cash_paise`, `upi_total_declared_paise`, `upi_attested_sum_paise`, `variance_cash_paise` (signed), `variance_upi_paise` (signed), optional `reason` |
+
+All `*_paise` values are integer paise. Money helpers (`toPaise`, `add`, `sub`, `signedDiff`, `formatRupees`) accept
+decimal strings only, never floating-point numbers.
+
+## Decisions (owner: Afzal)
+
+1. to 10. As recorded in `docs/team/cld-02-events-review.md` section 7 (once that PR is merged): UUIDv7 ids,
+   `facility_id`/`device_id`/`staff_id` in the envelope, nullable `session_id`, `source` vocabulary, payload in jsonb,
+   `schema_version` in the envelope, `PAYMENT_CORRECTION` excluded, Zod as source of truth.
+2. Payload field names follow Afzal's sheet (`member-01-afzal.md`), plus `shift_id` on both shift events (so open and
+   close can be paired) and optional `tariff_id`/`tariff_version` on `EXIT` (fare audit). Nikhil's field names
+   (`actual_count`, `float_paise`, `cash_variance_paise`, ...) are replaced.
+3. The JSON-Schema export for SQL CHECK constraints (sheet SYNC-01 step 7) is dropped.
+4. SQL enforces the `session_id` rule with a CHECK (change to `0003`, made by Akanksha; the contract enforces it too).
+5. `schema_version` stays `integer`; the contract caps it at 32767.
+
+## Open items (not decided, nothing invented)
+
+- Sign convention of `variance_*` (for example counted minus expected) is not specified, so it is not cross-checked.
+- `PAYMENT` for `PASS` payments: whether it carries `pass_id` (Nikhil's GATE-04 text) is undecided; it is not accepted now.
+- `vehicle_class` is free text; the allowed classes are a tariff/config question (see OQ-20).
+- `PAYMENT_CORRECTION` shape (OQ-30).
+- OVERRIDE target: Nikhil's text allows `session_id` as an alternative to `target_event_id`; the contract requires `target_event_id`.
+
+## Tests
+
+`packages/contracts/test/*.test.ts` and `packages/contracts/fixtures/events/{valid,invalid}`: T-SYNC-01-U1..U7, N1, R1.
+Not yet written: T-SYNC-01-I1 (gate and console parse a shared sample) and T-SYNC-01-I2 / T-IC01-C1 (SQL mirrors the
+contract). The SQL test needs migration `0003` from the CLD-02 PR; add it after that PR is merged.

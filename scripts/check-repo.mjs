@@ -20,11 +20,13 @@ const required = [
   "docs/team/member-02-nikhil.md",
   "docs/team/member-03-anamika.md",
   "docs/team/member-04-akanksha.md",
+  "ops/secrets-inventory.md",
   "supabase/README.md",
   "supabase/config.toml",
   "docs/development/dependency-security.md",
   "docs/development/github-repository-settings.md",
   "docs/integrations/contracts.md",
+  "docs/integrations/event-envelope.md",
   "docs/testing/strategy.md",
   "docs/architecture/overview.md",
 ];

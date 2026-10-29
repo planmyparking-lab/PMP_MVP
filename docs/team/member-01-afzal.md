@@ -117,7 +117,7 @@ Conventions shared by SYNC features: IDs are UUIDv7 created on the device; times
    4. `reasonCodes.ts`: const tuple and zod enum.
    5. `version.ts`: `SCHEMA_VERSION` integer, starting at 1; export `isSupported(version, min)`.
    6. `uuid.ts` [REC]: `newId()` returning UUIDv7.
-   7. Export a JSON Schema generated from zod for the SQL side to mirror in CHECK constraints (Akanksha uses it in CLD-02).
+   7. ~~Export a JSON Schema generated from zod for the SQL side to mirror in CHECK constraints.~~ **Dropped (owner decision 26 Oct 2026):** Zod is the source of truth; SQL enforces only envelope constraints. The final envelope, payloads and decisions are in `docs/integrations/event-envelope.md` (it also adds `shift_id` to both shift events and optional `tariff_id`/`tariff_version` to `EXIT`).
 5. **Files.** `packages/contracts/src/{events.ts, money.ts, reasonCodes.ts, version.ts, uuid.ts, index.ts}` [REC]; tests next to each file.
 6. **Functions and models.** `Event`, `EventType`, `parseEvent(input): Result<Event, Issues>`, `toPaise`, `formatRupees`, `newId`, `SCHEMA_VERSION`, `ReasonCode`.
 7. **Input and output contract.** Input: unknown JSON. Output: typed `Event` or a list of issues with paths. No partial acceptance.

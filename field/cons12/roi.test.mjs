@@ -229,6 +229,23 @@ describe("pass bar and kill criterion (D12)", () => {
     });
     assert.equal(r.result, "neither");
   });
+  it("compares the exact half-paisa median with the threshold, not its rounded report", () => {
+    const below = evaluateBaseline({
+      facilities: [f(2, 29999), f(2, 30000)],
+      proposedMonthlyPricePaise: 10000,
+    });
+    assert.equal(below.medianPaisePerMonth, 30000);
+    assert.ok(Number.isInteger(below.medianPaisePerMonth));
+    assert.equal(below.result, "neither");
+
+    const above = evaluateBaseline({
+      facilities: [f(2, 30000), f(2, 30001)],
+      proposedMonthlyPricePaise: 10000,
+    });
+    assert.equal(above.medianPaisePerMonth, 30001);
+    assert.ok(Number.isInteger(above.medianPaisePerMonth));
+    assert.equal(above.result, "pass");
+  });
   it("is 'neither' between 0.75 and 1.5 hours per day", () => {
     const r = evaluateBaseline({
       facilities: [f(1, 9000000), f(1, 9000000), f(1, 9000000)],

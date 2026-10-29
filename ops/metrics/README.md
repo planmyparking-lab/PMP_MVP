@@ -19,8 +19,8 @@ No install is needed. From the repository root:
 node --test ops/metrics/pilot-metrics.test.mjs field/cons12/roi.test.mjs
 ```
 
-These tests are **not** part of `pnpm check` or CI. They have been run on Node 26.1.0 only. The repository
-pins Node 22 (`.nvmrc`, used by CI) and Node 22 has **not** been verified. Adding them to `pnpm check` and
+These tests are **not** part of `pnpm check` or CI. They have been run on Node 22.23.2 (the repository
+runtime pinned by `.nvmrc`) and Node 26.1.0. Adding them to `pnpm check` and
 CI needs edits to the root `package.json` and `.github/workflows/ci.yml`, which other owners review; the
 proposal is in the pull request discussion, not applied here.
 
