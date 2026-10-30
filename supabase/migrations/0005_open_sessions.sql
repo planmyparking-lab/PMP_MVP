@@ -38,12 +38,29 @@ revoke all on table public.open_sessions from anon;
 -- Only the trigger below writes this table. service_role is left alone for repair tools (it bypasses RLS anyway).
 revoke insert, update, delete, truncate, trigger, references on table public.open_sessions from authenticated;
 
+-- Serialises everything that decides the state of one session (open_sessions here, sync_conflicts in 0006).
+-- Without it two transactions that each see the other's row as "not there yet" (ENTRY racing EXIT, EXIT racing EXIT) both
+-- pass their existence checks and leave a stale open session or a missing conflict. The lock is per (facility, session),
+-- transaction-scoped and re-entrant, so the second trigger in the same transaction takes it again at no cost. After the
+-- wait, the next statement of a READ COMMITTED transaction sees what the other transaction committed.
+create function public.lock_session(p_facility_id uuid, p_session_id uuid) returns void
+    language sql
+    set search_path = pg_catalog, public, pg_temp
+as $$
+    select pg_advisory_xact_lock(hashtextextended('session:' || p_facility_id::text || ':' || p_session_id::text, 0));
+$$;
+revoke all on function public.lock_session(uuid, uuid) from public, anon, authenticated;
+
 create function public.apply_open_sessions() returns trigger
     language plpgsql
     security definer
     set search_path = pg_catalog, public, pg_temp
 as $$
 begin
+    -- Outside the exception blocks on purpose: a deadlock or cancel must fail the call (the outbox retries), not be swallowed.
+    if new.session_id is not null then
+        perform public.lock_session(new.facility_id, new.session_id);
+    end if;
     if new.type = 'ENTRY' then
         -- The event log is the source of truth and an event that passed the envelope checks is never refused because
         -- of the projection. If the payload cannot be projected (missing keys, or a zone_id / pass_id that is not a

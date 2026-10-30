@@ -20,6 +20,10 @@ create table public.sync_conflicts (
 );
 create unique index sync_conflicts_one_open_idx
     on public.sync_conflicts (facility_id, type, dedupe_key) where status = 'OPEN';
+-- The detector looks events up by facility and session on every insert (existing EXIT, existing ENTRY); without this it
+-- scans the whole log as it grows. `open_sessions` (0005) has its own primary key.
+create index events_facility_session_type_idx
+    on public.events (facility_id, session_id, type) where session_id is not null;
 create index sync_conflicts_facility_status_idx on public.sync_conflicts (facility_id, status, created_at);
 
 alter table public.sync_conflicts enable row level security;
@@ -36,13 +40,26 @@ as $$
 declare
     clock_skew_seconds constant integer := 300;  -- SPEC: 5 minutes
     other_ids uuid[];
+    own_session public.open_sessions%rowtype;
     other_entry public.open_sessions%rowtype;
     plate text;
 begin
+    -- Same lock as apply_open_sessions(), taken outside the exception block so a deadlock fails the call and is retried.
+    if new.session_id is not null then
+        perform public.lock_session(new.facility_id, new.session_id);
+    end if;
+    -- Two ENTRYs of one plate in different sessions must see each other, so the plate is serialised too (always taken
+    -- after the session lock; no code path takes them the other way round).
+    if new.type = 'ENTRY' and public.normalize_vehicle_no(new.payload ->> 'vehicle_no') is not null then
+        perform pg_advisory_xact_lock(hashtextextended(
+            'plate:' || new.facility_id::text || ':' || public.normalize_vehicle_no(new.payload ->> 'vehicle_no'), 0));
+    end if;
     begin
-        -- Paper backfill carries an old device_time on purpose, so it is not a clock problem.
+        -- Only an event dated AHEAD of the receiving clock is a clock problem. A device that was offline uploads old
+        -- events late, so device_time far BEHIND received_at is normal (spec, SYNC-04 edge cases: "ignore events more
+        -- than 5 minutes ahead of the receiving clock"). Paper backfill carries an old device_time on purpose.
         if new.source = 'LIVE'
-           and abs(extract(epoch from (new.device_time - new.received_at))) > clock_skew_seconds then
+           and extract(epoch from (new.device_time - new.received_at)) > clock_skew_seconds then
             insert into public.sync_conflicts (facility_id, type, event_ids, session_id, dedupe_key, detail)
             values (new.facility_id, 'CLOCK_SKEW', array[new.id], new.session_id, new.id,
                     jsonb_build_object(
@@ -84,8 +101,13 @@ begin
                    detail = detail || jsonb_build_object('resolution', 'entry_arrived')
              where facility_id = new.facility_id and type = 'ORPHAN_EXIT' and dedupe_key = new.session_id and status = 'OPEN';
 
+            -- Only an ENTRY that actually opened its session can be a duplicate of another open one. A late ENTRY for a
+            -- session that already exited (or a second ENTRY of the same session) opened nothing, so comparing it with
+            -- a newer session of the same plate would be a false alarm.
+            select * into own_session from public.open_sessions o
+            where o.facility_id = new.facility_id and o.session_id = new.session_id and o.entry_event_id = new.id;
             plate := public.normalize_vehicle_no(new.payload ->> 'vehicle_no');
-            if plate is not null then
+            if own_session.session_id is not null and plate is not null then
                 select * into other_entry from public.open_sessions o
                 where o.facility_id = new.facility_id and o.vehicle_no = plate
                   and o.session_id <> new.session_id

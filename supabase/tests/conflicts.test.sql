@@ -1,7 +1,7 @@
 -- pgTAP tests for migration 0006_conflict_detector.sql (SYNC-05). Run with `pnpm test:db`.
 -- Events are inserted as the superuser; the triggers fire for any inserter. Rolled back at the end.
 begin;
-select plan(25);
+select plan(28);
 
 insert into auth.users (id) values ('00000000-0000-0000-0000-0000000000a1');
 insert into public.organizations (id, name) values ('00000000-0000-0000-0000-00000000000f', 'Org');
@@ -103,11 +103,28 @@ select is(pg_temp.n_open('DUPLICATE_ENTRY'), 1, 'another facility and entries wi
 select pg_temp.skewed(20, 120, 6);
 select pg_temp.skewed(21, 121, -4);
 select pg_temp.skewed(22, 122, 90, 'PAPER_BACKFILL');
-select is(pg_temp.n_open('CLOCK_SKEW'), 1, 'only the event 6 minutes off creates CLOCK_SKEW');
-select is((select event_ids from public.sync_conflicts where type = 'CLOCK_SKEW'), array[pg_temp.id(20)],
-  'the skewed event is the one recorded');
-select is((select (detail ->> 'skew_seconds')::int from public.sync_conflicts where type = 'CLOCK_SKEW'), 360,
+select pg_temp.skewed(23, 123, -30);  -- offline phone uploading 30 minutes late: legitimate
+select pg_temp.skewed(24, 124, 90);   -- LIVE event dated 90 minutes ahead of the server
+select is(pg_temp.n_open('CLOCK_SKEW'), 2,
+  'only LIVE events dated more than 5 minutes ahead create CLOCK_SKEW (late offline uploads do not)');
+select is((select array_agg(event_ids[1] order by event_ids[1]) from public.sync_conflicts where type = 'CLOCK_SKEW'),
+  array[pg_temp.id(20), pg_temp.id(24)], 'the events dated ahead are the ones recorded');
+select is((select (detail ->> 'skew_seconds')::int from public.sync_conflicts
+           where type = 'CLOCK_SKEW' and dedupe_key = pg_temp.id(20)), 360,
   'the skew is recorded in seconds');
+
+-- late ENTRY of a session that already exited must not be a duplicate of the newer session with the same plate
+select pg_temp.exit(50, 150);                    -- exit arrives first (orphan)
+select pg_temp.entry(51, 151, 'MH12XY9999');     -- a newer session of the same plate is open
+select pg_temp.entry(52, 150, 'MH12XY9999');     -- the late ENTRY of the already-closed session
+select is((select count(*)::int from public.sync_conflicts where type = 'DUPLICATE_ENTRY' and dedupe_key = pg_temp.id(150)),
+  0, 'a late ENTRY for an already exited session is not a DUPLICATE_ENTRY');
+
+-- structure added for review: index for the per-event lookups, lock helper not callable by app roles
+select ok(exists (select 1 from pg_indexes where schemaname = 'public' and tablename = 'events'
+                  and indexname = 'events_facility_session_type_idx'), 'events has the (facility, session, type) index');
+select is(has_function_privilege('authenticated', 'public.lock_session(uuid, uuid)', 'EXECUTE'), false,
+  'authenticated cannot call lock_session');
 
 -- a failing detector never loses the event
 alter table public.sync_conflicts add constraint t_always_fails check (false) not valid;
