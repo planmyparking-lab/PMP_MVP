@@ -134,6 +134,15 @@ const hhmm = (t: string) => t.replace(":", "");
 const isRealDate = (s: string): boolean =>
   /^\d{4}-\d{2}-\d{2}$/.test(s) && new Date(`${s}T00:00:00Z`).toISOString().slice(0, 10) === s;
 
+/**
+ * The tariff contract (IC-04) requires `id` to be a uuid, so it can be traced to tariffs.id and to
+ * EXIT.payload.tariff_id. A draft has no database row yet, so each draft tariff gets a fixed, obviously
+ * placeholder uuid (stable, so the try-a-fare result does not change on every render). The database assigns the
+ * real id when saving exists.
+ */
+export const draftTariffId = (index: number): string =>
+  `00000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`;
+
 export interface TariffFieldErrors {
   vehicleClass?: string;
   slabs: (string | undefined)[];
@@ -155,12 +164,12 @@ export interface BuiltTariff {
 
 /** Converts each tariff draft to the IC-04 shape and validates it with the shared schema. */
 export function buildTariffs(d: SetupDraft): BuiltTariff[] {
-  return d.tariffs.map((t) => {
+  return d.tariffs.map((t, index) => {
     const fe: TariffFieldErrors = { slabs: [], schema: [] };
     if (t.vehicleClass.trim() === "") fe.vehicleClass = "Choose a vehicle class.";
     const grace = whole(d.grace);
     const out: Record<string, unknown> = {
-      id: `${t.vehicleClass.trim() || "class"}-draft`,
+      id: draftTariffId(index),
       facilityId: "draft",
       vehicleClass: t.vehicleClass.trim(),
       effectiveFrom: d.effectiveFrom,
@@ -342,7 +351,7 @@ export function analyse(d: SetupDraft, todayIst: string): Analysis {
 export function draftToJson(d: SetupDraft, todayIst: string) {
   const a = analyse(d, todayIst);
   return {
-    note: "Local draft. Not saved to any facility and not activated. Tariffs use the IC-04 shape with a placeholder facilityId.",
+    note: "Local draft. Not saved to any facility and not activated. Tariffs use the IC-04 shape with placeholder ids (tariff id and facilityId); real ids are assigned when saving exists.",
     facility: { name: d.name.trim(), slotCount: whole(d.slotCount) },
     zones: d.zones.map((z) => ({
       name: z.name.trim(),

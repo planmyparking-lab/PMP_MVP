@@ -10,3 +10,28 @@ never edit a merged migration, add RLS and a test with every table. Schema sketc
 SQL tests: `pnpm test:db` (needs the local stack running) runs `supabase/tests/*.test.sql` in the local database container,
 applies migrations missing from local history inside a rolled-back transaction, and fails on any SQL error, failed assertion
 or leaked state. `--strict` also fails on assertions marked TODO. `supabase test db` runs the same files but without that step.
+
+`pnpm test:db --proposed` additionally applies `supabase/proposed-migrations/*.sql` (when that folder exists) and runs `supabase/proposed-tests/*.test.sql`,
+all inside the same rolled-back transaction; without the flag the behaviour is exactly the default.
+
+After `supabase db reset` the local `pgtap` extension is gone and `pnpm test:db` stops with "the pgtap extension is not enabled".
+Re-enable it locally with `docker exec supabase_db_pmp-mvp psql -U postgres -c "create extension if not exists pgtap with schema extensions"`
+(`supabase test db` does this itself). `pnpm rehearse:forward [--proposed]` runs a forward-migration rehearsal on synthetic rows in a
+rolled-back transaction.
+
+Runner and rehearsal safeguards (`scripts/test-db.mjs`, `scripts/rehearse-forward.mjs`): both refuse `DOCKER_HOST`/`DOCKER_CONTEXT`, a Docker
+context that is not a local socket or named pipe, and any container that is not `supabase_db_<project_id>` running an image that starts with a
+known Supabase Postgres registry prefix (for example `public.ecr.aws/supabase/postgres:`) and carries this project's Supabase CLI label. The
+label and context type are self-reported, so a socket forwarded to a remote Docker would look local. A project id is required: without it the
+run fails closed. Malformed migration file names, version collisions, a proposed file whose version is already applied, and out-of-order
+numbers stop the run before any SQL is sent. The commit guard is a lexical scan, not a SQL parser.
+
+The post-run snapshot compares the migration history, row counts of public tables and `auth.users`, and one md5 per category of the public schema.
+Measured: function and procedure definitions (not extension-owned, not aggregates); view and materialized-view definitions; policies (table, name,
+permissive, roles, command, USING, WITH CHECK); per table its name, RLS and FORCE RLS flags and each column's name, type and NOT NULL; constraint
+definitions; index definitions; non-internal trigger definitions; the ACLs of tables, views, materialized views, sequences, functions and the
+public schema; extension names. Not measured: column defaults and identity or generated expressions, column-level privileges, custom types, enums
+and domains, rules, comments, ownership, `ALTER DEFAULT PRIVILEGES`, sequence definitions and values, aggregates, event triggers, publications,
+changed values with unchanged row counts, any schema other than `public`, roles, and tables outside `public` and `auth.users`.
+
+The rehearsal is a synthetic-row count-preservation check on six seeded tables, not a staging-fidelity rehearsal.
