@@ -139,7 +139,7 @@ export function OverstayView() {
               )}
               <p className="small muted">
                 A stay exactly equal to the limit counts as over it. That is a provisional choice,
-                not yet confirmed (OQ-44).
+                not yet confirmed (OQ-46).
               </p>
             </div>
           </Card>
@@ -161,7 +161,7 @@ export function OverstayView() {
                 <span className="n">3</span>
                 <span>
                   If the email fails it is retried on later runs. The retry limit is not decided yet
-                  (OQ-46).
+                  (OQ-48).
                 </span>
               </li>
             </ol>

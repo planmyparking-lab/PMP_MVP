@@ -5,7 +5,7 @@ requires Anamika's approval" (`docs/team/member-04-akanksha.md:249`). This page 
 today, where the two team sheets disagree, and which points are open. It does not change any view.
 
 Labels: **Confirmed** = written in a team sheet or in code on `main`. **Assumption** = a reasonable reading that is
-not written down. **Open** = needs a decision (see OQ-43 to OQ-46 in `docs/team/open-questions-and-assumptions.md`).
+not written down. **Open** = needs a decision (see OQ-45 to OQ-48 in `docs/team/open-questions-and-assumptions.md`).
 Both team sheets mark their column lists `(R)`, meaning recommended and not agreed.
 
 ## 1. Revenue columns
@@ -35,7 +35,7 @@ Findings:
 - **Confirmed:** the payment event has four modes, `CASH`, `UPI`, `PASS`, `WAIVED`, plus a boolean `upi_attested` that is
   only valid with `UPI` (`packages/contracts/src/events.ts:72-82`). Shift close carries `upi_total_declared_paise` and
   `upi_attested_sum_paise` as two different figures (`docs/integrations/event-envelope.md:43`).
-- **Open (OQ-43):** the repository never defines "declared revenue". Deriving UPI as total declared minus cash is only
+- **Open (OQ-45):** the repository never defines "declared revenue". Deriving UPI as total declared minus cash is only
   correct if total declared means cash + UPI + pass, with `WAIVED` excluded. It is also unclear whether "UPI declared"
   (all `UPI` payments) and "UPI attested" (only those with `upi_attested = true`) are the same figure. Because of
   these gaps, **do not derive**; ask for explicit columns computed from `PAYMENT` events.
@@ -51,11 +51,11 @@ Findings:
   minimum of 30 (`apps/console/src/lib/overstay.ts`). **Assumption:** minutes. Hours are display only.
 - **Per class or per facility:** Anamika's sheet says one threshold per vehicle class with a facility default
   (`member-03-anamika.md:278`); Akanksha's sheet has one column on `facilities` (`member-04-akanksha.md:265`).
-  **Open (OQ-44).**
+  **Open (OQ-46).**
 - **Boundary:** the CON-09 text says "past threshold" (`member-03-anamika.md:275`). The CLD-07 test expects sessions of
   239, 240 and 241 minutes at a 240 threshold to select "240+", and adds "decide and document"
   (`member-04-akanksha.md:462`). The Console code uses **at or over** (age >= threshold), with age as whole minutes
-  rounded down. **Assumption, open (OQ-44).**
+  rounded down. **Assumption, open (OQ-46).**
 - **Exclusions:** passes are excluded and exited sessions never appear (`member-03-anamika.md:278`). `open_sessions`
   on `feature/sync-02-open-sessions` (migration 0005, not on `main`) has `entry_time` and `pass_id`, so "no `pass_id`"
   is the natural filter. **Assumption.**
@@ -71,7 +71,7 @@ Findings:
   (`:464`).
 - **Timezone:** `facilities.timezone` is an IANA name (`supabase/migrations/0001_org_facility_zone_tariff_pass.sql:16`),
   and the Console wizard defaults to `Asia/Kolkata` (`member-03-anamika.md:148`).
-- **Open (OQ-45):** where hours are stored and their shape. Akanksha expects columns on `facilities`
+- **Open (OQ-47):** where hours are stored and their shape. Akanksha expects columns on `facilities`
   (`member-04-akanksha.md:265`); Anamika says the health page uses "facility shift config" (`member-03-anamika.md:289`);
   migration 0001 has neither. Whether a window may cross midnight, and how closed days are written, are not specified.
   The wizard lists "operating hours" in step 1 (`member-03-anamika.md:148`) but cannot store them until the shape is set.
@@ -91,7 +91,7 @@ All of this is Akanksha's recommended design, none of it built:
 - **What the Console shows:** the Console only configures and displays; alerts are sent by CLD-07
   (`member-03-anamika.md:275`). The health page reads stale markers (`member-04-akanksha.md:274`) and the dashboard
   exceptions list includes stale devices (`member-03-anamika.md:223`).
-- **Open (OQ-46):** the retry cap, the status values of an alert row, who receives the email (the report recipient table
+- **Open (OQ-48):** the retry cap, the status values of an alert row, who receives the email (the report recipient table
   is for reports only), and how a stale marker or alert row is exposed to the Console.
 
 ## 5. Other column differences to settle

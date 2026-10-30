@@ -5,8 +5,8 @@ import { MAX_SCHEMA_VERSION } from "./version";
 
 /**
  * Cloud event envelope + per-type payloads (IC-01). Specification and decisions:
- * docs/integrations/event-envelope.md. Zod is the source of truth for payload shape; SQL enforces
- * only the envelope (type, source, schema_version, key columns).
+ * docs/integrations/event-envelope.md. Zod is the source of truth. ingest_events (migration 0004) validates the
+ * envelope and every payload in SQL too, because it can be called directly; event_parity.test.sql checks the two agree.
  *
  * Strictness: unknown keys are REJECTED (envelope and payload). Compatibility across versions is
  * handled by schema_version / min_supported_version, not by silently ignoring fields.

@@ -72,7 +72,7 @@ export const FEATURES: FeatureStatus[] = [
       "Threshold validation and the at-or-over evaluation (pass holders excluded) exist and are tested.",
     needs: [
       "open_sessions on main (Afzal, on feature/sync-02-open-sessions)",
-      "Threshold storage and the alert job (Akanksha, CLD-07); see OQ-44",
+      "Threshold storage and the alert job (Akanksha, CLD-07); see OQ-46",
     ],
   },
   {

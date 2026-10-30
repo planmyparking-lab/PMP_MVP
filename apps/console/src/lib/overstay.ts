@@ -21,7 +21,7 @@ export function validateOverstayMinutes(minutes: unknown): OverstayCheck {
  * CON-09 evaluation of open sessions against a threshold. The inputs mirror what `open_sessions` holds
  * (`entry_time`, `pass_id`; Afzal's migration 0005 on `feature/sync-02-open-sessions`, not yet on main).
  *
- * Two points are NOT settled in the repository and are recorded as OQ-44: whether a session exactly at the
+ * Two points are NOT settled in the repository and are recorded as OQ-46: whether a session exactly at the
  * threshold counts (this code says yes, "at or over", which is what the test table T-CLD-07-U1 in
  * docs/team/member-04-akanksha.md expects, while the CON-09 text says "past threshold"), and whether the
  * threshold is per vehicle class or per facility (this code takes one threshold; the caller picks it).
@@ -55,7 +55,7 @@ export function sessionAgeMinutes(entryTime: string, nowIso: string): number {
   return Math.max(0, Math.floor((instantMs(nowIso) - instantMs(entryTime)) / 60_000));
 }
 
-/** At or over the threshold (OQ-44). The threshold must already be valid (see validateOverstayMinutes). */
+/** At or over the threshold (OQ-46). The threshold must already be valid (see validateOverstayMinutes). */
 export function isOverstay(ageMinutes: number, thresholdMinutes: number): boolean {
   const check = validateOverstayMinutes(thresholdMinutes);
   if (!check.ok) throw new RangeError(check.message);
