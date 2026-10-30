@@ -22,7 +22,7 @@ export interface RowUpdate {
   id: string;
   state: SyncState;
   attempts: number;
-  /** Server reason (or LOCAL_INVALID) for quarantined rows. */
+  /** Server reason, or LOCAL_INVALID / ID_MISMATCH (decided locally, never sent), for quarantined rows. */
   code?: string;
 }
 
@@ -108,18 +108,20 @@ export class Uploader {
     const rows = await this.store.pending(this.batchSize);
     if (rows.length === 0) return { kind: "IDLE" };
 
-    // A stored event that no longer parses can never be accepted: quarantine it without a network call.
+    // A stored event that no longer parses can never be accepted: quarantine it without a network call. The same goes
+    // for a row whose id differs from the id inside its event: the server would accept event.id while the row (what the
+    // app tracks) stays PENDING, and every retry would then fail the id check below. Which id is right is unknowable here.
     const updates: RowUpdate[] = [];
     const sendable: { row: OutboxRow; event: Event }[] = [];
     for (const row of rows) {
       const parsed = parseEvent(row.event);
-      if (parsed.ok) sendable.push({ row, event: parsed.value });
+      if (parsed.ok && parsed.value.id === row.id) sendable.push({ row, event: parsed.value });
       else
         updates.push({
           id: row.id,
           state: "QUARANTINED",
           attempts: row.attempts,
-          code: "LOCAL_INVALID",
+          code: parsed.ok ? "ID_MISMATCH" : "LOCAL_INVALID",
         });
     }
 

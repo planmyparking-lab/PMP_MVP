@@ -138,6 +138,37 @@ describe("Uploader.uploadBatch", () => {
     expect(store.rows.get("broken")).toMatchObject({ state: "QUARANTINED", code: "LOCAL_INVALID" });
   });
 
+  it("quarantines a row whose id differs from its event id, without sending it, and keeps uploading the rest", async () => {
+    const { store, cloud, uploader } = setup();
+    const inner = makeEntry(at(1));
+    store.addRaw("row-id-not-event-id", inner);
+    const good = makeEntry(at(2));
+    store.add(good);
+    expect(await uploader.uploadBatch()).toMatchObject({
+      kind: "UPLOADED",
+      sent: 1,
+      quarantined: 1,
+    });
+    expect(cloud.calls).toEqual([[good.id]]);
+    expect(cloud.stored.has(inner.id)).toBe(false);
+    expect(store.rows.get("row-id-not-event-id")).toMatchObject({
+      state: "QUARANTINED",
+      code: "ID_MISMATCH",
+      attempts: 0,
+    });
+    expect(uploader.consecutiveFailures).toBe(0);
+    expect(await uploader.drain()).toEqual({ kind: "IDLE" });
+  });
+
+  it("a row/event id mismatch alone never causes a retry loop", async () => {
+    const { store, cloud, uploader } = setup();
+    store.addRaw("other-id", makeEntry(at(1)));
+    expect(await uploader.drain()).toEqual({ kind: "IDLE" });
+    expect(cloud.calls).toHaveLength(0);
+    expect(store.count("PENDING")).toBe(0);
+    expect(store.count("QUARANTINED")).toBe(1);
+  });
+
   it("on a network failure keeps events PENDING, counts failures and returns a growing delay", async () => {
     const { store, cloud, uploader } = setup();
     store.add(makeEntry(at(1)));
