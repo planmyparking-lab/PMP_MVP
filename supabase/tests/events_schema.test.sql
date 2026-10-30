@@ -18,16 +18,12 @@
 --   TODO(contract: payload) type-specific data lives in `payload jsonb` (default '{}'); the TypeScript schemas are the
 --     source of truth. No test asserts payload contents or shape, by decision.
 --   TODO(contract: UUIDv7) a uuid column does not enforce version 7; no assertion about it.
---   TODO(contract: ingest) facility_id must equal the JWT claim, device_id the device claim, staff_id an active
---     member of the facility. That belongs to ingest_events (Afzal) and is not tested here.
+--   contract: ingest claim checks live in ingest_events (0004) and are tested in ingest_events.test.sql.
 --   TODO(append-only) The privilege assertions below state the documented requirement (docs/team/cld-02-events-review.md,
 --     section 5). 0003 revokes UPDATE, DELETE, TRUNCATE (and TRIGGER, REFERENCES) from authenticated and service_role,
 --     so those assertions pass. They are not to be weakened. Grants cannot constrain the table owner (postgres) or
 --     superusers; nothing here asserts owner-level protection, and no trigger or purge role exists yet.
---     One assertion (authenticated INSERT) is marked TODO below and shows as `not ok # TODO`.
---   TODO(contract: insert path) The authenticated INSERT assertion assumes direct insert is revoked and only
---     ingest_events writes (member-04-akanksha.md:188). If Afzal makes ingest_events SECURITY INVOKER instead,
---     authenticated needs INSERT plus an RLS policy and that single assertion must change with that decision.
+--     INSERT is revoked from authenticated by 0004 (ingest_events is SECURITY DEFINER); asserted below.
 begin;
 select plan(71);
 
@@ -116,17 +112,12 @@ select is(
   false,
   'authenticated cannot TRUNCATE events (RLS does not govern TRUNCATE)'
 );
--- BLOCKED pending Afzal's decision on ingest_events (SECURITY DEFINER vs INVOKER). Reported as `not ok ... # TODO`
--- while 0003 keeps INSERT for authenticated; the suite is NOT fully passing until that is resolved. The assertion
--- itself is unchanged. Remove the todo wrapper if the answer is SECURITY DEFINER (and add the INSERT revoke to 0003),
--- or change the assertion if the answer is SECURITY INVOKER.
-select todo_start('blocked: authenticated INSERT depends on ingest_events security model (Afzal)');
+-- Decision (Afzal): ingest_events is SECURITY DEFINER, so devices never need INSERT. Revoked by 0004_ingest_events.sql.
 select is(
   has_table_privilege('authenticated', 'public.events', 'INSERT'),
   false,
   'authenticated has no direct INSERT on events'
 );
-select todo_end();
 select is(
   has_table_privilege('service_role', 'public.events', 'UPDATE'),
   false,
