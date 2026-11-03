@@ -1,58 +1,79 @@
 "use client";
 
 import { useState } from "react";
-import { Icon } from "./ui/Icon";
+import {
+  CONFLICT_ACTION_LABELS,
+  CONFLICT_TYPES,
+  allowedConflictActions,
+  conflictAgeMinutes,
+  isUnresolvedOver24Hours,
+} from "../lib/conflicts";
+import type { ConflictType, SyncConflictRow } from "../lib/conflicts";
 import {
   Banner,
   Card,
   EmptyState,
-  Field,
   Issue,
   PageHeader,
   StatusBadge,
   Tabs,
-  Tip,
+  UnavailableButton,
 } from "./ui/primitives";
 
-const TYPES = [
-  {
-    value: "DUPLICATE_EXIT",
+const TYPE_DETAILS: Readonly<Record<ConflictType, { label: string; text: string }>> = {
+  DUPLICATE_EXIT: {
     label: "Duplicate exit",
     text: "Two exits were recorded for the same vehicle session, usually from two phones syncing late.",
-    actions: ["Keep first", "Keep second", "Mark as test entry", "Add note"],
   },
-  {
-    value: "ORPHAN_EXIT",
+  ORPHAN_EXIT: {
     label: "Orphan exit",
-    text: "An exit arrived with no matching entry, for example the entry was made while a phone was offline and lost.",
-    actions: ["Keep first", "Keep second", "Mark as test entry", "Add note"],
+    text: "An exit arrived with no matching entry. A later entry may close this conflict automatically.",
   },
-  {
-    value: "DUPLICATE_ENTRY",
+  DUPLICATE_ENTRY: {
     label: "Duplicate entry",
-    text: "The same vehicle appears to have been entered twice within a short time.",
-    actions: ["Keep first", "Keep second", "Mark as test entry", "Add note"],
+    text: "The same normalized vehicle number has more than one open session in this facility.",
   },
-  {
-    value: "CLOCK_SKEW",
+  CLOCK_SKEW: {
     label: "Clock skew",
-    text: "A phone's clock was far from the server's when an event was recorded.",
-    actions: ["Add note", "Acknowledge"],
+    text: "A live event's device time was more than five minutes ahead of the server receipt time.",
   },
-] as const;
+};
 
 const SEVERITY = [
-  { tone: "info", label: "Pending review", text: "Waiting for a manager" },
+  { tone: "info", label: "Pending review", text: "Open for no more than 24 hours" },
   { tone: "warn", label: "Over 24 hours", text: "Also appears on the dashboard" },
-  { tone: "ok", label: "Resolved", text: "A resolution is recorded" },
+  { tone: "ok", label: "Resolved", text: "A resolution time is recorded" },
 ] as const;
 
-type TypeKey = (typeof TYPES)[number]["value"];
+const RESOLUTION_UNAVAILABLE =
+  "Resolving needs conflict_resolutions, the atomic resolve_conflict function, sign-in and row-level security.";
 
-export function ConflictsView() {
-  const [type, setType] = useState<TypeKey>("DUPLICATE_EXIT");
-  const current = TYPES.find((t) => t.value === type)!;
-  const WHY = "Conflict data and the resolve function are not connected yet.";
+function ageLabel(minutes: number): string {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const remaining = minutes % 60;
+  if (hours < 24) return remaining === 0 ? `${hours} h` : `${hours} h ${remaining} min`;
+  const days = Math.floor(hours / 24);
+  const remainingHours = hours % 24;
+  return remainingHours === 0 ? `${days} d` : `${days} d ${remainingHours} h`;
+}
+
+export interface ConflictsViewProps {
+  /** Rows must be parsed with parseSyncConflictRows before they reach this view. */
+  rows: readonly SyncConflictRow[];
+  /** Server-supplied instant keeps age calculations stable for the rendered page. */
+  nowIso: string;
+}
+
+export function ConflictsView({ rows, nowIso }: ConflictsViewProps) {
+  const [type, setType] = useState<ConflictType>(() => rows[0]?.type ?? "DUPLICATE_EXIT");
+  const current = TYPE_DETAILS[type];
+  const visibleRows = rows
+    .filter((row) => row.type === type)
+    .toSorted((a, b) => {
+      const status = Number(a.status === "RESOLVED") - Number(b.status === "RESOLVED");
+      return status || a.created_at.localeCompare(b.created_at);
+    });
 
   return (
     <>
@@ -60,45 +81,31 @@ export function ConflictsView() {
         title="Conflicts"
         description="When two phones disagree, a person decides. Every resolution is recorded and no event is ever edited."
       />
-      <Banner tone="off" icon="plugOff" title="Conflict resolution is not built yet">
-        It needs the sync_conflicts table, conflict_resolutions and the resolve_conflict function
-        (Afzal, Akanksha). No conflicts are invented here.
+      <Banner
+        tone={rows.length > 0 ? "warn" : "off"}
+        icon={rows.length > 0 ? "alert" : "plugOff"}
+        title={
+          rows.length > 0
+            ? "Resolution actions are unavailable"
+            : "Live conflict query is not connected yet"
+        }
+      >
+        {rows.length > 0
+          ? "These are supplied sync_conflicts rows. Review actions stay disabled until the resolution table, atomic function, sign-in and RLS exist."
+          : "The sync_conflicts table exists and the row parser is ready. This page makes no network call until sign-in and RLS are available, so no conflicts are invented."}
       </Banner>
 
       <div className="grid grid-main">
         <Card flush>
-          <div className="card-head">
-            <div className="row" style={{ width: "100%" }}>
-              <Tip text={WHY}>
-                <Field id="c-search" label="Search">
-                  <div className="input-group">
-                    <span className="prefix">
-                      <Icon name="search" size={15} />
-                    </span>
-                    <input
-                      id="c-search"
-                      className="input has-prefix"
-                      placeholder="Short code or device"
-                      disabled
-                    />
-                  </div>
-                </Field>
-              </Tip>
-              <Tip text={WHY}>
-                <Field id="c-status" label="Status">
-                  <select id="c-status" className="select" disabled>
-                    <option>Open first</option>
-                  </select>
-                </Field>
-              </Tip>
-            </div>
-          </div>
-          <div style={{ padding: "0 var(--s-5)", paddingTop: "var(--s-3)" }}>
+          <div style={{ padding: "var(--s-3) var(--s-5) 0" }}>
             <Tabs
               label="Conflict type"
               value={type}
               onChange={setType}
-              options={TYPES.map((t) => ({ value: t.value, label: t.label }))}
+              options={CONFLICT_TYPES.map((value) => ({
+                value,
+                label: TYPE_DETAILS[value].label,
+              }))}
             />
           </div>
           <div className="table-wrap">
@@ -107,54 +114,99 @@ export function ConflictsView() {
                 <tr>
                   <th>Age</th>
                   <th>Facility</th>
-                  <th>Competing events</th>
+                  <th>Events</th>
                   <th>Status</th>
                   <th>Resolution</th>
                 </tr>
               </thead>
+              {visibleRows.length > 0 && (
+                <tbody>
+                  {visibleRows.map((row) => {
+                    const overdue = isUnresolvedOver24Hours(row, nowIso);
+                    const resolved = row.status === "RESOLVED";
+                    return (
+                      <tr key={row.id}>
+                        <td className="num">
+                          {ageLabel(conflictAgeMinutes(row.created_at, nowIso))}
+                        </td>
+                        <td>
+                          <code title={row.facility_id}>{row.facility_id}</code>
+                        </td>
+                        <td>
+                          <b>{row.event_ids.length}</b>{" "}
+                          {row.event_ids.length === 1 ? "event" : "events"}
+                          {row.session_id && (
+                            <div className="small muted" title={row.session_id}>
+                              Session {row.session_id}
+                            </div>
+                          )}
+                        </td>
+                        <td>
+                          <StatusBadge tone={resolved ? "ok" : overdue ? "warn" : "info"}>
+                            {resolved ? "Resolved" : overdue ? "Over 24 hours" : "Pending review"}
+                          </StatusBadge>
+                        </td>
+                        <td>
+                          <UnavailableButton reason={RESOLUTION_UNAVAILABLE}>
+                            Review
+                          </UnavailableButton>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              )}
             </table>
           </div>
-          <EmptyState
-            icon="swap"
-            title={`No ${current.label.toLowerCase()} conflicts to show`}
-            needs={[
-              "sync_conflicts table, filled by the sync service (Afzal)",
-              "conflict_resolutions and resolve_conflict (Akanksha)",
-              "Sign-in and security policies",
-            ]}
-          >
-            This list will show each conflict side by side with the two competing events.
-          </EmptyState>
+          {visibleRows.length === 0 && (
+            <EmptyState
+              icon="swap"
+              title={`No ${current.label.toLowerCase()} conflicts to show`}
+              needs={
+                rows.length === 0
+                  ? [
+                      "Console sign-in and facility-scoped RLS",
+                      "A server query that selects sync_conflicts rows",
+                      "conflict_resolutions and resolve_conflict for actions",
+                    ]
+                  : undefined
+              }
+            >
+              {rows.length === 0
+                ? "Parsed rows can be passed into this view once the secure server query exists."
+                : "The supplied result contains no conflicts of this type."}
+            </EmptyState>
+          )}
         </Card>
 
         <div className="stack">
           <Card title={current.label} subtitle="What this conflict means">
             <p style={{ marginBottom: 12 }}>{current.text}</p>
-            <div className="small muted" style={{ marginBottom: 6 }}>
-              Actions a manager will have
+            <div className="small muted" style={{ marginBottom: 8 }}>
+              Allowed actions for this type
             </div>
             <div className="row">
-              {current.actions.map((a) => (
-                <Tip key={a} text={WHY}>
-                  <span className="badge tone-off">{a}</span>
-                </Tip>
+              {allowedConflictActions(type).map((action) => (
+                <UnavailableButton key={action} reason={RESOLUTION_UNAVAILABLE}>
+                  {CONFLICT_ACTION_LABELS[action]}
+                </UnavailableButton>
               ))}
             </div>
-            {current.value === "CLOCK_SKEW" && (
+            {type === "CLOCK_SKEW" && (
               <div style={{ marginTop: 12 }}>
                 <Issue tone="info">
-                  Clock skew only allows a note or an acknowledgement, because there is no pair of
-                  events to choose between.
+                  Clock skew only permits a note or acknowledgement. It never offers a choice
+                  between events.
                 </Issue>
               </div>
             )}
           </Card>
           <Card title="Status levels">
             <div className="stack-sm">
-              {SEVERITY.map((s) => (
-                <div className="between" key={s.label}>
-                  <StatusBadge tone={s.tone}>{s.label}</StatusBadge>
-                  <span className="small muted">{s.text}</span>
+              {SEVERITY.map((status) => (
+                <div className="between" key={status.label}>
+                  <StatusBadge tone={status.tone}>{status.label}</StatusBadge>
+                  <span className="small muted">{status.text}</span>
                 </div>
               ))}
             </div>
