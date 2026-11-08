@@ -1,21 +1,26 @@
 /* PlanMyParking Console design system. Tokens first, then layout, then components. */
 :root {
   color-scheme: light;
-  --navy-950: #08141f;
-  --navy-900: #0b1b2b;
-  --navy-800: #12283c;
-  --navy-700: #1b3750;
-  --teal-600: #0b8f7e;
-  --teal-500: #12a995;
-  --teal-100: #d9f3ee;
-  --teal-50: #eefaf7;
-  --bg: #f4f6f9;
+  /* Brand: PlanMyParking neon lime on black (from logo/). Lime is a fill colour; text on light uses --teal-600. */
+  --lime: #c6f61a;
+  --lime-hover: #b5e80c;
+  --lime-glow: rgba(198, 246, 26, 0.35);
+  --ok-bright: #7cc417;
+  --navy-950: #050605;
+  --navy-900: #0b0d0a;
+  --navy-800: #141812;
+  --navy-700: #1f251b;
+  --teal-600: #4d7c0f;
+  --teal-500: #8fcf0a;
+  --teal-100: #ecfccb;
+  --teal-50: #f7fee7;
+  --bg: #f4f6f1;
   --panel: #ffffff;
-  --ink: #0f1c2a;
-  --ink-2: #3b4a5a;
-  --muted: #64748b;
-  --line: #e3e8ee;
-  --line-strong: #cfd7e1;
+  --ink: #10140d;
+  --ink-2: #3a4234;
+  --muted: #667061;
+  --line: #e4e8de;
+  --line-strong: #d0d7c8;
   --ok: #0b8f5a;
   --ok-bg: #e4f6ee;
   --warn: #a16207;
@@ -146,7 +151,7 @@ code {
   background: linear-gradient(135deg, var(--teal-500), var(--teal-600));
   display: grid;
   place-items: center;
-  box-shadow: 0 4px 14px rgba(18, 169, 149, 0.4);
+  box-shadow: 0 4px 14px var(--lime-glow);
 }
 .brand-name {
   font-weight: 650;
@@ -185,7 +190,7 @@ code {
   color: #fff;
 }
 .nav a[aria-current="page"] {
-  background: rgba(18, 169, 149, 0.18);
+  background: rgba(198, 246, 26, 0.12);
   color: #fff;
   box-shadow: inset 2px 0 0 var(--teal-500);
 }
@@ -300,7 +305,7 @@ code {
   box-shadow: var(--shadow-sm);
 }
 .btn-primary:hover:not(:disabled) {
-  background: #097a6c;
+  background: var(--lime-hover);
 }
 .btn-secondary {
   background: var(--panel);
@@ -647,7 +652,7 @@ code {
 .select:focus-visible {
   outline: none;
   border-color: var(--teal-500);
-  box-shadow: 0 0 0 3px rgba(18, 169, 149, 0.2);
+  box-shadow: 0 0 0 3px rgba(143, 207, 10, 0.25);
 }
 .input[aria-invalid="true"] {
   border-color: var(--bad);
@@ -722,7 +727,7 @@ input[type="range"] {
 }
 .step-btn[aria-current="step"] {
   border-color: var(--teal-500);
-  box-shadow: 0 0 0 3px rgba(18, 169, 149, 0.15);
+  box-shadow: 0 0 0 3px rgba(143, 207, 10, 0.2);
 }
 .step-num {
   width: 26px;

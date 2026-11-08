@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { deviceHealthStatus, HEALTH_THRESHOLDS } from "../lib/deviceHealth";
 import type { HealthStatus } from "../lib/deviceHealth";
 import { Icon } from "./ui/Icon";
@@ -32,7 +33,7 @@ const SCENARIOS: { label: string; v: typeof DEFAULTS }[] = [
 
 const whole = (s: string): number | null => (/^\d+$/.test(s.trim()) ? Number(s.trim()) : null);
 
-export function DevicesView() {
+export function DevicesView({ live }: { live?: ReactNode } = {}) {
   const [v, setV] = useState(DEFAULTS);
   const [enrol, setEnrol] = useState(false);
   const toast = useToast();
@@ -59,85 +60,92 @@ export function DevicesView() {
     <>
       <PageHeader
         title="Devices"
-        description="Know which phones are online, in sync and healthy before an operator calls you. Live monitoring needs the heartbeat table."
+        description={
+          live
+            ? "Enrolled gate phones and guards for this facility. Health signals arrive once the heartbeat table exists."
+            : "Know which phones are online, in sync and healthy before an operator calls you. Live monitoring needs the heartbeat table."
+        }
         actions={
           <Button variant="primary" icon="plug" onClick={() => setEnrol(true)}>
             Add device
           </Button>
         }
       />
-      <Banner tone="info" icon="plugOff" title="No devices are connected to this console">
-        Device status, last-seen times and queue sizes will come from the device_heartbeats table.
-        The counts below show a dash rather than zero, because zero would claim that nothing is
-        wrong.
-      </Banner>
+      {live ?? (
+        <>
+          <Banner tone="info" icon="plugOff" title="No devices are connected to this console">
+            Device status, last-seen times and queue sizes will come from the device_heartbeats
+            table. The counts below show a dash rather than zero, because zero would claim that
+            nothing is wrong.
+          </Banner>
 
-      <div className="grid grid-4" style={{ marginBottom: "var(--s-4)" }}>
-        <StatCard
-          label="Healthy"
-          icon="checkCircle"
-          foot="Reporting within limits"
-          tone="off"
-          badge="Disconnected"
-        />
-        <StatCard
-          label="Warning"
-          icon="alert"
-          foot="Backlog or slow sync"
-          tone="off"
-          badge="Disconnected"
-        />
-        <StatCard
-          label="Critical"
-          icon="alert"
-          foot="Needs attention now"
-          tone="off"
-          badge="Disconnected"
-        />
-        <StatCard
-          label="Never reported"
-          icon="plugOff"
-          foot="Enrolled but silent"
-          tone="off"
-          badge="Disconnected"
-        />
-      </div>
+          <div className="grid grid-4" style={{ marginBottom: "var(--s-4)" }}>
+            <StatCard
+              label="Healthy"
+              icon="checkCircle"
+              foot="Reporting within limits"
+              tone="off"
+              badge="Disconnected"
+            />
+            <StatCard
+              label="Warning"
+              icon="alert"
+              foot="Backlog or slow sync"
+              tone="off"
+              badge="Disconnected"
+            />
+            <StatCard
+              label="Critical"
+              icon="alert"
+              foot="Needs attention now"
+              tone="off"
+              badge="Disconnected"
+            />
+            <StatCard
+              label="Never reported"
+              icon="plugOff"
+              foot="Enrolled but silent"
+              tone="off"
+              badge="Disconnected"
+            />
+          </div>
 
-      <Card title="Device list" subtitle="One row per enrolled phone" flush>
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr>
-                <th>Device</th>
-                <th>Status</th>
-                <th>Last heartbeat</th>
-                <th>Queue</th>
-                <th>Oldest unsynced</th>
-                <th>App version</th>
-                <th>Battery</th>
-              </tr>
-            </thead>
-          </table>
-        </div>
-        <EmptyState
-          icon="device"
-          title="No device data yet"
-          needs={[
-            "device_heartbeats table and the health sender (Akanksha, Afzal)",
-            "Enrolment function and one-time codes (Akanksha)",
-            "Row-level security and sign-in",
-          ]}
-          action={
-            <Button icon="info" onClick={() => setEnrol(true)}>
-              How enrolment will work
-            </Button>
-          }
-        >
-          Enrolled phones will appear here with their last heartbeat, queue depth, app version and
-          battery. Nothing is invented in the meantime.
-        </EmptyState>
-      </Card>
-
+          <Card title="Device list" subtitle="One row per enrolled phone" flush>
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Device</th>
+                    <th>Status</th>
+                    <th>Last heartbeat</th>
+                    <th>Queue</th>
+                    <th>Oldest unsynced</th>
+                    <th>App version</th>
+                    <th>Battery</th>
+                  </tr>
+                </thead>
+              </table>
+            </div>
+            <EmptyState
+              icon="device"
+              title="No device data yet"
+              needs={[
+                "device_heartbeats table and the health sender (Akanksha, Afzal)",
+                "Enrolment function and one-time codes (Akanksha)",
+                "Row-level security and sign-in",
+              ]}
+              action={
+                <Button icon="info" onClick={() => setEnrol(true)}>
+                  How enrolment will work
+                </Button>
+              }
+            >
+              Enrolled phones will appear here with their last heartbeat, queue depth, app version
+              and battery. Nothing is invented in the meantime.
+            </EmptyState>
+          </Card>
+        </>
+      )}
       <div style={{ height: "var(--s-4)" }} />
       <div className="grid grid-main">
         <Card
