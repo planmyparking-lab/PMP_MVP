@@ -1,7 +1,7 @@
 /**
  * What the Console can and cannot do today. This list feeds the dashboard and the "not connected" notices, so
  * the screens never claim more than the repository contains. Update it when a dependency lands.
- * Sources: docs/team/member-03-anamika.md and supabase/migrations (0001 to 0003 only).
+ * Sources: docs/team/member-03-anamika.md and supabase/migrations (0001 to 0006).
  */
 export type FeatureState = "partial" | "blocked";
 
@@ -22,10 +22,11 @@ export const FEATURES: FeatureStatus[] = [
     title: "Dashboard and occupancy",
     href: "/occupancy",
     state: "partial",
-    works: "Colour-band logic and the overrides-per-100 formula exist and are tested.",
+    works:
+      "Sign-in and server loaders read zones, open_sessions and today's events; the board refreshes every 10 seconds.",
     needs: [
-      "Database views v_zone_now, v_daily_kpis and v_hourly (Akanksha)",
-      "Row-level security policies and sign-in (CLD-03, CON-03)",
+      "Row-level security policies so signed-in managers can read rows (CLD-03, Akanksha)",
+      "Views v_zone_now, v_daily_kpis and v_hourly to replace the open_sessions count (Akanksha)",
     ],
   },
   {
@@ -57,10 +58,10 @@ export const FEATURES: FeatureStatus[] = [
     title: "Devices and health",
     href: "/devices",
     state: "partial",
-    works: "Device health status rules exist and are tested.",
+    works: "Lists enrolled devices and guards from the database. Health status rules are tested.",
     needs: [
       "device_heartbeats table, enrollment function and PIN function (Akanksha)",
-      "Sign-in and security policies",
+      "Row-level security policies (CLD-03)",
     ],
   },
   {
@@ -75,9 +76,12 @@ export const FEATURES: FeatureStatus[] = [
     id: "CON-07",
     title: "Conflicts inbox",
     href: "/conflicts",
-    state: "blocked",
-    works: "Nothing built yet.",
-    needs: ["sync_conflicts, conflict_resolutions and resolve_conflict (Afzal, Akanksha)"],
+    state: "partial",
+    works: "Reads sync_conflicts for the selected facility, grouped by type with age and status.",
+    needs: [
+      "conflict_resolutions and resolve_conflict for actions (Afzal, Akanksha)",
+      "Row-level security policies (CLD-03)",
+    ],
   },
 ];
 

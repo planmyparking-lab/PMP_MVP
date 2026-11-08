@@ -63,9 +63,24 @@ export interface ConflictsViewProps {
   rows: readonly SyncConflictRow[];
   /** Server-supplied instant keeps age calculations stable for the rendered page. */
   nowIso: string;
+  /** True when `rows` is a real query result for the signed-in user. */
+  connected?: boolean;
+  /** Query failure for a connected session. */
+  error?: string;
+  /** Why the page is disconnected (offline build, signed out, no access). */
+  reason?: string;
+  /** Shown instead of the facility id when the rows belong to one known facility. */
+  facilityName?: string;
 }
 
-export function ConflictsView({ rows, nowIso }: ConflictsViewProps) {
+export function ConflictsView({
+  rows,
+  nowIso,
+  connected = false,
+  error,
+  reason,
+  facilityName,
+}: ConflictsViewProps) {
   const [type, setType] = useState<ConflictType>(() => rows[0]?.type ?? "DUPLICATE_EXIT");
   const current = TYPE_DETAILS[type];
   const visibleRows = rows
@@ -81,19 +96,33 @@ export function ConflictsView({ rows, nowIso }: ConflictsViewProps) {
         title="Conflicts"
         description="When two phones disagree, a person decides. Every resolution is recorded and no event is ever edited."
       />
-      <Banner
-        tone={rows.length > 0 ? "warn" : "off"}
-        icon={rows.length > 0 ? "alert" : "plugOff"}
-        title={
-          rows.length > 0
-            ? "Resolution actions are unavailable"
-            : "Live conflict query is not connected yet"
-        }
-      >
-        {rows.length > 0
-          ? "These are supplied sync_conflicts rows. Review actions stay disabled until the resolution table, atomic function, sign-in and RLS exist."
-          : "The sync_conflicts table exists and the row parser is ready. This page makes no network call until sign-in and RLS are available, so no conflicts are invented."}
-      </Banner>
+      {connected ? (
+        error ? (
+          <Banner tone="bad" icon="alert" title="Conflicts could not be read">
+            {error}
+          </Banner>
+        ) : (
+          <Banner tone="info" icon="info" title="Live and read-only">
+            {`${rows.filter((r) => r.status === "OPEN").length} open of ${rows.length} recorded. `}
+            Resolving needs the conflict_resolutions table and the resolve_conflict function, which
+            are not built yet, so actions stay disabled.
+          </Banner>
+        )
+      ) : (
+        <Banner
+          tone={rows.length > 0 ? "warn" : "off"}
+          icon={rows.length > 0 ? "alert" : "plugOff"}
+          title={
+            rows.length > 0
+              ? "Resolution actions are unavailable"
+              : "Live conflict query is not connected yet"
+          }
+        >
+          {rows.length > 0
+            ? "These are supplied sync_conflicts rows. Review actions stay disabled until the resolution table, atomic function, sign-in and RLS exist."
+            : `${reason ? `${reason} ` : ""}The sync_conflicts table exists and the row parser is ready, so no conflicts are invented.`}
+        </Banner>
+      )}
 
       <div className="grid grid-main">
         <Card flush>
@@ -102,10 +131,14 @@ export function ConflictsView({ rows, nowIso }: ConflictsViewProps) {
               label="Conflict type"
               value={type}
               onChange={setType}
-              options={CONFLICT_TYPES.map((value) => ({
-                value,
-                label: TYPE_DETAILS[value].label,
-              }))}
+              options={CONFLICT_TYPES.map((value) => {
+                const open = rows.filter((r) => r.type === value && r.status === "OPEN").length;
+                return {
+                  value,
+                  label:
+                    open > 0 ? `${TYPE_DETAILS[value].label} (${open})` : TYPE_DETAILS[value].label,
+                };
+              })}
             />
           </div>
           <div className="table-wrap">
@@ -130,7 +163,11 @@ export function ConflictsView({ rows, nowIso }: ConflictsViewProps) {
                           {ageLabel(conflictAgeMinutes(row.created_at, nowIso))}
                         </td>
                         <td>
-                          <code title={row.facility_id}>{row.facility_id}</code>
+                          {facilityName ? (
+                            <span title={row.facility_id}>{facilityName}</span>
+                          ) : (
+                            <code title={row.facility_id}>{row.facility_id}</code>
+                          )}
                         </td>
                         <td>
                           <b>{row.event_ids.length}</b>{" "}
@@ -163,7 +200,7 @@ export function ConflictsView({ rows, nowIso }: ConflictsViewProps) {
               icon="swap"
               title={`No ${current.label.toLowerCase()} conflicts to show`}
               needs={
-                rows.length === 0
+                rows.length === 0 && !connected
                   ? [
                       "Console sign-in and facility-scoped RLS",
                       "A server query that selects sync_conflicts rows",
@@ -172,9 +209,11 @@ export function ConflictsView({ rows, nowIso }: ConflictsViewProps) {
                   : undefined
               }
             >
-              {rows.length === 0
-                ? "Parsed rows can be passed into this view once the secure server query exists."
-                : "The supplied result contains no conflicts of this type."}
+              {connected
+                ? "Nothing of this type has been recorded for this facility."
+                : rows.length === 0
+                  ? "Parsed rows can be passed into this view once the secure server query exists."
+                  : "The supplied result contains no conflicts of this type."}
             </EmptyState>
           )}
         </Card>

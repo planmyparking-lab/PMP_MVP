@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { SCHEMA_VERSION } from "@pmp/contracts";
 import { FEATURES } from "../lib/features";
+import { ParkingScene } from "./art/ParkingScene";
 import { Icon } from "./ui/Icon";
 import type { IconName } from "./ui/Icon";
 import { Banner, Card, StatCard, StatusBadge } from "./ui/primitives";
@@ -39,7 +40,12 @@ const STEPS = [
 // Illustrative bars for the demo view only. Invented; they are not from any facility.
 const DEMO_HOURLY = [12, 18, 30, 44, 52, 61, 58, 49, 40, 46, 55, 38];
 
-export function DashboardView() {
+export function DashboardView({
+  reason = "No Supabase project is configured for this build, so live figures show as unavailable instead of invented numbers.",
+}: {
+  /** Why live data is not shown (offline build, or no facility readable yet). */
+  reason?: string;
+}) {
   const [demo, setDemo] = useState(false);
   const toast = useToast();
 
@@ -65,19 +71,29 @@ export function DashboardView() {
   const maxBar = Math.max(...DEMO_HOURLY);
   return (
     <>
-      <header className="page-head">
+      <header className="hero-banner">
         <div>
+          <span className="eyebrow">Operator Console</span>
           <h1>Welcome to PlanMyParking</h1>
-          <p>
-            Your operations overview. This build is not connected to a database yet, so live figures
-            show as unavailable instead of invented numbers.
-          </p>
+          <p>Your operations overview. {reason}</p>
+          <p className="hero-meta">Event schema version {SCHEMA_VERSION}</p>
+          <div className="actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              aria-pressed={demo}
+              onClick={toggle}
+            >
+              <Icon name="sparkle" size={17} />
+              {demo ? "Hide demo data" : "Show demo data"}
+            </button>
+            <Link href="/setup" className="btn btn-primary">
+              Set up a facility <Icon name="arrowRight" size={17} />
+            </Link>
+          </div>
         </div>
-        <div className="actions">
-          <button type="button" className="btn btn-secondary" aria-pressed={demo} onClick={toggle}>
-            <Icon name="sparkle" size={17} />
-            {demo ? "Hide demo data" : "Show demo data"}
-          </button>
+        <div className="hero-art" aria-hidden="true">
+          <ParkingScene id="dash-offline" />
         </div>
       </header>
 
@@ -85,12 +101,7 @@ export function DashboardView() {
         <Banner tone="warn" icon="sparkle" demo title="DEMO DATA — every figure below is invented">
           It is here only to show how the dashboard will look. It does not come from any facility.
         </Banner>
-      ) : (
-        <Banner tone="info" icon="plugOff" title="Not connected to a database">
-          Live occupancy, entries, devices and exceptions need the database views and sign-in that
-          other team members are building. Event schema version {SCHEMA_VERSION}.
-        </Banner>
-      )}
+      ) : null}
 
       <div className="grid grid-4" style={{ marginBottom: "var(--s-4)" }}>
         <StatCard
