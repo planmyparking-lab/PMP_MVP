@@ -1,13 +1,15 @@
 # Handles supplied by the repository owner; not independently verified. Each must have write access.
+# Every path has at least two owners (any one owner's approval satisfies a line), because GitHub never counts the
+# author's own approval: a path with a single owner could never be merged by that owner.
 # NOTE: this file does not enforce review. Enforcement is a GitHub ruleset (docs/development/github-repository-settings.md).
 # Ownership follows docs/team/README.md section "Ownership matrix".
-*                       @afzl-raza
-/apps/gate/             @NikhilChaurasiya01
-/apps/console/          @tanamikaa
-/supabase/functions/    @Akankshakushwahaa
+*                       @afzl-raza @NikhilChaurasiya01
+/apps/gate/             @NikhilChaurasiya01 @afzl-raza
+/apps/console/          @tanamikaa @afzl-raza
+/supabase/functions/    @Akankshakushwahaa @afzl-raza
 /supabase/migrations/   @afzl-raza @Akankshakushwahaa
-/packages/contracts/    @afzl-raza
-/packages/sync-rules/   @afzl-raza
+/packages/contracts/    @afzl-raza @Akankshakushwahaa
+/packages/sync-rules/   @afzl-raza @Akankshakushwahaa
 /packages/domain/       @NikhilChaurasiya01 @afzl-raza
-/.github/               @Akankshakushwahaa
-/docs/team/             @afzl-raza
+/.github/               @Akankshakushwahaa @afzl-raza
+/docs/team/             @afzl-raza @NikhilChaurasiya01
