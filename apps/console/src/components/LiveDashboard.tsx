@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { isUnresolvedOver24Hours } from "../lib/conflicts";
+import { istHour } from "../lib/data/istDay";
 import type { FacilityLive, Loaded } from "../lib/data/types";
 import { overridesPer100 } from "../lib/kpi";
 import { occupancyView } from "../lib/occupancyBand";
@@ -19,7 +20,7 @@ export const BAND_LABEL: Record<OccupancyBand, string> = {
 };
 
 function greeting(asOf: string): string {
-  const h = new Date(Date.parse(asOf) + 330 * 60_000).getUTCHours();
+  const h = istHour(asOf);
   return h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
 }
 
@@ -101,7 +102,7 @@ export function LiveDashboard({ live }: { live: FacilityLive }) {
   const today = live.today.ok ? live.today.data : null;
   const hours = today?.entriesByHour ?? [];
   const maxHour = Math.max(1, ...hours);
-  const nowHour = new Date(Date.parse(live.asOf) + 330 * 60_000).getUTCHours();
+  const nowHour = istHour(live.asOf);
 
   return (
     <>
