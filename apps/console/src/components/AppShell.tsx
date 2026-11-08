@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { selectFacility, signOut } from "../../app/actions";
 import type { ConsoleSession } from "../lib/data/types";
+import { bindMenuEscape } from "../lib/menuEscape";
 import { Icon } from "./ui/Icon";
 import type { IconName } from "./ui/Icon";
 
@@ -130,13 +131,11 @@ function UserMenu({ session }: { session: ConsoleSession }) {
   // ARIA menu convention: Escape closes the menu and returns focus to its button.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      setOpen(false);
-      buttonRef.current?.focus();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    return bindMenuEscape(
+      document,
+      () => setOpen(false),
+      () => buttonRef.current?.focus(),
+    );
   }, [open]);
 
   if (session.kind === "offline") return null;
