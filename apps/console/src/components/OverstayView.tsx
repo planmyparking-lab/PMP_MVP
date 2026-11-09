@@ -138,8 +138,7 @@ export function OverstayView() {
                 </Issue>
               )}
               <p className="small muted">
-                A stay exactly equal to the limit counts as over it. That is a provisional choice,
-                not yet confirmed (OQ-46).
+                A stay exactly equal to the limit counts as over it (decided in OQ-46).
               </p>
             </div>
           </Card>

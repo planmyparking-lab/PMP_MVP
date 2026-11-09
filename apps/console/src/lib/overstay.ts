@@ -19,12 +19,10 @@ export function validateOverstayMinutes(minutes: unknown): OverstayCheck {
 
 /**
  * CON-09 evaluation of open sessions against a threshold. The inputs mirror what `open_sessions` holds
- * (`entry_time`, `pass_id`; Afzal's migration 0005 on `feature/sync-02-open-sessions`, not yet on main).
+ * (`entry_time`, `pass_id`; migration 0005). `toOpenSessionLike` in `openSessions.ts` converts a row.
  *
- * Two points are NOT settled in the repository and are recorded as OQ-46: whether a session exactly at the
- * threshold counts (this code says yes, "at or over", which is what the test table T-CLD-07-U1 in
- * docs/team/member-04-akanksha.md expects, while the CON-09 text says "past threshold"), and whether the
- * threshold is per vehicle class or per facility (this code takes one threshold; the caller picks it).
+ * OQ-46 (resolved by Afzal in the PR #23 review): a session exactly at the threshold counts ("at or over", as in
+ * T-CLD-07-U1), and there is one threshold per facility for now; per-vehicle-class is a later version.
  */
 export interface OpenSessionLike {
   sessionId: string;

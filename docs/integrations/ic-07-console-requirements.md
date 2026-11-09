@@ -35,13 +35,14 @@ Findings:
 - **Confirmed:** the payment event has four modes, `CASH`, `UPI`, `PASS`, `WAIVED`, plus a boolean `upi_attested` that is
   only valid with `UPI` (`packages/contracts/src/events.ts:72-82`). Shift close carries `upi_total_declared_paise` and
   `upi_attested_sum_paise` as two different figures (`docs/integrations/event-envelope.md:43`).
-- **Open (OQ-45):** the repository never defines "declared revenue". Deriving UPI as total declared minus cash is only
+- **Resolved (OQ-45, Afzal, 8 Nov 2026):** use the explicit columns below. Background: the repository never defined "declared revenue". Deriving UPI as total declared minus cash is only
   correct if total declared means cash + UPI + pass, with `WAIVED` excluded. It is also unclear whether "UPI declared"
   (all `UPI` payments) and "UPI attested" (only those with `upi_attested = true`) are the same figure. Because of
   these gaps, **do not derive**; ask for explicit columns computed from `PAYMENT` events.
-- **Proposed columns, for agreement:** `cash_paise`, `upi_paise`, `pass_paise`, and `declared_total_paise` defined as
-  their sum, all non-negative integers, zero for an empty day (`member-04-akanksha.md:253`, "Empty facility returns zero
-  rows or zero values"). The date and column names are still to be agreed.
+- **Agreed columns:** `cash_paise`, `upi_paise`, `pass_paise`, and `declared_total_paise` defined as their sum, all
+  computed from `PAYMENT` events, non-negative integers, zero for an empty day (`member-04-akanksha.md:253`, "Empty
+  facility returns zero rows or zero values"). No derived or subtraction columns. The view's date column name is still
+  to be set by Akanksha.
 
 ## 2. Overstay
 
@@ -51,13 +52,13 @@ Findings:
   minimum of 30 (`apps/console/src/lib/overstay.ts`). **Assumption:** minutes. Hours are display only.
 - **Per class or per facility:** Anamika's sheet says one threshold per vehicle class with a facility default
   (`member-03-anamika.md:278`); Akanksha's sheet has one column on `facilities` (`member-04-akanksha.md:265`).
-  **Open (OQ-46).**
+  **Resolved (OQ-46):** one threshold per facility for now; per vehicle class is a later version.
 - **Boundary:** the CON-09 text says "past threshold" (`member-03-anamika.md:275`). The CLD-07 test expects sessions of
   239, 240 and 241 minutes at a 240 threshold to select "240+", and adds "decide and document"
   (`member-04-akanksha.md:462`). The Console code uses **at or over** (age >= threshold), with age as whole minutes
-  rounded down. **Assumption, open (OQ-46).**
+  rounded down. **Resolved (OQ-46):** at or over.
 - **Exclusions:** passes are excluded and exited sessions never appear (`member-03-anamika.md:278`). `open_sessions`
-  on `feature/sync-02-open-sessions` (migration 0005, not on `main`) has `entry_time` and `pass_id`, so "no `pass_id`"
+  (migration 0005, now on `main`) has `entry_time` and `pass_id`, so "no `pass_id`"
   is the natural filter. **Assumption.**
 - **Output values:** the list shows token, class, entry time and age (`member-03-anamika.md:275`). No status enumeration
   is written down for overstay; the Console shows none beyond the list.
