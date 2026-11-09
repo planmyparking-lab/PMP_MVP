@@ -70,7 +70,7 @@ export const FEATURES: FeatureStatus[] = [
     href: "/overstay",
     state: "partial",
     works:
-      "Threshold validation and the at-or-over evaluation (pass holders excluded) exist and are tested.",
+      "Lists vehicles inside at or over a limit from open_sessions, longest first, with CSV export (no number plates).",
     needs: [
       "Threshold storage per facility and the alert job (Akanksha, CLD-07)",
       "Row-level security so the page can read open_sessions (CLD-03)",
@@ -80,9 +80,13 @@ export const FEATURES: FeatureStatus[] = [
     id: "CON-06",
     title: "Shift review",
     href: "/shifts",
-    state: "blocked",
-    works: "Nothing built yet.",
-    needs: ["Shift views and the shift_reviews table (Akanksha, Afzal)"],
+    state: "partial",
+    works:
+      "Lists the last 30 days of shifts from SHIFT_OPEN and SHIFT_CLOSE events, with cash and UPI variance and filters.",
+    needs: [
+      "shift_reviews table for sign-off, and shift views (Akanksha, Afzal); see OQ-51",
+      "Row-level security so events are readable (CLD-03)",
+    ],
   },
   {
     id: "CON-07",
