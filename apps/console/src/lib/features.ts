@@ -65,6 +65,18 @@ export const FEATURES: FeatureStatus[] = [
     ],
   },
   {
+    id: "CON-09",
+    title: "Overstay",
+    href: "/overstay",
+    state: "partial",
+    works:
+      "Threshold validation and the at-or-over evaluation (pass holders excluded) exist and are tested.",
+    needs: [
+      "Threshold storage per facility and the alert job (Akanksha, CLD-07)",
+      "Row-level security so the page can read open_sessions (CLD-03)",
+    ],
+  },
+  {
     id: "CON-06",
     title: "Shift review",
     href: "/shifts",
