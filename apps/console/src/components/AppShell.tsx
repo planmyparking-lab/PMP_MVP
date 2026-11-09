@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { selectFacility, signOut } from "../../app/actions";
 import type { ConsoleSession } from "../lib/data/types";
+import { bindMenuEscape } from "../lib/menuEscape";
 import { Icon } from "./ui/Icon";
 import type { IconName } from "./ui/Icon";
 
@@ -119,6 +120,7 @@ function FacilitySwitcher({ session }: { session: ConsoleSession }) {
 function UserMenu({ session }: { session: ConsoleSession }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     const close = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
@@ -126,6 +128,15 @@ function UserMenu({ session }: { session: ConsoleSession }) {
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
+  // ARIA menu convention: Escape closes the menu and returns focus to its button.
+  useEffect(() => {
+    if (!open) return;
+    return bindMenuEscape(
+      document,
+      () => setOpen(false),
+      () => buttonRef.current?.focus(),
+    );
+  }, [open]);
 
   if (session.kind === "offline") return null;
   if (session.kind === "signed-out") {
@@ -139,6 +150,7 @@ function UserMenu({ session }: { session: ConsoleSession }) {
   return (
     <div className="user-menu" ref={ref}>
       <button
+        ref={buttonRef}
         type="button"
         className="avatar"
         aria-haspopup="menu"
