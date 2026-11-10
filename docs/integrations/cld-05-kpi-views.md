@@ -1,7 +1,8 @@
 # CLD-05 KPI views: `v_daily_kpis` and `v_hourly`
 
 Migration: `supabase/migrations/0009_views_kpis.sql`. Tests: `supabase/tests/kpi_views.test.sql`,
-`supabase/tests/kpi_oracle.test.sql` (T-CLD-05-I2, section 8).
+`supabase/tests/kpi_golden_day.test.sql` (T-CLD-05-U1, section 7), `supabase/tests/kpi_oracle.test.sql` (T-CLD-05-I2,
+section 8).
 Spec: `docs/team/member-04-akanksha.md` CLD-05, IC-07 (`docs/integrations/ic-07-console-requirements.md`), OQ-45.
 
 ## 1. Scope
@@ -150,7 +151,7 @@ Migration contiguity: 0009 follows 0008 with no gap. The proposals in the refres
 
 | Test | State |
 | --- | --- |
-| U1 daily golden day | Covered |
+| U1 daily golden day | Covered by `kpi_golden_day.test.sql` (5 of 5): the full spec golden day of 100 entries, 90 distinct first exits (89 paired plus 1 orphan; a duplicate EXIT is excluded), 10 overrides, 5 pass entries, CASH 250,000 and UPI 136,000 paise, and a midnight-spanning session. The complete golden-date `v_daily_kpis` row, including `facility_id` and `local_date`, and the next-date row are compared with hand-computed literals using `results_eq`. The 90 is checked through `v_hourly.exits`, because `v_daily_kpis` has no exits column. The exit counting is an assumption (OQ-53). The smaller golden day in `kpi_views.test.sql` remains as an edge-case test |
 | U2 zone now equals occupancy | **Not covered** (`v_zone_now` deferred) |
 | U3 hourly edges (00:00, 00:59:59, 01:00, 23:59:59, +05:45 zone) | Covered |
 | I1 RLS through the views | Covered with stand-in policies for 0001 to 0009 only; **not** validated against 0010, which needs its own test (section 6) |
