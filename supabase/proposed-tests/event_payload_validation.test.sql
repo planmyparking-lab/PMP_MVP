@@ -1,7 +1,7 @@
 -- Tests for strict event payload validation introduced by migration 0013.
 begin;
 
-select plan(183);
+select plan(211);
 
 insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000a1');
@@ -2346,6 +2346,142 @@ select is(
   true,
   'the old row keeps a NULL recorded_at'
 );
+
+-- ---------------------------------------------------------------------------
+-- Strict-validation behaviours previously asserted in supabase/tests/ingest_events.test.sql (moved here from the
+-- merged suite, since they require migration 0013): schema_version contract range, envelope/payload detail paths,
+-- non-object and missing-key events, claim/staff rejections carrying no detail, id echo and TOO_OLD.
+-- ---------------------------------------------------------------------------
+insert into public.staff (id, facility_id, name, pin_hash, pin_salt, active)
+values (
+  '00000000-0000-4000-8000-0000000000b2',
+  '00000000-0000-4000-8000-0000000000f1',
+  'Payload Test Inactive Guard',
+  'h',
+  's',
+  false
+);
+
+set local role authenticated;
+
+select pg_temp.call_payloads('ic01_reject', array[
+  -- 0..3: schema_version outside the contract (1..32767) or not a whole JSON number.
+  '{"id": "018f0000-0000-7000-8000-000000001701", "schema_version": 0}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001702", "schema_version": "1"}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001703", "schema_version": 1.4}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001704", "schema_version": 3000000000}'::jsonb,
+  -- 4..9: envelope field details.
+  '{"id": "018f0000-0000-7000-8000-000000001705", "device_time": "yesterday"}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001706", "device_time": "2026-10-01T10:00:00+05:30"}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001707", "session_id": null}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001708", "type": "NOPE"}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001709", "source": "HACK"}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-00000000170a", "source": "PAPER_BACKFILL", "recorded_at": "nope"}'::jsonb,
+  -- 10..16: payload shape and field details.
+  '{"id": "018f0000-0000-7000-8000-00000000170b", "payload": {}}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-00000000170c", "payload": null}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-00000000170d", "type": "EXIT", "payload": {"fare_paise": -5, "exit_method": "SCAN"}}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-00000000170e", "type": "EXIT", "payload": {"fare_paise": "100", "exit_method": "SCAN"}}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-00000000170f", "type": "EXIT", "payload": {"fare_paise": 100000000000000000000, "exit_method": "SCAN"}}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001710", "payload": {"vehicle_class": "CAR", "zone_id": "00000000-0000-4000-8000-0000000000c1", "short_code": "7K2QX", "vehicle_no": null}}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001711", "type": "PAYMENT", "payload": {"mode": "CASH", "amount_paise": 100, "upi_attested": true}}'::jsonb,
+  -- 17..19: claims and staff (rejected without a detail).
+  '{"id": "018f0000-0000-7000-8000-000000001712", "facility_id": "00000000-0000-4000-8000-0000000000f2"}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001713", "device_id": "00000000-0000-4000-8000-0000000000d9"}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-000000001714", "staff_id": "00000000-0000-4000-8000-0000000000b2"}'::jsonb
+]);
+
+select pg_temp.call_payloads('ic01_first', array['{"id": "018f0000-0000-7000-8000-000000001720", "schema_version": 1.0}'::jsonb]);
+select pg_temp.call_payloads('ic01_retry', array['{"id": "018f0000-0000-7000-8000-000000001720", "schema_version": 1.0}'::jsonb]);
+
+select pg_temp.call_raw('ic01_non_object', '["nope"]'::jsonb);
+select pg_temp.call_raw('ic01_missing_payload', jsonb_build_array(
+  (((select e from public.payload_test_base)
+    || '{"id": "018f0000-0000-7000-8000-000000001721"}'::jsonb)
+   - 'payload')
+));
+
+reset role;
+
+select is(pg_temp.payload_full('ic01_reject', 0), 'REJECTED:INVALID_ENVELOPE@schema_version',
+  'schema_version 0 is outside the contract range 1..32767: INVALID_ENVELOPE (not TOO_OLD), detail names schema_version');
+select is(pg_temp.payload_full('ic01_reject', 1), 'REJECTED:INVALID_ENVELOPE@schema_version',
+  'a string schema_version must be a JSON number: INVALID_ENVELOPE, detail names schema_version');
+select is(pg_temp.payload_full('ic01_reject', 2), 'REJECTED:INVALID_ENVELOPE@schema_version',
+  'a fractional schema_version (1.4) is rejected, detail names schema_version');
+select is(pg_temp.payload_full('ic01_reject', 3), 'REJECTED:INVALID_ENVELOPE@schema_version',
+  'a schema_version beyond the integer range is rejected, detail names schema_version');
+select is(pg_temp.payload_full('ic01_reject', 4), 'REJECTED:INVALID_ENVELOPE@device_time',
+  'non-ISO device_time is rejected, detail names device_time');
+select is(pg_temp.payload_full('ic01_reject', 5), 'REJECTED:INVALID_ENVELOPE@device_time',
+  'device_time must be UTC with Z: an offset is rejected, detail names device_time');
+select is(pg_temp.payload_full('ic01_reject', 6), 'REJECTED:INVALID_ENVELOPE@session_id',
+  'ENTRY without a session_id is rejected, detail names session_id');
+select is(pg_temp.payload_full('ic01_reject', 7), 'REJECTED:INVALID_ENVELOPE@type',
+  'an unknown type is rejected, detail names type');
+select is(pg_temp.payload_full('ic01_reject', 8), 'REJECTED:INVALID_ENVELOPE@source',
+  'an unknown source is rejected, detail names source');
+select is(pg_temp.payload_full('ic01_reject', 9), 'REJECTED:INVALID_ENVELOPE@recorded_at',
+  'a malformed recorded_at on a PAPER_BACKFILL event is rejected, detail names recorded_at');
+select is(pg_temp.payload_full('ic01_reject', 10), 'REJECTED:INVALID_PAYLOAD@payload.vehicle_class',
+  'an empty ENTRY payload: detail names the first missing field in schema order');
+select is(pg_temp.payload_full('ic01_reject', 11), 'REJECTED:INVALID_PAYLOAD@payload',
+  'a JSON null payload is INVALID_PAYLOAD, detail is payload');
+select is(pg_temp.payload_full('ic01_reject', 12), 'REJECTED:INVALID_PAYLOAD@payload.fare_paise',
+  'a negative fare_paise is rejected, detail names the offending field');
+select is(pg_temp.payload_full('ic01_reject', 13), 'REJECTED:INVALID_PAYLOAD@payload.fare_paise',
+  'a string amount is rejected, detail names the offending field');
+select is(pg_temp.payload_full('ic01_reject', 14), 'REJECTED:INVALID_PAYLOAD@payload.fare_paise',
+  'an amount beyond the safe-integer range is rejected, detail names the offending field');
+select is(pg_temp.payload_full('ic01_reject', 15), 'REJECTED:INVALID_PAYLOAD@payload.vehicle_no',
+  'an optional key set to null is rejected, detail names the key');
+select is(pg_temp.payload_full('ic01_reject', 16), 'REJECTED:INVALID_PAYLOAD@payload.upi_attested',
+  'upi_attested with mode CASH is rejected, detail names upi_attested');
+select is(pg_temp.payload_full('ic01_reject', 17), 'REJECTED:CLAIM_MISMATCH',
+  'a claim mismatch (other facility) carries no detail');
+select is(pg_temp.payload_full('ic01_reject', 18), 'REJECTED:CLAIM_MISMATCH',
+  'a claim mismatch (other device) carries no detail');
+select is(pg_temp.payload_full('ic01_reject', 19), 'REJECTED:STAFF_NOT_ACTIVE',
+  'an inactive staff member is rejected without a detail');
+
+select is(pg_temp.payload_full('ic01_first', 0), 'ACCEPTED',
+  'schema_version 1.0 is the whole number 1 and is accepted, with no detail');
+select is(pg_temp.payload_echo('ic01_first', 0), '018f0000-0000-7000-8000-000000001720',
+  'an accepted event echoes its id');
+select is(pg_temp.payload_full('ic01_retry', 0), 'DUPLICATE',
+  're-sending the same event is a duplicate, with no detail');
+
+select is(pg_temp.payload_full('ic01_non_object', 0), 'REJECTED:INVALID_ENVELOPE@event',
+  'an event that is not an object is rejected, detail is event');
+select is(pg_temp.payload_echo('ic01_non_object', 0), '<none>',
+  'a non-object event echoes no id');
+select is(pg_temp.payload_full('ic01_missing_payload', 0), 'REJECTED:INVALID_ENVELOPE@payload',
+  'an event without a payload key is INVALID_ENVELOPE, detail is payload');
+
+select is(
+  (select count(*)::text from public.events
+   where id between '018f0000-0000-7000-8000-000000001701' and '018f0000-0000-7000-8000-000000001714'
+      or id = '018f0000-0000-7000-8000-000000001721'),
+  '0',
+  'none of the rejected IC-01 events is persisted'
+);
+
+-- SCHEMA_VERSION_TOO_OLD is unreachable while the server minimum is 1 (the contract starts at 1), so the minimum is
+-- raised to 2 for one call and restored straight after; the change is rolled back with the rest of this test.
+create or replace function public.min_supported_schema_version() returns integer
+    language sql immutable parallel safe set search_path = pg_catalog
+    as $$ select 2 $$;
+
+set local role authenticated;
+select pg_temp.call_payloads('ic01_too_old', array['{"id": "018f0000-0000-7000-8000-000000001730", "schema_version": 1}'::jsonb]);
+reset role;
+
+create or replace function public.min_supported_schema_version() returns integer
+    language sql immutable parallel safe set search_path = pg_catalog
+    as $$ select 1 $$;
+
+select is(pg_temp.payload_full('ic01_too_old', 0), 'REJECTED:SCHEMA_VERSION_TOO_OLD@schema_version',
+  'a contract-valid version below the server minimum is TOO_OLD (minimum raised to 2 for this call), detail names schema_version');
 
 select * from finish();
 rollback;
