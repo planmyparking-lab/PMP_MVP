@@ -41,6 +41,10 @@
 -- Consequence: a day can show exits without entries (the midnight-spanning case) and overrides_per_100 is null when
 -- vehicles is 0. avg_stay_minutes is the mean of (exit - entry) in minutes per session, rounded to 2 decimals, null when
 -- the day has no valid stay. A stay with an exit earlier than its entry (negative) is invalid and excluded from the mean.
+-- Precision: the stays are averaged in seconds and the mean is divided by 60 once, then rounded. Dividing each stay by 60
+-- first rounds every quotient at 16 decimals, and an exact half such as 104.855 then rounds down (found by
+-- kpi_oracle.test.sql). When the exact mean in minutes lies on a rounding boundary, the mean in seconds has at most two
+-- decimals and the division by 60 terminates, so numeric arithmetic is exact there and round() rounds half away from zero.
 -- Orphan exits are still counted in v_hourly.exits: an exit physically happened.
 --
 -- EMPTY PERIODS. Revenue columns are never null: an active day with no valid payment reads 0. A facility, or a day, with no
@@ -88,7 +92,8 @@ select k.facility_id,
        least(sum(k.pass), 9223372036854775807::numeric)::bigint as pass_paise,
        least(sum(k.cash) + sum(k.upi) + sum(k.pass), 9223372036854775807::numeric)::bigint as declared_total_paise,
        sum(k.pass_count)::integer as pass_count,
-       round(avg(k.stay_minutes), 2) as avg_stay_minutes,
+       -- average the stays in seconds, then convert to minutes once (see the header: no per-row division)
+       round(avg(k.stay_seconds) / 60, 2) as avg_stay_minutes,
        sum(k.overrides)::integer as overrides,
        case when sum(k.vehicles) = 0 then null
             else round(sum(k.overrides) * 100.0 / sum(k.vehicles), 2) end as overrides_per_100,
@@ -101,7 +106,7 @@ from (
          v.local_date,
          v.vehicles,
          v.pass_count,
-         v.stay_minutes,
+         v.stay_seconds,
          v.orphan_exits,
          0 as overrides,
          v.cash,
@@ -141,10 +146,10 @@ from (
        0::numeric, 0::numeric, 0::numeric),
     ((s.exit_time at time zone f.timezone)::date, 0, 0,
        case when s.has_entry and s.exit_time >= s.entry_time
-            then extract(epoch from (s.exit_time - s.entry_time)) / 60 end,
+            then extract(epoch from (s.exit_time - s.entry_time)) end,
        case when s.has_entry then 0 else 1 end,
        s.cash, s.upi, s.pass)
-  ) v(local_date, vehicles, pass_count, stay_minutes, orphan_exits, cash, upi, pass)
+  ) v(local_date, vehicles, pass_count, stay_seconds, orphan_exits, cash, upi, pass)
   where v.local_date is not null
 
   union all

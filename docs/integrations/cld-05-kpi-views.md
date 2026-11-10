@@ -1,6 +1,7 @@
 # CLD-05 KPI views: `v_daily_kpis` and `v_hourly`
 
-Migration: `supabase/migrations/0009_views_kpis.sql`. Tests: `supabase/tests/kpi_views.test.sql`.
+Migration: `supabase/migrations/0009_views_kpis.sql`. Tests: `supabase/tests/kpi_views.test.sql`,
+`supabase/tests/kpi_oracle.test.sql` (T-CLD-05-I2, section 8).
 Spec: `docs/team/member-04-akanksha.md` CLD-05, IC-07 (`docs/integrations/ic-07-console-requirements.md`), OQ-45.
 
 ## 1. Scope
@@ -48,6 +49,10 @@ duplicates, ignored here and left to `sync_conflicts`. An EXIT with no ENTRY is 
 of all stay figures, still counted in `v_hourly.exits` (an exit physically happened). An ENTRY with no EXIT is an open
 vehicle with no stay. A stay whose exit is earlier than its entry is invalid and excluded from `avg_stay_minutes`.
 `avg_stay_minutes` is the mean of per-session minutes, rounded to 2 places, null when the day has no valid stay.
+It is computed as the mean of the stays in seconds, divided by 60 once, then rounded half away from zero (`round(avg(seconds)
+/ 60, 2)`). Dividing each stay by 60 first, as an earlier draft of 0009 did, rounds every quotient at 16 decimals and turned
+an exact 104.855 into 104.85 (found by the oracle test, section 8). When the exact mean lies on a rounding boundary, the mean
+in seconds has at most two decimals and the division by 60 terminates, so the result is exact there.
 
 **Time.** Everything is in `facilities.timezone` (IANA, must be valid; an invalid name makes the query fail, and the column has
 no check constraint today), converted from `device_time`.
@@ -104,7 +109,9 @@ of the new one-facility query the `facility_id` filter reaches the index scan on
 That observation does not prove why the old proposal was slow. A date filter cannot be pushed into the events scan (the local date is derived), so cost grows with the facility's history.
 
 Correctness check at this size: totals of vehicles, hourly entries and exits, cash, UPI, pass and overrides from the views
-equalled independent sums over the raw events (all seven comparisons true). This is a spot check, not T-CLD-05-I2.
+equalled independent sums over the raw events (all seven comparisons true). That was a one-off check on this benchmark data
+and is not committed. The reproducible row-by-row comparison is `kpi_oracle.test.sql` (section 8); it measures correctness
+only, not timing.
 
 RLS dominates once policies exist (stand-in policies, because 0010 is not in this chain):
 
@@ -147,7 +154,67 @@ Migration contiguity: 0009 follows 0008 with no gap. The proposals in the refres
 | U2 zone now equals occupancy | **Not covered** (`v_zone_now` deferred) |
 | U3 hourly edges (00:00, 00:59:59, 01:00, 23:59:59, +05:45 zone) | Covered |
 | I1 RLS through the views | Covered with stand-in policies for 0001 to 0009 only; **not** validated against 0010, which needs its own test (section 6) |
-| I2 oracle comparison on 30 days of seed | **Not covered** (a one-off spot check was run, section 5; no script is committed) |
+| I2 oracle comparison on 30 days of seed | Covered: `kpi_oracle.test.sql`, 25 of 25 against local 0001 to 0009 (section 8). Correctness only; not a performance result and not a 0010 RLS result |
 | N1 empty facility | Covered (no rows, no error) |
 | R1 column contract against an IC-07 file | **Partly**: columns, order and types are asserted; no IC-07 column-list file exists to compare with |
 | X1 performance after k6 load | **Not covered**, see section 5 |
+
+## 8. Oracle test (T-CLD-05-I2): `kpi_oracle.test.sql`
+
+Runs with `pnpm test:db` in one transaction that is rolled back. Plan: 25 assertions.
+
+**Fixture.** Deterministic: `generate_series`, modular arithmetic and md5-derived ids, no random values. Three facilities
+in three zones: Asia/Kolkata (+05:30), Asia/Kathmandu (+05:45) and America/New_York (the period crosses the 1 Nov 2026
+DST change). Each facility has 8 to 14 generated sessions on every local date from 2026-10-15 to 2026-11-13, with entries in
+all 24 local hours. In total there are 4,025 events in 1,189 sessions, 1,080 of them with an ENTRY, inserted directly as `PAPER_BACKFILL` through the 0005
+and 0006 triggers. The fixture covers:
+
+- valid ENTRY/EXIT pairs, zero-length and negative stays;
+- one explicit local-midnight crossing per facility and day, plus late entries whose stays cross midnight;
+- duplicate EXITs, some later and some earlier than the other exit;
+- duplicate ENTRYs, including same-instant ties with opposite pass flags;
+- one orphan EXIT per facility and day, half of them with a payment;
+- open sessions with a payment, and payment-only sessions;
+- CASH, UPI and PASS payments, attested and unattested UPI, WAIVED, CARD, lower-case `cash` and a missing mode;
+- malformed amounts: missing key, JSON string, boolean, null, negative, fraction and 1e30. `5000.0` counts as valid;
+- OVERRIDE events.
+
+Three single edge days outside the 30 dates add a day with vehicles but no valid stay, a day with no vehicles (null
+`avg_stay_minutes` and `overrides_per_100`), and a day with one open entry. Sixteen assertions check this coverage against
+the raw fixture events, not the views.
+
+**Oracle independence.** Expected rows come from a PL/pgSQL oracle that reads only `events` and `facilities`. One
+assertion checks that the source text of the oracle functions names neither view. The oracle loops facility by facility
+and session by session, and finds the first ENTRY and first EXIT with `order by device_time, id limit 1`. It walks each
+session's payments one at a time and increments per-day and per-hour counters in temporary tables. Local dates and hours
+come from setting the session `TimeZone` to the facility's zone and casting, not from `at time zone`. The average stay is
+summed seconds divided once. The rules it encodes are those in section 3. It shares no CTE or query structure with 0009.
+
+**Comparison.** Every row of both views, unfiltered, is compared with the oracle:
+
+- row counts;
+- `except all` in both directions (unexpected rows and missing rows);
+- an ordered `results_eq` over every column, NULLs included;
+- grand totals.
+
+**Result: 25 of 25 pass** with 0001 to 0009 applied locally in the rolled-back transaction; `kpi_views.test.sql` still passes
+37 of 37.
+
+**Precision defect found and fixed.** Against the first draft of 0009 the test passed 22 of 25, with all three failures on one
+value. Facility Kathmandu on 2026-10-22 has 10 valid stays totalling 62,913 s. Their exact mean is 6,291.3 s, or 104.855
+min, which the documented rule rounds to 104.86. The draft divided each stay by 60 before averaging; those quotients are
+rounded at 16 decimals, their mean came out as 104.85499999999999999, and the view reported 104.85. 0009 now averages seconds
+and divides once (section 3) and reports 104.86. No other KPI rule changed. The fixture is kept on this boundary on purpose.
+
+**Mutation check.** Each controlled error below was applied to the views in a scratch transaction (rolled back, no file
+changed) and was detected:
+
+| Injected error | Assertions failed |
+| --- | --- |
+| `v_hourly` in UTC instead of the facility zone | 4 (hourly count, both `except all`, `results_eq`) |
+| WAIVED counted as cash | 4 (both daily `except all`, daily `results_eq`, totals) |
+| zero-length stays excluded (`>` for `>=`) | 3 (both daily `except all`, daily `results_eq`) |
+| per-row division put back (`avg(seconds / 60)`) | 3 (both daily `except all`, daily `results_eq`) |
+
+**Not shown by this test.** Performance or p95 (X1), RLS (I1), bigint saturation (amounts stay far below it; covered in
+`kpi_views.test.sql`), conflict-resolution effects (section 4), and behaviour on staging or production data.
