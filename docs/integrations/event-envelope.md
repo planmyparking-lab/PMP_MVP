@@ -9,7 +9,7 @@ needs a second workstream owner's review and, if breaking, a `SCHEMA_VERSION` bu
 
 | Field            | Type and rule                                                                                                                                |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`             | UUIDv7, generated on the device (`newId()`), primary key. Version 7 is checked in the contract, not in SQL.                                  |
+| `id`             | UUIDv7, generated on the device (`newId()`), primary key. Version 7 is checked in the contract and in SQL.                                   |
 | `type`           | One of `ENTRY`, `EXIT`, `PAYMENT`, `OVERRIDE`, `ZONE_COUNT`, `SHIFT_OPEN`, `SHIFT_CLOSE`. `PAYMENT_CORRECTION` is NOT accepted (OQ-30 open). |
 | `facility_id`    | uuid. `ingest_events` rejects a value different from the JWT facility claim.                                                                 |
 | `device_id`      | uuid, equal to `devices.id` and the device claim.                                                                                            |

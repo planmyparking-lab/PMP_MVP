@@ -3,32 +3,32 @@
 -- directly. Fixtures are inserted as the superuser; the function is called as `authenticated` with a JWT subject.
 -- Results are collected into a helper table so the assertions themselves run as the superuser.
 begin;
-select plan(36);
+select plan(86);
 
 insert into auth.users (id) values
-  ('00000000-0000-0000-0000-0000000000a1'), ('00000000-0000-0000-0000-0000000000a2');
-insert into public.organizations (id, name) values ('00000000-0000-0000-0000-00000000000f', 'Org');
+  ('00000000-0000-4000-8000-0000000000a1'), ('00000000-0000-4000-8000-0000000000a2');
+insert into public.organizations (id, name) values ('00000000-0000-4000-8000-00000000000f', 'Org');
 insert into public.facilities (id, org_id, name, timezone, slot_count) values
-  ('00000000-0000-0000-0000-0000000000f1', '00000000-0000-0000-0000-00000000000f', 'F1', 'Asia/Kolkata', 10),
-  ('00000000-0000-0000-0000-0000000000f2', '00000000-0000-0000-0000-00000000000f', 'F2', 'Asia/Kolkata', 10);
+  ('00000000-0000-4000-8000-0000000000f1', '00000000-0000-4000-8000-00000000000f', 'F1', 'Asia/Kolkata', 10),
+  ('00000000-0000-4000-8000-0000000000f2', '00000000-0000-4000-8000-00000000000f', 'F2', 'Asia/Kolkata', 10);
 insert into public.staff (id, facility_id, name, pin_hash, pin_salt, active) values
-  ('00000000-0000-0000-0000-0000000000b1', '00000000-0000-0000-0000-0000000000f1', 'active guard', 'h', 's', true),
-  ('00000000-0000-0000-0000-0000000000b2', '00000000-0000-0000-0000-0000000000f1', 'inactive guard', 'h', 's', false),
-  ('00000000-0000-0000-0000-0000000000b3', '00000000-0000-0000-0000-0000000000f2', 'other facility guard', 'h', 's', true);
+  ('00000000-0000-4000-8000-0000000000b1', '00000000-0000-4000-8000-0000000000f1', 'active guard', 'h', 's', true),
+  ('00000000-0000-4000-8000-0000000000b2', '00000000-0000-4000-8000-0000000000f1', 'inactive guard', 'h', 's', false),
+  ('00000000-0000-4000-8000-0000000000b3', '00000000-0000-4000-8000-0000000000f2', 'other facility guard', 'h', 's', true);
 -- a1 is an enrolled device of F1; a2 is an authenticated user that is not a device
 insert into public.devices (id, facility_id, name, auth_user_id) values
-  ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000f1', 'Gate 1',
-   '00000000-0000-0000-0000-0000000000a1');
+  ('00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000f1', 'Gate 1',
+   '00000000-0000-4000-8000-0000000000a1');
 
 create table public.test_results (label text primary key, result jsonb);
 create table public.test_base (e jsonb);
 grant all on public.test_results, public.test_base to authenticated;
 insert into public.test_base values ($j$
   {"id":"018f0000-0000-7000-8000-000000000001","type":"ENTRY",
-   "facility_id":"00000000-0000-0000-0000-0000000000f1","device_id":"00000000-0000-0000-0000-0000000000d1",
-   "staff_id":"00000000-0000-0000-0000-0000000000b1","session_id":"018f0000-0000-7000-8000-0000000000a1",
+   "facility_id":"00000000-0000-4000-8000-0000000000f1","device_id":"00000000-0000-4000-8000-0000000000d1",
+   "staff_id":"00000000-0000-4000-8000-0000000000b1","session_id":"018f0000-0000-7000-8000-0000000000a1",
    "device_time":"2026-10-01T10:00:00.000Z","source":"LIVE","schema_version":1,
-   "payload":{"vehicle_class":"CAR","zone_id":"00000000-0000-0000-0000-0000000000c1","short_code":"7K2QX"}} $j$);
+   "payload":{"vehicle_class":"CAR","zone_id":"00000000-0000-4000-8000-0000000000c1","short_code":"7K2QX"}} $j$);
 
 -- helper: batch = base event merged with each override
 create function pg_temp.call(label text, overrides jsonb[]) returns void language plpgsql as $$
@@ -39,15 +39,22 @@ begin
 end $$;
 grant execute on function pg_temp.call(text, jsonb[]) to authenticated;
 
-select set_config('request.jwt.claim.sub', '00000000-0000-0000-0000-0000000000a1', true);
+-- helper: a batch sent exactly as given (no merge with the base event), for a removed key or a non-object event
+create function pg_temp.call_raw(label text, batch jsonb) returns void language plpgsql as $$
+begin
+  insert into public.test_results values (label, public.ingest_events(batch));
+end $$;
+grant execute on function pg_temp.call_raw(text, jsonb) to authenticated;
+
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000a1', true);
 set local role authenticated;
 select pg_temp.call('first', array['{}'::jsonb]);
 select pg_temp.call('retry', array['{}'::jsonb]);
-select pg_temp.call('collision', array['{"payload":{"vehicle_class":"BIKE","zone_id":"00000000-0000-0000-0000-0000000000c1","short_code":"7K2QX"}}'::jsonb]);
-select pg_temp.call('other_facility', array['{"id":"018f0000-0000-7000-8000-000000000002","facility_id":"00000000-0000-0000-0000-0000000000f2"}'::jsonb]);
-select pg_temp.call('other_device', array['{"id":"018f0000-0000-7000-8000-000000000003","device_id":"00000000-0000-0000-0000-0000000000d9"}'::jsonb]);
-select pg_temp.call('inactive_staff', array['{"id":"018f0000-0000-7000-8000-000000000004","staff_id":"00000000-0000-0000-0000-0000000000b2"}'::jsonb]);
-select pg_temp.call('foreign_staff', array['{"id":"018f0000-0000-7000-8000-000000000005","staff_id":"00000000-0000-0000-0000-0000000000b3"}'::jsonb]);
+select pg_temp.call('collision', array['{"payload":{"vehicle_class":"BIKE","zone_id":"00000000-0000-4000-8000-0000000000c1","short_code":"7K2QX"}}'::jsonb]);
+select pg_temp.call('other_facility', array['{"id":"018f0000-0000-7000-8000-000000000002","facility_id":"00000000-0000-4000-8000-0000000000f2"}'::jsonb]);
+select pg_temp.call('other_device', array['{"id":"018f0000-0000-7000-8000-000000000003","device_id":"00000000-0000-4000-8000-0000000000d9"}'::jsonb]);
+select pg_temp.call('inactive_staff', array['{"id":"018f0000-0000-7000-8000-000000000004","staff_id":"00000000-0000-4000-8000-0000000000b2"}'::jsonb]);
+select pg_temp.call('foreign_staff', array['{"id":"018f0000-0000-7000-8000-000000000005","staff_id":"00000000-0000-4000-8000-0000000000b3"}'::jsonb]);
 select pg_temp.call('empty_payload', array['{"id":"018f0000-0000-7000-8000-000000000006","payload":{}}'::jsonb]);
 select pg_temp.call('unknown_type', array['{"id":"018f0000-0000-7000-8000-000000000007","type":"NOPE"}'::jsonb]);
 select pg_temp.call('loose_time', array['{"id":"018f0000-0000-7000-8000-000000000008","device_time":"yesterday"}'::jsonb]);
@@ -61,16 +68,58 @@ select pg_temp.call('version_whole_decimal', array['{"id":"018f0000-0000-7000-80
 select pg_temp.call('version_huge', array['{"id":"018f0000-0000-7000-8000-000000000014","schema_version":3000000000}'::jsonb]);
 select pg_temp.call('bad_source', array['{"id":"018f0000-0000-7000-8000-00000000000e","source":"HACK"}'::jsonb]);
 select pg_temp.call('not_v7', array['{"id":"018f0000-0000-4000-8000-00000000000f"}'::jsonb]);
+-- direct RPC calls bypass the gate app's zod validation, so payloads are validated in SQL too
+select pg_temp.call('exit_negative', array['{"id":"018f0000-0000-7000-8000-000000000021","type":"EXIT","payload":{"fare_paise":-5,"exit_method":"SCAN"}}'::jsonb]);
+select pg_temp.call('exit_string_amount', array['{"id":"018f0000-0000-7000-8000-000000000022","type":"EXIT","payload":{"fare_paise":"100","exit_method":"SCAN"}}'::jsonb]);
+select pg_temp.call('exit_huge', array['{"id":"018f0000-0000-7000-8000-000000000023","type":"EXIT","payload":{"fare_paise":100000000000000000000,"exit_method":"SCAN"}}'::jsonb]);
+select pg_temp.call('exit_unknown_key', array['{"id":"018f0000-0000-7000-8000-000000000024","type":"EXIT","payload":{"fare_paise":10,"exit_method":"SCAN","x":1}}'::jsonb]);
+select pg_temp.call('entry_null_optional', array['{"id":"018f0000-0000-7000-8000-000000000025","payload":{"vehicle_class":"CAR","zone_id":"00000000-0000-4000-8000-0000000000c1","short_code":"7K2QX","vehicle_no":null}}'::jsonb]);
+select pg_temp.call('upi_on_cash', array['{"id":"018f0000-0000-7000-8000-000000000026","type":"PAYMENT","payload":{"mode":"CASH","amount_paise":100,"upi_attested":true}}'::jsonb]);
+select pg_temp.call('uppercase_ids', array['{"id":"018F0000-0000-7000-8000-000000000027","session_id":"018F0000-0000-7000-8000-0000000000A7"}'::jsonb]);
+select pg_temp.call('backfill_recorded_at', array['{"id":"018f0000-0000-7000-8000-000000000028","source":"PAPER_BACKFILL","recorded_at":"2026-10-01T15:30:00Z"}'::jsonb]);
+select pg_temp.call('bad_recorded_at', array['{"id":"018f0000-0000-7000-8000-000000000029","source":"PAPER_BACKFILL","recorded_at":"nope"}'::jsonb]);
+-- IC-01 contract: schema_version is judged by the contract (1..32767) before the server's supported range, and a
+-- rejection names the offending field path in detail (never a message, never arbitrary client text).
+select pg_temp.call('version_32768', array['{"id":"018f0000-0000-7000-8000-000000000041","schema_version":32768}'::jsonb]);
+select pg_temp.call('unknown_envelope_key', array['{"id":"018f0000-0000-7000-8000-000000000042","zz_extra":1}'::jsonb]);
+select pg_temp.call('unsafe_envelope_key', array['{"id":"018f0000-0000-7000-8000-000000000043","bad key!":1}'::jsonb]);
+select pg_temp.call('payload_unsafe_key', array['{"id":"018f0000-0000-7000-8000-000000000044","type":"EXIT","payload":{"fare_paise":10,"exit_method":"SCAN","bad-key":1}}'::jsonb]);
+select pg_temp.call('null_payload', array['{"id":"018f0000-0000-7000-8000-000000000045","payload":null}'::jsonb]);
+select pg_temp.call('malformed_id', array['{"id":"not-a-uuid"}'::jsonb]);
+select pg_temp.call_raw('non_object', '["nope"]'::jsonb);
+select pg_temp.call_raw('missing_payload', jsonb_build_array(
+  ((select e from public.test_base) || '{"id":"018f0000-0000-7000-8000-000000000046"}'::jsonb) - 'payload'));
+select pg_temp.call_raw('missing_facility', jsonb_build_array(
+  ((select e from public.test_base) || '{"id":"018f0000-0000-7000-8000-000000000047"}'::jsonb) - 'facility_id'));
 -- one batch mixing an accepted, a duplicate and a rejected event: the rejection must not roll back the rest
 select pg_temp.call('mixed', array[
   '{"id":"018f0000-0000-7000-8000-000000000010","session_id":"018f0000-0000-7000-8000-0000000000a2"}'::jsonb,
   '{}'::jsonb,
-  '{"id":"018f0000-0000-7000-8000-000000000011","staff_id":"00000000-0000-0000-0000-0000000000b2"}'::jsonb]);
+  '{"id":"018f0000-0000-7000-8000-000000000011","staff_id":"00000000-0000-4000-8000-0000000000b2"}'::jsonb]);
 reset role;
+
+-- SCHEMA_VERSION_TOO_OLD is unreachable while the server minimum is 1 (the contract starts at 1), so the minimum is
+-- raised to 2 for one call. The change is rolled back with the rest of this test.
+create or replace function public.min_supported_schema_version() returns integer
+    language sql immutable parallel safe set search_path = pg_catalog
+    as $$ select 2 $$;
+set local role authenticated;
+select pg_temp.call('too_old', array['{"id":"018f0000-0000-7000-8000-000000000048","schema_version":1}'::jsonb]);
+reset role;
+create or replace function public.min_supported_schema_version() returns integer
+    language sql immutable parallel safe set search_path = pg_catalog
+    as $$ select 1 $$;
 
 create function pg_temp.status(label text, i int default 0) returns text language sql as
   $$ select (result -> 'results' -> i ->> 'status') || coalesce(':' || (result -> 'results' -> i ->> 'reason'), '')
      from public.test_results where test_results.label = status.label $$;
+
+create function pg_temp.detail(label text, i int default 0) returns text language sql as
+  $$ select coalesce(result -> 'results' -> i ->> 'detail', '<none>')
+     from public.test_results where test_results.label = detail.label $$;
+create function pg_temp.echoed_id(label text, i int default 0) returns text language sql as
+  $$ select coalesce(result -> 'results' -> i ->> 'id', '<none>')
+     from public.test_results where test_results.label = echoed_id.label $$;
 
 select is(pg_temp.status('first'), 'ACCEPTED', 'a valid event is accepted');
 select is(pg_temp.status('retry'), 'DUPLICATE', 're-sending the same event is a duplicate, not an error');
@@ -85,11 +134,24 @@ select is(pg_temp.status('loose_time'), 'REJECTED:INVALID_ENVELOPE', 'non-ISO de
 select is(pg_temp.status('offset_time'), 'REJECTED:INVALID_ENVELOPE', 'device_time must be UTC with Z');
 select is(pg_temp.status('entry_no_session'), 'REJECTED:INVALID_ENVELOPE', 'ENTRY without session_id is rejected');
 select is(pg_temp.status('version_new'), 'REJECTED:SCHEMA_VERSION_TOO_NEW', 'a newer schema_version is rejected');
-select is(pg_temp.status('version_old'), 'REJECTED:SCHEMA_VERSION_TOO_OLD', 'an older schema_version is rejected');
+select is(pg_temp.status('version_old'), 'REJECTED:INVALID_ENVELOPE', 'schema_version 0 is outside the contract range 1..32767 and is rejected');
 select is(pg_temp.status('version_string'), 'REJECTED:INVALID_ENVELOPE', 'schema_version must be a JSON number');
 select is(pg_temp.status('version_fraction'), 'REJECTED:INVALID_ENVELOPE', 'a fractional schema_version (1.4) is rejected');
 select is(pg_temp.status('version_whole_decimal'), 'ACCEPTED', 'schema_version 1.0 is the whole number 1 and is accepted');
 select is(pg_temp.status('version_huge'), 'REJECTED:INVALID_ENVELOPE', 'a schema_version beyond the integer range is rejected');
+select is(pg_temp.status('exit_negative'), 'REJECTED:INVALID_PAYLOAD', 'a negative fare_paise is rejected');
+select is((select result -> 'results' -> 0 ->> 'detail' from public.test_results where label = 'exit_negative'),
+  'payload.fare_paise', 'the rejection names the offending field');
+select is(pg_temp.status('exit_string_amount'), 'REJECTED:INVALID_PAYLOAD', 'a string amount is rejected');
+select is(pg_temp.status('exit_huge'), 'REJECTED:INVALID_PAYLOAD', 'an amount beyond the safe-integer range is rejected');
+select is(pg_temp.status('exit_unknown_key'), 'REJECTED:INVALID_PAYLOAD', 'an unknown payload key is rejected');
+select is(pg_temp.status('entry_null_optional'), 'REJECTED:INVALID_PAYLOAD', 'an optional key set to null is rejected');
+select is(pg_temp.status('upi_on_cash'), 'REJECTED:INVALID_PAYLOAD', 'upi_attested with mode CASH is rejected');
+select is(pg_temp.status('uppercase_ids'), 'ACCEPTED', 'upper-case UUIDs are accepted (zod accepts them)');
+select is(pg_temp.status('backfill_recorded_at'), 'ACCEPTED', 'a PAPER_BACKFILL event with recorded_at is accepted');
+select is((select recorded_at from public.events where id = '018f0000-0000-7000-8000-000000000028'),
+  '2026-10-01T15:30:00Z'::timestamptz, 'recorded_at is stored');
+select is(pg_temp.status('bad_recorded_at'), 'REJECTED:INVALID_ENVELOPE', 'a malformed recorded_at is rejected');
 select is(pg_temp.status('bad_source'), 'REJECTED:INVALID_ENVELOPE', 'unknown source is rejected');
 select is(pg_temp.status('not_v7'), 'REJECTED:INVALID_ENVELOPE', 'a non-UUIDv7 id is rejected');
 select is(pg_temp.status('mixed', 0), 'ACCEPTED', 'mixed batch: new event accepted');
@@ -99,10 +161,93 @@ select is(
   (select result ->> 'accepted' || '/' || (result ->> 'duplicates') || '/' || (result ->> 'rejected')
    from public.test_results where label = 'mixed'),
   '1/1/1', 'batch counters add up');
-select is((select count(*)::int from public.events), 3, 'only the three valid events were stored (first, 1.0, mixed)');
+select is((select count(*)::int from public.events), 5,
+  'only the five valid events were stored (first, 1.0, upper-case ids, backfill, mixed)');
 select is(
   (select (select result -> 'min_supported_version' from public.test_results where label = 'first')::int),
   1, 'response carries min_supported_version');
+
+-- detail names the field path (envelope, schema version, claims, payload, unknown keys)
+select is(pg_temp.detail('version_old'), 'schema_version',
+  'schema_version 0: detail names schema_version');
+select is(pg_temp.status('version_32768'), 'REJECTED:INVALID_ENVELOPE',
+  'schema_version 32768 is above the contract maximum and is INVALID_ENVELOPE, not TOO_NEW');
+select is(pg_temp.detail('version_32768'), 'schema_version',
+  'schema_version 32768: detail names schema_version');
+select is(pg_temp.detail('version_string'), 'schema_version',
+  'a string schema_version: detail names schema_version');
+select is(pg_temp.detail('version_new'), 'schema_version',
+  'TOO_NEW: detail names schema_version');
+select is(pg_temp.status('too_old'), 'REJECTED:SCHEMA_VERSION_TOO_OLD',
+  'a contract-valid version below the server minimum is TOO_OLD (minimum raised to 2 for this call)');
+select is(pg_temp.detail('too_old'), 'schema_version',
+  'TOO_OLD: detail names schema_version');
+select is(pg_temp.detail('loose_time'), 'device_time',
+  'a bad device_time: detail names device_time');
+select is(pg_temp.detail('entry_no_session'), 'session_id',
+  'ENTRY without a session_id: detail names session_id');
+select is(pg_temp.detail('unknown_type'), 'type',
+  'an unknown type: detail names type');
+select is(pg_temp.detail('bad_source'), 'source',
+  'an unknown source: detail names source');
+select is(pg_temp.detail('not_v7'), 'id',
+  'a non-UUIDv7 id: detail names id');
+select is(pg_temp.detail('bad_recorded_at'), 'recorded_at',
+  'a malformed recorded_at: detail names recorded_at');
+select is(pg_temp.status('unknown_envelope_key'), 'REJECTED:INVALID_ENVELOPE',
+  'an unknown envelope key is rejected');
+select is(pg_temp.detail('unknown_envelope_key'), 'envelope.zz_extra',
+  'an unknown envelope key matching ^[A-Za-z0-9_]{1,40}$ is reflected');
+select is(pg_temp.detail('unsafe_envelope_key'), 'envelope.?',
+  'an unknown envelope key with other characters is not reflected');
+select is(pg_temp.detail('exit_unknown_key'), 'payload.x',
+  'an unknown payload key matching the safe pattern is reflected');
+select is(pg_temp.status('payload_unsafe_key'), 'REJECTED:INVALID_PAYLOAD',
+  'an unknown payload key with other characters is rejected');
+select is(pg_temp.detail('payload_unsafe_key'), 'payload.?',
+  'an unknown payload key with other characters is not reflected');
+select is(pg_temp.detail('empty_payload'), 'payload.vehicle_class',
+  'missing payload keys: detail names the first missing field in schema order');
+select is(pg_temp.status('null_payload'), 'REJECTED:INVALID_PAYLOAD',
+  'a JSON null payload is INVALID_PAYLOAD');
+select is(pg_temp.detail('null_payload'), 'payload',
+  'a JSON null payload: detail is payload');
+select is(pg_temp.status('non_object'), 'REJECTED:INVALID_ENVELOPE',
+  'an event that is not an object is rejected');
+select is(pg_temp.detail('non_object'), 'event',
+  'a non-object event: detail is event');
+select is(pg_temp.echoed_id('non_object'), '<none>',
+  'a non-object event echoes no id');
+select is(pg_temp.status('missing_payload'), 'REJECTED:INVALID_ENVELOPE',
+  'an event without a payload key is INVALID_ENVELOPE (existing behaviour kept)');
+select is(pg_temp.detail('missing_payload'), 'payload',
+  'an event without a payload key: detail is payload');
+select is(pg_temp.status('missing_facility'), 'REJECTED:INVALID_ENVELOPE',
+  'an event without a facility_id key is rejected');
+select is(pg_temp.detail('missing_facility'), 'facility_id',
+  'an event without a facility_id key: detail names facility_id');
+select is(pg_temp.detail('other_facility'), '<none>',
+  'a claim mismatch carries no detail');
+select is(pg_temp.detail('inactive_staff'), '<none>',
+  'an inactive staff member carries no detail');
+-- id echo: exactly as sent, only when it is a valid uuid
+select is(pg_temp.echoed_id('first'), '018f0000-0000-7000-8000-000000000001',
+  'an accepted event echoes its id');
+select is(pg_temp.echoed_id('not_v7'), '018f0000-0000-4000-8000-00000000000f',
+  'a valid uuid that is not UUIDv7 is echoed on rejection');
+select is(pg_temp.echoed_id('uppercase_ids'), '018F0000-0000-7000-8000-000000000027',
+  'an upper-case id is echoed exactly as sent');
+select is(pg_temp.status('malformed_id'), 'REJECTED:INVALID_ENVELOPE',
+  'a malformed id is rejected');
+select is(pg_temp.echoed_id('malformed_id'), '<none>',
+  'a malformed id is never echoed');
+select is(pg_temp.detail('malformed_id'), 'id',
+  'a malformed id: detail names id');
+-- detail only accompanies a rejection
+select is(pg_temp.detail('first'), '<none>',
+  'an ACCEPTED result has no detail');
+select is(pg_temp.detail('retry'), '<none>',
+  'a DUPLICATE result has no detail');
 
 -- caller checks: errors are captured as SQLSTATE codes by a helper that runs under the tested role
 create table public.test_errors (label text primary key, code text);
@@ -120,13 +265,13 @@ end $$;
 grant execute on function pg_temp.try(text, text, text) to authenticated, anon;
 
 set local role authenticated;
-select pg_temp.try('non_device', '00000000-0000-0000-0000-0000000000a2', $q$select public.ingest_events('[]')$q$);
+select pg_temp.try('non_device', '00000000-0000-4000-8000-0000000000a2', $q$select public.ingest_events('[]')$q$);
 select pg_temp.try('no_jwt', '', $q$select public.ingest_events('[]')$q$);
-select pg_temp.try('not_array', '00000000-0000-0000-0000-0000000000a1', $q$select public.ingest_events('{}')$q$);
-select pg_temp.try('direct_insert', '00000000-0000-0000-0000-0000000000a1',
+select pg_temp.try('not_array', '00000000-0000-4000-8000-0000000000a1', $q$select public.ingest_events('{}')$q$);
+select pg_temp.try('direct_insert', '00000000-0000-4000-8000-0000000000a1',
   $q$insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version)
-     values ('018f0000-0000-7000-8000-0000000000ff', '00000000-0000-0000-0000-0000000000f1',
-             '00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000b1', 'ENTRY',
+     values ('018f0000-0000-7000-8000-0000000000ff', '00000000-0000-4000-8000-0000000000f1',
+             '00000000-0000-4000-8000-0000000000d1', '00000000-0000-4000-8000-0000000000b1', 'ENTRY',
              '018f0000-0000-7000-8000-0000000000a1', now(), 1)$q$);
 reset role;
 set local role anon;
@@ -134,7 +279,7 @@ select pg_temp.try('anon', '', $q$select public.ingest_events('[]')$q$);
 reset role;
 update public.devices set revoked_at = now();
 set local role authenticated;
-select pg_temp.try('revoked', '00000000-0000-0000-0000-0000000000a1', $q$select public.ingest_events('[]')$q$);
+select pg_temp.try('revoked', '00000000-0000-4000-8000-0000000000a1', $q$select public.ingest_events('[]')$q$);
 reset role;
 
 select is((select code from public.test_errors where label = 'non_device'), '42501', 'a user that is not an enrolled device is refused');
