@@ -6,7 +6,7 @@ import {
   overstayList,
   parseThreshold,
 } from "../src/lib/overstayList";
-import { buildShiftRows, formatSignedRupees, hasVariance } from "../src/lib/shifts";
+import { buildShiftRows, formatSignedRupees, hasVariance, instantMicros } from "../src/lib/shifts";
 import type { ShiftEventRow } from "../src/lib/shifts";
 
 const SHIFT = "0190f0f0-0000-4000-8000-000000000001";
@@ -87,6 +87,53 @@ describe("buildShiftRows (CON-06, OQ-51)", () => {
     ]);
     expect(rows.map((r) => r.shiftId)).toEqual([SHIFT_2, SHIFT]);
     expect(rows.map(hasVariance)).toEqual([true, false]);
+  });
+});
+
+describe("shift times are compared as instants, not text (PR #29 review)", () => {
+  it("reads microseconds exactly, with Z or an offset", () => {
+    expect(instantMicros("2026-11-08T10:00:00Z")).toBe(Date.parse("2026-11-08T10:00:00Z") * 1000);
+    expect(instantMicros("2026-11-08T10:00:00.000001Z")).toBe(
+      Date.parse("2026-11-08T10:00:00Z") * 1000 + 1,
+    );
+    expect(instantMicros("2026-11-08T15:30:00.5+05:30")).toBe(
+      Date.parse("2026-11-08T10:00:00Z") * 1000 + 500_000,
+    );
+    expect(instantMicros("yesterday")).toBeNull();
+  });
+
+  it("latest close wins even when text order disagrees ('.' sorts before 'Z')", () => {
+    const { rows } = buildShiftRows([
+      ev("SHIFT_CLOSE", "2026-11-08T10:00:00.000001Z", close({ counted_cash_paise: 2 })),
+      ev("SHIFT_CLOSE", "2026-11-08T10:00:00Z", close({ counted_cash_paise: 1 })),
+    ]);
+    expect(rows[0]?.close?.countedCashPaise).toBe(2);
+    expect(rows[0]?.closedAt).toBe("2026-11-08T10:00:00.000001Z");
+  });
+
+  it("first open wins across Z and +00:00 spellings of the same clock", () => {
+    const { rows } = buildShiftRows([
+      ev("SHIFT_OPEN", "2026-11-08T06:00:00.25+00:00", {
+        shift_id: SHIFT,
+        opening_float_paise: 2,
+      }),
+      ev("SHIFT_OPEN", "2026-11-08T06:00:00.1Z", { shift_id: SHIFT, opening_float_paise: 1 }),
+    ]);
+    expect(rows[0]?.openingFloatPaise).toBe(1);
+  });
+
+  it("sorts newest first by instant when precisions are mixed", () => {
+    const { rows } = buildShiftRows([
+      ev("SHIFT_CLOSE", "2026-11-08T10:00:00Z", close()),
+      ev("SHIFT_CLOSE", "2026-11-08T10:00:00.000001Z", close({ shift_id: SHIFT_2 })),
+    ]);
+    expect(rows.map((r) => r.shiftId)).toEqual([SHIFT_2, SHIFT]);
+  });
+
+  it("skips an event whose device_time is not a valid instant", () => {
+    const { rows, skipped } = buildShiftRows([ev("SHIFT_CLOSE", "not-a-time", close())]);
+    expect(rows).toHaveLength(0);
+    expect(skipped).toBe(1);
   });
 });
 

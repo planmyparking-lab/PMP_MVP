@@ -38,13 +38,32 @@ export interface ShiftRow {
 
 export interface ShiftBuild {
   rows: ShiftRow[];
-  /** Events whose payload failed the shared schema. */
+  /** Events whose payload failed the shared schema, or whose device_time is not a valid instant. */
   skipped: number;
+}
+
+const INSTANT = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/;
+
+/**
+ * An instant as whole microseconds since the epoch, or null when it is not a valid ISO 8601 instant.
+ * Times are never compared as strings: the fraction is optional and of variable length, and the database
+ * returns `+00:00` where the phone sent `Z`, so text order is not time order.
+ */
+export function instantMicros(value: string): number | null {
+  const m = INSTANT.exec(value);
+  if (!m) return null;
+  const ms = Date.parse(`${m[1]}${m[3]}`);
+  if (!Number.isFinite(ms)) return null;
+  const fraction = Number((m[2] ?? "").padEnd(6, "0").slice(0, 6));
+  return ms * 1000 + fraction;
 }
 
 /** Newest first: by close time, else open time. */
 export function buildShiftRows(events: readonly ShiftEventRow[]): ShiftBuild {
   const byId = new Map<string, ShiftRow>();
+  // Comparable times kept beside each row; the row itself keeps the original text for display.
+  const openedUs = new Map<string, number>();
+  const closedUs = new Map<string, number>();
   let skipped = 0;
 
   const row = (shiftId: string, e: ShiftEventRow): ShiftRow => {
@@ -66,6 +85,11 @@ export function buildShiftRows(events: readonly ShiftEventRow[]): ShiftBuild {
   };
 
   for (const e of events) {
+    const at = instantMicros(e.device_time);
+    if (at === null) {
+      skipped += 1;
+      continue;
+    }
     if (e.type === "SHIFT_OPEN") {
       const p = ShiftOpenPayload.safeParse(e.payload);
       if (!p.success) {
@@ -74,7 +98,9 @@ export function buildShiftRows(events: readonly ShiftEventRow[]): ShiftBuild {
       }
       const r = row(p.data.shift_id, e);
       // The first open wins if a phone re-sent it under a new event id.
-      if (r.openedAt === null || e.device_time < r.openedAt) {
+      const prev = openedUs.get(r.shiftId);
+      if (prev === undefined || at < prev) {
+        openedUs.set(r.shiftId, at);
         r.openedAt = e.device_time;
         r.openingFloatPaise = p.data.opening_float_paise;
       }
@@ -86,7 +112,9 @@ export function buildShiftRows(events: readonly ShiftEventRow[]): ShiftBuild {
       }
       const r = row(p.data.shift_id, e);
       // The latest close wins (an owner may reopen and close again).
-      if (r.closedAt === null || e.device_time > r.closedAt) {
+      const prev = closedUs.get(r.shiftId);
+      if (prev === undefined || at > prev) {
+        closedUs.set(r.shiftId, at);
         r.closedAt = e.device_time;
         r.staffId = e.staff_id;
         r.deviceId = e.device_id;
@@ -104,8 +132,8 @@ export function buildShiftRows(events: readonly ShiftEventRow[]): ShiftBuild {
     }
   }
 
-  const sortKey = (r: ShiftRow) => r.closedAt ?? r.openedAt ?? "";
-  const rows = [...byId.values()].sort((a, b) => sortKey(b).localeCompare(sortKey(a)));
+  const sortKey = (r: ShiftRow) => closedUs.get(r.shiftId) ?? openedUs.get(r.shiftId) ?? 0;
+  const rows = [...byId.values()].sort((a, b) => sortKey(b) - sortKey(a));
   return { rows, skipped };
 }
 
