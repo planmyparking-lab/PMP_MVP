@@ -75,7 +75,11 @@ repository or on GitHub; it is not a decision.
 ### IDs already claimed by open pull requests
 
 These rows exist only on the named branches. They are listed so that no other change reuses the numbers; the next
-free number for new rows on `main` is **OQ-59**. When a PR merges, its rows arrive with it.
+free number for new rows is **OQ-61**. When a PR merges, its rows arrive with it. Since this list was written, PR #30
+and PR #39 merged: OQ-52 to OQ-54 (PR #30) and **OQ-59** (PR #39, approval of `expo-sqlite`) are now on `main`.
+**OQ-60** is reserved by the CLD-05 follow-up for PR #33 (see the last row); it is not on GitHub until that branch is
+pushed. Before taking a number, check the register on `main` and the open pull requests, because another change may
+have taken OQ-61 in the meantime.
 
 | ID    | Topic (short)                                                       | Proposed in | Decider (as proposed) |
 | ----- | ------------------------------------------------------------------- | ----------- | --------------------- |
@@ -86,6 +90,7 @@ free number for new rows on `main` is **OQ-59**. When a PR merges, its rows arri
 | `OQ-56` | KPI view performance architecture                                   | PR #33 | Afzal with Akanksha |
 | `OQ-57` | How the CLD-05 golden day's "90 exits" is counted (assumption)      | PR #33 | Akanksha (spec owner) with Anamika |
 | `OQ-58` | Fail-closed RLS choices in `0010_rls.sql` (assumption)              | PR #34      | Afzal                 |
+| `OQ-60` | Can one session carry more than one PAYMENT event (reserved, not yet pushed) | PR #33 | Afzal with Nikhil |
 
 Rows on `main` that open PRs also edit: OQ-02 and OQ-16 (PR #28 proposes resolutions), OQ-42 (PR #20 rewords it).
 
