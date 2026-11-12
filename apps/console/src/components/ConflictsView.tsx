@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   CONFLICT_ACTION_LABELS,
@@ -172,6 +173,11 @@ export function ConflictsView({
                         <td>
                           <b>{row.event_ids.length}</b>{" "}
                           {row.event_ids.length === 1 ? "event" : "events"}
+                          <div className="small">
+                            <Link href={`/activity?events=${row.event_ids.slice(0, 20).join(",")}`}>
+                              View events
+                            </Link>
+                          </div>
                           {row.session_id && (
                             <div className="small muted" title={row.session_id}>
                               Session {row.session_id}
