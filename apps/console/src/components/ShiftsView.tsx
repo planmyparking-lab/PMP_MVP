@@ -39,9 +39,10 @@ export function ShiftsView() {
           </UnavailableButton>
         }
       />
-      <Banner tone="off" icon="plugOff" title="Shift review is not built yet">
-        It depends on shift views and the shift_reviews table (Akanksha, Afzal). Until then the
-        layout below shows what you will get. No shifts are invented.
+      <Banner tone="off" icon="plugOff" title="Shift data is not available">
+        Once you are signed in and row-level security lets you read events, this page lists every
+        shift from the gate phones&rsquo; shift events. Signing off still needs the shift_reviews
+        table (Akanksha). No shifts are invented.
       </Banner>
 
       <Card flush>

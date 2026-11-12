@@ -9,6 +9,7 @@ exists here. Never record vehicle numbers on any sheet.
 | `audit-sheet.csv`                 | MET-01  | One row per zone per moment per visit                                  |
 | `adherence-sheet.csv`             | MET-02  | One row per audited hour                                               |
 | `weekly-pack.md`                  | MET-03  | Monday pack with the 10 fixed sections                                 |
+| `weekly.sql`                      | MET-03  | Existing-table queries for conflicts and overrides                     |
 | `pilot-metrics.mjs`, `*.test.mjs` | all     | Formulas, audit completeness, random hour draw, pack checks, and tests |
 
 ## Running the tests
@@ -24,11 +25,17 @@ runtime pinned by `.nvmrc`) and Node 26.1.0. Adding them to `pnpm check` and
 CI needs edits to the root `package.json` and `.github/workflows/ci.yml`, which other owners review; the
 proposal is in the pull request discussion, not applied here.
 
+## Database-query status
+
+- `weekly.sql` now covers the sources that exist: `events` and `sync_conflicts`. It reports conflict counts by
+  type, conflicts unresolved for more than 24 hours at the report boundary, and overrides per 100 entries by
+  reason code. It prints `missing: public.device_heartbeats` and `missing: public.job_runs` for the unavailable
+  sections instead of inventing those tables.
+- `weekly.sql` and `adherence.sql` are written but have not been run against a database. Run them only against the
+  local Supabase project after its Docker container is available; never use a real project for development checks.
+
 ## Not built, and why
 
-- `weekly.sql`: it needs `device_heartbeats`, `sync_conflicts` and `job_runs`, which do not exist yet (CLD-04,
-  SYNC-05, CLD-06). Writing it now would invent a schema. `adherence.sql` is written (it only needs `events`,
-  which exists) but has not been run against a database.
 - A CSV-reading command line tool: add it after the open points in OQ-35 are decided, so the bar
   evaluation is not hard-wired to a guess.
 - The kill criterion for MET-01 (below 90% zone accuracy after four weeks across three facilities) is not

@@ -1,7 +1,7 @@
 /**
  * What the Console can and cannot do today. This list feeds the dashboard and the "not connected" notices, so
  * the screens never claim more than the repository contains. Update it when a dependency lands.
- * Sources: docs/team/member-03-anamika.md and supabase/migrations (0001 to 0003 only).
+ * Sources: docs/team/member-03-anamika.md and supabase/migrations (0001 to 0006).
  */
 export type FeatureState = "partial" | "blocked";
 
@@ -22,10 +22,11 @@ export const FEATURES: FeatureStatus[] = [
     title: "Dashboard and occupancy",
     href: "/occupancy",
     state: "partial",
-    works: "Colour-band logic and the overrides-per-100 formula exist and are tested.",
+    works:
+      "Sign-in and server loaders read zones, open_sessions and today's events; the board refreshes every 10 seconds.",
     needs: [
-      "Database views v_zone_now, v_daily_kpis and v_hourly (Akanksha)",
-      "Row-level security policies and sign-in (CLD-03, CON-03)",
+      "Row-level security policies so signed-in managers can read rows (CLD-03, Akanksha)",
+      "Views v_zone_now, v_daily_kpis and v_hourly to replace the open_sessions count (Akanksha)",
     ],
   },
   {
@@ -57,27 +58,46 @@ export const FEATURES: FeatureStatus[] = [
     title: "Devices and health",
     href: "/devices",
     state: "partial",
-    works: "Device health status rules exist and are tested.",
+    works: "Lists enrolled devices and guards from the database. Health status rules are tested.",
     needs: [
       "device_heartbeats table, enrollment function and PIN function (Akanksha)",
-      "Sign-in and security policies",
+      "Row-level security policies (CLD-03)",
+    ],
+  },
+  {
+    id: "CON-09",
+    title: "Overstay",
+    href: "/overstay",
+    state: "partial",
+    works:
+      "Lists vehicles inside at or over a limit from open_sessions, longest first, with CSV export (no number plates).",
+    needs: [
+      "Threshold storage per facility and the alert job (Akanksha, CLD-07)",
+      "Row-level security so the page can read open_sessions (CLD-03)",
     ],
   },
   {
     id: "CON-06",
     title: "Shift review",
     href: "/shifts",
-    state: "blocked",
-    works: "Nothing built yet.",
-    needs: ["Shift views and the shift_reviews table (Akanksha, Afzal)"],
+    state: "partial",
+    works:
+      "Lists the last 30 days of shifts from SHIFT_OPEN and SHIFT_CLOSE events, with cash and UPI variance and filters.",
+    needs: [
+      "shift_reviews table for sign-off, and shift views (Akanksha, Afzal); see OQ-51",
+      "Row-level security so events are readable (CLD-03)",
+    ],
   },
   {
     id: "CON-07",
     title: "Conflicts inbox",
     href: "/conflicts",
-    state: "blocked",
-    works: "Nothing built yet.",
-    needs: ["sync_conflicts, conflict_resolutions and resolve_conflict (Afzal, Akanksha)"],
+    state: "partial",
+    works: "Reads sync_conflicts for the selected facility, grouped by type with age and status.",
+    needs: [
+      "conflict_resolutions and resolve_conflict for actions (Afzal, Akanksha)",
+      "Row-level security policies (CLD-03)",
+    ],
   },
 ];
 

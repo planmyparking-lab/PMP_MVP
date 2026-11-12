@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 import { overridesPer100 } from "../lib/kpi";
 import { occupancyView } from "../lib/occupancyBand";
 import type { OccupancyBand } from "../lib/occupancyBand";
@@ -92,8 +93,18 @@ function Gauge({
   );
 }
 
-export function OccupancyView() {
-  const [tab, setTab] = useState<"calc" | "live">("calc");
+export function OccupancyView({
+  live,
+  liveStatus,
+  reason,
+}: {
+  /** Server-rendered live board; when present the Live tab opens first. */
+  live?: ReactNode;
+  liveStatus?: ReactNode;
+  /** Why the live board is unavailable, shown in its empty state. */
+  reason?: string;
+} = {}) {
+  const [tab, setTab] = useState<"calc" | "live">(live ? "live" : "calc");
   const [v, setV] = useState(DEFAULTS);
   const toast = useToast();
   const set = (k: keyof typeof DEFAULTS) => (e: { target: { value: string } }) =>
@@ -129,28 +140,33 @@ export function OccupancyView() {
     <>
       <PageHeader
         title="Occupancy"
-        description="See how each zone is doing right now. Live counts need the database; until then you can try the colour rules on your own numbers."
-        actions={<StatusBadge tone="off">Live data disconnected</StatusBadge>}
+        description={
+          live
+            ? "How full each zone is right now, from the vehicles currently inside."
+            : "See how each zone is doing right now. Live counts need the database; until then you can try the colour rules on your own numbers."
+        }
+        actions={liveStatus ?? <StatusBadge tone="off">Live data disconnected</StatusBadge>}
       />
       <Tabs
         label="Occupancy views"
         value={tab}
         onChange={setTab}
         options={[
-          { value: "calc", label: "Rules calculator" },
           { value: "live", label: "Live zones" },
+          { value: "calc", label: "Rules calculator" },
         ]}
       />
 
-      {tab === "live" ? (
+      {tab === "live" && live ? (
+        live
+      ) : tab === "live" ? (
         <Card flush>
           <EmptyState
             icon="plugOff"
-            title="Live occupancy is not connected"
+            title="Live occupancy is not available"
             needs={[
-              "v_zone_now database view: zone, capacity, occupied, as-of time (Akanksha)",
-              "Row-level security policies and Console sign-in (CLD-03, CON-03)",
-              "Realtime or 10-second polling wiring (Anamika, after the view exists)",
+              "A configured Supabase project and Console sign-in (CON-03)",
+              "Row-level security policies so zones and open_sessions are readable (CLD-03)",
             ]}
             action={
               <Button variant="primary" icon="gauge" onClick={() => setTab("calc")}>
@@ -158,8 +174,8 @@ export function OccupancyView() {
               </Button>
             }
           >
-            When the view exists, this tab will show one bar per zone with an &ldquo;as of&rdquo;
-            time. Counts always come from the database, never from the browser.
+            {reason ??
+              "When connected, this tab shows every zone with an “as of” time. Counts always come from the database, never from the browser."}
           </EmptyState>
         </Card>
       ) : (
