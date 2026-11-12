@@ -2,7 +2,7 @@
 
 Prepared 24 Oct 2026. Companion to [README.md](README.md). Item numbers (OQ-xx) are the ones cited in the four member sheets and the README. Reconciled against the repository on 12 Nov 2026 by Akanksha (Member 04): see section "Reconciliation, 12 Nov 2026" below the register. Decisions and deciders are unchanged by that reconciliation.
 
-**Established facts** (from the repository and source documents): when this register was prepared the repository held only `doc/`; as of 12 Nov 2026 `main` (`2faf3ec`) holds the gate app, the Console, the `contracts`, `domain` and `sync-rules` packages, migrations `0001`-`0006` with pgTAP tests, and CI (see `feature-traceability.md`); the Phase 2 plan began on 22 Sep 2026 and runs 18 weeks; the MVP is the 12 must-haves P0-1 to P0-12; operators collect UPI on their own static QR; partners run different incumbent systems (Park+ among them). Everything else below is a question, assumption or recommendation, and each is marked as such.
+**Established facts** (from the repository and source documents): when this register was prepared the repository held only `doc/`; as of 12 Nov 2026 `main` (`4e936df`) holds the gate app, the Console, the `contracts`, `domain` and `sync-rules` packages, migrations `0001`-`0006` with pgTAP tests, and CI (see `feature-traceability.md`); the Phase 2 plan began on 22 Sep 2026 and runs 18 weeks; the MVP is the 12 must-haves P0-1 to P0-12; operators collect UPI on their own static QR; partners run different incumbent systems (Park+ among them). Everything else below is a question, assumption or recommendation, and each is marked as such.
 
 Type key: **Q** question, **A** assumption currently used, **R** recommendation awaiting a decision.
 
@@ -66,37 +66,39 @@ Type key: **Q** question, **A** assumption currently used, **R** recommendation 
 
 ## Reconciliation, 12 Nov 2026
 
-Prepared by Akanksha (Member 04) against `main` at `2faf3ec` and the open pull requests of that day. Purpose: record
+Prepared by Akanksha (Member 04) against `main` at `4e936df` and the open pull requests of that day. Purpose: record
 where the repository now bears on an item. **No status, decision or decider in the register above was changed**: an
 item closes only when its decider records the decision in that row. "Evidence" below is what can be checked in the
 repository or on GitHub; it is not a decision.
 
 ### Structure check
 
-- IDs on `main`: OQ-01 to OQ-51, contiguous, no duplicates, every row has the nine columns of the header.
+- IDs on `main`: OQ-01 to OQ-54, then OQ-59. OQ-55 to OQ-58 are not on `main` (reserved in open pull requests, below), so the sequence is not contiguous. No duplicates; every row has the nine columns of the header.
 - Statuses on `main`: Resolved: OQ-36, OQ-38, OQ-45, OQ-46 (each with a recorded rationale and decider). All others Open.
 
-### IDs already claimed by open pull requests
+### Where each ID above OQ-51 stands
 
-These rows exist only on the named branches. They are listed so that no other change reuses the numbers; the next
-free number for new rows is **OQ-61**. When a PR merges, its rows arrive with it. Since this list was written, PR #30
-and PR #39 merged: OQ-52 to OQ-54 (PR #30) and **OQ-59** (PR #39, approval of `expo-sqlite`) are now on `main`.
-**OQ-60** is reserved by the CLD-05 follow-up for PR #33 (see the last row); it is not on GitHub until that branch is
-pushed. Before taking a number, check the register on `main` and the open pull requests, because another change may
-have taken OQ-61 in the meantime.
+The next free number for new rows is **OQ-61** as of this audit. Before taking it, check the register on `main` and
+every open pull request, because another change may have taken OQ-61 in the meantime. A row arrives on `main` only
+when its pull request merges.
+
+**1. On `main` (merged):** OQ-52, OQ-53 and OQ-54 (PR #30, IC-01 validation) and OQ-59 (PR #39, approval of
+`expo-sqlite`). These are rows of the register above; they are not reserved anywhere else.
+
+**2. Reserved on open GitHub pull requests (rows exist only on those branches):**
 
 | ID    | Topic (short)                                                       | Proposed in | Decider (as proposed) |
 | ----- | ------------------------------------------------------------------- | ----------- | --------------------- |
-| `OQ-52` | Was `0004` applied anywhere; final number of the IC-01 migration    | PR #30 | Afzal with Akanksha |
-| `OQ-53` | IC-01 result details (`schema_version` range, missing `payload`)    | PR #30      | Afzal                 |
-| `OQ-54` | Retry versus quarantine for permanently rejected events             | PR #30      | Afzal                 |
-| `OQ-55` | Which conflict resolutions change the KPI numbers                   | PR #33 | Afzal with Akanksha and Anamika |
-| `OQ-56` | KPI view performance architecture                                   | PR #33 | Afzal with Akanksha |
-| `OQ-57` | How the CLD-05 golden day's "90 exits" is counted (assumption)      | PR #33 | Akanksha (spec owner) with Anamika |
+| `OQ-55` | Which conflict resolutions change the KPI numbers                   | PR #33      | Afzal with Akanksha and Anamika |
+| `OQ-56` | KPI view performance architecture                                   | PR #33      | Afzal with Akanksha   |
+| `OQ-57` | How the CLD-05 golden day's "90 exits" is counted (assumption)      | PR #33      | Akanksha (spec owner) with Anamika |
 | `OQ-58` | Fail-closed RLS choices in `0010_rls.sql` (assumption)              | PR #34      | Afzal                 |
-| `OQ-60` | Can one session carry more than one PAYMENT event (reserved, not yet pushed) | PR #33 | Afzal with Nikhil |
 
-Rows on `main` that open PRs also edit: OQ-02 and OQ-16 (PR #28 proposes resolutions), OQ-42 (PR #20 rewords it).
+**3. Local, not pushed to GitHub:** OQ-60 (can one session carry more than one PAYMENT event; decider as proposed:
+Afzal with Nikhil) is reserved only in the local CLD-05 follow-up commit `bb75aba` on the branch
+`feature/cld-05-kpi-views-pr`. The remote branch does not contain it yet, so no pull request holds it today.
+
+Rows on `main` that an open pull request also edits: OQ-02 and OQ-16 (PR #28 proposes resolutions).
 
 ### Items the repository now bears on (status unchanged)
 
@@ -106,15 +108,15 @@ Rows on `main` that open PRs also edit: OQ-02 and OQ-16 (PR #28 proposes resolut
 | `OQ-02` | A hand-written outbox is what was built; PR #28 proposes recording that as the decision. Download sync (SYNC-03) is not built.                                        | `packages/sync-rules/src/outbox.ts` (PR #18); PR #28 (open).                                          | Afzal        |
 | `OQ-07` | No backup mechanism or Supabase plan exists yet. A local restore drill is proposed; it is not a production backup.                                                  | No hosted project; PR #35 (`tools/restore/`, `ops/runbook.md`).                                       | Akanksha     |
 | `OQ-16` | The occupancy rule is implemented only in PR #28, which has open review findings on how exits after a physical baseline are counted.                                | PR #28 (changes requested).                                                                           | Afzal        |
-| `OQ-24` | Its premise ("no code exists in week 5") is out of date: the gate app runs on a labelled fake data layer (`apps/gate/README.md`). The scope decision is still unrecorded. | `apps/gate/src/ui/port.tsx`, `apps/gate/README.md`.                                                   | Afzal        |
+| `OQ-24` | Its premise ("no code exists in week 5") is out of date: the gate app runs on a labelled fake data layer (`apps/gate/README.md`). The scope decision is still unrecorded. The SQLite outbox store and Supabase ingest transport from PR #39 exist under `apps/gate/src/data/` but are not wired into `PortProvider`. The Supabase transport is blocked on CLD-03 device authentication, and the sync adapters have not been exercised on a device. | `apps/gate/src/ui/port.tsx`, `apps/gate/README.md`. `apps/gate/src/data/supabaseIngestTransport.ts:17`. | Afzal        |
 | `OQ-35` | The gate app cites `parkos-pass:<facilityId>:<passId>` only as a recommendation; no QR is issued by the Console yet.                                               | `apps/gate/src/domain/pass.ts` (comment).                                                             | Anamika, Nikhil |
 | `OQ-39` | The Console PIN rule is implemented provisionally; the database function that would store a PIN hash (`set_staff_pin`) does not exist.                              | `apps/console/src/lib/pinPolicy.ts`; no such function in `supabase/migrations`.                       | Akanksha, Afzal |
-| `OQ-40` | The KPI views the route waits for are in PR #33 (`0009_views_kpis.sql`), not on `main`, so the route still answers 501 for real data.                              | PR #33 (open).                                                                                        | Akanksha     |
-| `OQ-42` | The question text is partly out of date: `packages/contracts/src/events.ts` now has an optional `recorded_at` (PR #12). There is no SQL column on `main`; PR #26 and PR #30 each add one. | `packages/contracts/src/events.ts`; `supabase/migrations/0003_events.sql`; PR #20 rewords this row. | Afzal        |
+| `OQ-40` | The KPI views the route waits for are in PR #33 (`0009_views_kpis.sql`), not on `main`, so the route still answers 501 for real data. The Console dashboard now reads `v_daily_kpis` and `v_hourly` progressively (PR #40), with a fallback while those views are absent. The report route itself still has no `loadReportData` implementation. | PR #33 (open). `apps/console/src/lib/data/facility.ts:89,96`; `apps/console/app/api/reports/[type]/route.ts:16`. | Akanksha     |
+| `OQ-42` | The question text is partly out of date: the register row now records it as partially resolved. `packages/contracts/src/events.ts` has an optional `recorded_at` (PR #12, merged). There is no SQL column on `main`: `ingest_events` (`0004`) drops the field. The column and unknown-key rejection come with `0013`, staged in `supabase/proposed-migrations/` (PR #30, merged) and not yet promoted (OQ-52). | `packages/contracts/src/events.ts`; `supabase/migrations/0004_ingest_events.sql`; `supabase/proposed-migrations/0013_ingest_events_payload_validation.sql`. | Afzal        |
 | `OQ-45` | Resolved row: the agreed columns (`cash_paise`, `upi_paise`, `pass_paise`, `declared_total_paise`) are implemented, with WAIVED excluded from every total, only in PR #33. | PR #33 `0009_views_kpis.sql`, `kpi_oracle.test.sql`.                                                  | (resolved)   |
 | `OQ-46` | Resolved row with one part still open: its own text says the **default** threshold "is still to be set". No migration stores a threshold.                           | Register row; no threshold column in `supabase/migrations`.                                           | Akanksha, Anamika |
 | `OQ-49` | Its last sentence ("OQ-45 to OQ-48 remain reserved by the unmerged CON-09 PR") is out of date: that PR (#23) merged and those rows exist. The question itself is open; `conflict_resolutions` is proposed in PR #31. | PR #23 (merged); PR #31 (open).                                                                       | Afzal, Akanksha, Anamika |
 | `OQ-50` | Still accurate on `main`: no RLS policy exists, so a signed-in manager reads no rows. Policies are proposed in PR #34.                                              | No `create policy` in `supabase/migrations`; PR #34 (open).                                           | Anamika, Akanksha |
-| `OQ-51` | `shift_reviews` is proposed in PR #31; no shift view exists anywhere.                                                                                              | PR #31 (open).                                                                                        | Anamika, Akanksha |
+| `OQ-51` | The Console now writes `shift_reviews` rows from `apps/console/app/shifts/actions.ts` (PR #40, merged) and lists shifts from `SHIFT_OPEN` / `SHIFT_CLOSE` events. The database table is proposed in PR #31 (open) and is not in `supabase/migrations` on `main`, so sign-off cannot work until it is deployed. No shift view exists in the database on `main`. | `apps/console/app/shifts/actions.ts`; `apps/console/src/lib/data/shifts.ts`; PR #31 (open). | Anamika, Akanksha |
 
 Feature-level status for every item above: `docs/team/feature-traceability.md` (updated the same day).
