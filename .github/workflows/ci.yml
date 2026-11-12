@@ -52,6 +52,8 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build # console production build
+      # T-CLD-01-N1: no service-role key material in the Console's client chunks or prerendered pages.
+      - run: pnpm check:bundles console
 
   # Required check name: "db-tests". Plain PostgreSQL 16 + pgTAP with a minimal Supabase stub (scripts/ci-supabase-stub.sql):
   # applies every migration and runs supabase/tests plus the two-connection concurrency test. The stub implements
@@ -89,6 +91,8 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @pmp/gate run bundle:android
+      # T-CLD-01-N1: no service-role key material in the gate app's Android bundle.
+      - run: pnpm check:bundles gate
 
   # Required check name: "branch-name" (pull requests only)
   branch-name:
