@@ -21,6 +21,7 @@
     "test:db": "node scripts/test-db.mjs",
     "rehearse:forward": "node scripts/rehearse-forward.mjs",
     "test:db:concurrency": "node scripts/test-db-concurrency.mjs",
+    "test:restore": "node --test tools/restore/restore_drill.test.mjs",
     "check": "pnpm check:repo && pnpm check:migrations && pnpm test:scripts && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "build": "pnpm -r --if-present run build"
   },
