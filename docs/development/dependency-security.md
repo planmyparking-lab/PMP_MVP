@@ -15,10 +15,10 @@ Remove an entry from `ignoreGhsas` as soon as it can be fixed. Do not add new ig
 
 Added when new advisories (published 27 Oct 2026) made `pnpm audit` fail. Each override applies only to the vulnerable range.
 
-| Override                              | Fixes                                                                                                                                                                   | Comes from             |
-| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| `node-forge@<1.4.3` to 1.4.3          | GHSA-86w9-cpqp-85rv, GHSA-w4xr-hqv8-ch44, GHSA-6cv4-p8m7-4r25, GHSA-j8rw-jp99-435v, GHSA-6889-vf6x-f3g5 (previously ignored/overridden and later node-forge advisories) | `expo > @expo/cli`     |
-| `minimatch@>=7.0.0 <11.0.1` to 11.0.1 | GHSA-g3hv-75wg-m249 (major-version bump)                                                                                                                                | `typescript-eslint`    |
-| `glob@>=9.0.0 <14.0.2` to 14.0.2      | GHSA-3g3m-2fjr-6pw4 (major-version bump)                                                                                                                                | `expo` config packages |
+| Override                              | Fixes                                                                                                                                                                    | Comes from             |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| `node-forge@<1.4.3` to 1.4.3          | GHSA-86w9-cpqp-85rv (previously ignored), the 27 Oct advisories, and GHSA-6889-vf6x-f3g5, GHSA-w4xr-hqv8-ch44, GHSA-6cv4-p8m7-4r25, GHSA-j8rw-jp99-435v (fixed in 1.4.3) | `expo > @expo/cli`     |
+| `minimatch@>=7.0.0 <11.0.1` to 11.0.1 | GHSA-g3hv-75wg-m249 (major-version bump)                                                                                                                                 | `typescript-eslint`    |
+| `glob@>=9.0.0 <14.0.2` to 14.0.2      | GHSA-3g3m-2fjr-6pw4 (major-version bump)                                                                                                                                 | `expo` config packages |
 
 Remove an override once the parent package depends on a patched version on its own.

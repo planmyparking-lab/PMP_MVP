@@ -244,3 +244,56 @@ describe("Uploader.uploadBatch", () => {
     expect(await uploader.uploadBatch()).toMatchObject({ minSupportedVersion: 1 });
   });
 });
+
+describe("Uploader with detail and unreadable ids", () => {
+  const response = (results: unknown[]) => ({
+    results,
+    accepted: 0,
+    duplicates: 0,
+    rejected: results.length,
+    min_supported_version: 1,
+    server_time: "2026-10-01T10:00:00.000Z",
+  });
+
+  it("handles a rejected result that carries detail like any other rejection", async () => {
+    const store = new MemoryStore();
+    const e = makeEntry(at(1));
+    store.add(e);
+    const transport = {
+      ingest: async () =>
+        response([
+          { id: e.id, status: "REJECTED", reason: "INVALID_PAYLOAD", detail: "payload.fare_paise" },
+        ]),
+    };
+    const uploader = new Uploader(store, transport, { random: () => 0.5 });
+    expect(await uploader.uploadBatch()).toMatchObject({
+      kind: "UPLOADED",
+      sent: 0,
+      retrying: 1,
+      quarantined: 0,
+    });
+    expect(store.count("PENDING")).toBe(1);
+  });
+
+  it("handles a rejected result without an id (the server could not read a valid uuid)", async () => {
+    const store = new MemoryStore();
+    store.add(makeEntry(at(1)));
+    const transport = {
+      ingest: async () =>
+        response([{ status: "REJECTED", reason: "INVALID_ENVELOPE", detail: "id" }]),
+    };
+    const uploader = new Uploader(store, transport, { random: () => 0.5 });
+    expect(await uploader.uploadBatch()).toMatchObject({ kind: "UPLOADED", retrying: 1 });
+  });
+
+  it("still fails the batch when a returned id differs from the sent id, whatever the detail", async () => {
+    const store = new MemoryStore();
+    store.add(makeEntry(at(1)));
+    const transport = {
+      ingest: async () =>
+        response([{ id: newId(), status: "REJECTED", reason: "INVALID_ENVELOPE", detail: "id" }]),
+    };
+    const uploader = new Uploader(store, transport, { random: () => 0.5 });
+    expect(await uploader.uploadBatch()).toMatchObject({ kind: "FAILED" });
+  });
+});
