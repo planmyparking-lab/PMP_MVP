@@ -8,3 +8,4 @@ The production drill (T-CLD-10-E1), which restores a real backup into a fresh ho
 | ---------- | ----------------------------------------------------------- | ------- | -------------------- | ------ | ---------------------------------- |
 | 2026-10-29 | local supabase_db_pmp-mvp (synthetic, schema 0001-0003)     | 7s      | 10 tables, 2409 rows | MATCH  | Claude Code, on Akanksha's machine |
 | 2026-11-12 | local supabase_db_pmp-mvp (synthetic, migrations 0001-0006) | 20s     | 16 tables, 2932 rows | MATCH  | Claude Code, on Akanksha's machine |
+| 2026-11-12 | local supabase_db_pmp-mvp (synthetic, migrations 0001-0010) | 24s     | 19 tables, 2979 rows | MATCH  | Claude Code, on Akanksha's machine |

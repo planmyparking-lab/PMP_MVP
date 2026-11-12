@@ -55,12 +55,25 @@ dump() { # dump <db> <outfile-prefix>
     pg_dump -U postgres -Fc --no-owner --no-acl -t auth.users -f $TMP/$2-auth.dump $1"
 }
 
+# Supabase's auth helper functions (auth.uid(), auth.jwt(), auth.role(), auth.email()), copied verbatim from the local
+# database. RLS policies and SQL-language functions reference them and PostgreSQL validates both when they are created,
+# so a scratch database needs them before migrations are applied or a public schema with policies is restored.
+AUTH_FUNCTIONS=$("${PSQL[@]}" -At -d postgres <<'SQL'
+select string_agg(pg_get_functiondef(p.oid) || ';', E'\n' order by p.proname)
+from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+where n.nspname = 'auth' and p.prokind = 'f';
+SQL
+)
+[ -n "$AUTH_FUNCTIONS" ] || { echo "restore_drill: no auth functions found in the local database" >&2; exit 2; }
+add_auth_functions() { printf '%s\n' "$AUTH_FUNCTIONS" | "${PSQL[@]}" -d "$1" >/dev/null; }
+
 if [ "$SYNTHETIC" = 1 ]; then
   SRC=restore_drill_src
   ls supabase/migrations/*.sql >/dev/null 2>&1 || { echo "restore_drill: no supabase/migrations/*.sql (run from the repo root)" >&2; exit 2; }
   docker exec "$C" sh -c "pg_dump -U postgres -Fc --no-owner --no-acl -t auth.users -f $TMP/base-auth.dump postgres &&
     createdb -U postgres $SRC && psql -U postgres -d $SRC -qc 'create schema auth;' &&
     pg_restore -U postgres -d $SRC --no-owner --no-acl --exit-on-error $TMP/base-auth.dump"
+  add_auth_functions "$SRC"
   for f in supabase/migrations/*.sql; do # glob order is the numeric order (0001_, 0002_, ...)
     "${PSQL[@]}" -d "$SRC" <"$f" >/dev/null || { echo "restore_drill: applying $f to the scratch source failed" >&2; exit 1; }
   done
@@ -102,8 +115,9 @@ fi
 
 dump "$SRC" drill
 docker exec "$C" sh -c "createdb -U postgres $DST && psql -U postgres -d $DST -qc 'drop schema public; create schema auth;' &&
-  pg_restore -U postgres -d $DST --no-owner --no-acl --exit-on-error $TMP/drill-auth.dump &&
-  pg_restore -U postgres -d $DST --no-owner --no-acl --exit-on-error $TMP/drill-public.dump"
+  pg_restore -U postgres -d $DST --no-owner --no-acl --exit-on-error $TMP/drill-auth.dump"
+add_auth_functions "$DST"
+docker exec "$C" sh -c "pg_restore -U postgres -d $DST --no-owner --no-acl --exit-on-error $TMP/drill-public.dump"
 
 # Test-only hook (tools/restore/restore_drill.test.mjs): corrupt one restored row so the mismatch path is exercised.
 if [ "${RESTORE_DRILL_TAMPER:-0}" = 1 ]; then
