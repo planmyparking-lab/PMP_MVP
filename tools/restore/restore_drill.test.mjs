@@ -76,6 +76,8 @@ test(
     assert.match(r.stdout, /public\.events\s+rows=396\s/);
     assert.match(r.stdout, /public\.open_sessions\s+rows=90\s/);
     assert.match(r.stdout, /public\.sync_conflicts\s+rows=6\s/);
+    // RLS policies (0010) reference auth.uid()/auth.jwt(); the drill copies those functions so policies restore too.
+    assert.match(r.stdout, /schema:policies\s+rows=[1-9]\d*\s/);
     assert.equal(leftovers(), "");
   },
 );
