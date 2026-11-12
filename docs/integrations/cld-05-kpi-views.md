@@ -7,12 +7,12 @@ Spec: `docs/team/member-04-akanksha.md` CLD-05, IC-07 (`docs/integrations/ic-07-
 
 ## 1. Scope
 
-| Item | State |
-| --- | --- |
-| `v_daily_kpis` | Implemented |
-| `v_hourly` | Implemented |
-| `v_zone_now` | **Deferred.** It must equal Afzal's `occupancy.ts` on shared fixtures (T-CLD-05-U2), and that definition is unresolved (OQ-A7). Nothing is guessed. |
-| Conflict-resolution effects on KPIs | **Not implemented**, see section 4 |
+| Item                                | State                                                                                                                                               |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `v_daily_kpis`                      | Implemented                                                                                                                                         |
+| `v_hourly`                          | Implemented                                                                                                                                         |
+| `v_zone_now`                        | **Deferred.** It must equal Afzal's `occupancy.ts` on shared fixtures (T-CLD-05-U2), and that definition is unresolved (OQ-A7). Nothing is guessed. |
+| Conflict-resolution effects on KPIs | **Not implemented**, see section 4                                                                                                                  |
 
 Both views are `security_invoker = true`. `anon` has no privilege, `authenticated` has `select`.
 
@@ -71,13 +71,13 @@ between two active days are not generated. Revenue is never null on a row that e
 
 ## 4. Conflict resolutions: what can and cannot be established
 
-| Action | Established? | Why |
-| --- | --- | --- |
-| first-wins (the default) | Yes | Sheet CLD-05: "count first exit only, rest flagged". Implemented. |
-| `KEEP_FIRST` | Same as the default | It changes nothing, so reading it is unnecessary. |
-| `KEEP_SECOND` | **No** | Needs: when a conflict counts as resolved; which resolution wins if several exist (the table is append-only, so a conflicting second resolution is possible); what "second" is. `sync_conflicts.event_ids` is ordered only when the conflict is created; a third exit is appended unordered. For ORPHAN_EXIT and DUPLICATE_ENTRY "second" has no meaning. |
-| `MARK_AS_TEST_ENTRY` | **No** | Nothing says which events of the session are removed (entry only, the whole session, its payments and overrides) or whether it applies to a conflict that is still OPEN. |
-| `ADD_NOTE`, `ACKNOWLEDGE` | No effect | Notes and acknowledgements carry no counting rule. Whether they close a conflict is OQ-49. |
+| Action                    | Established?        | Why                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| first-wins (the default)  | Yes                 | Sheet CLD-05: "count first exit only, rest flagged". Implemented.                                                                                                                                                                                                                                                                                         |
+| `KEEP_FIRST`              | Same as the default | It changes nothing, so reading it is unnecessary.                                                                                                                                                                                                                                                                                                         |
+| `KEEP_SECOND`             | **No**              | Needs: when a conflict counts as resolved; which resolution wins if several exist (the table is append-only, so a conflicting second resolution is possible); what "second" is. `sync_conflicts.event_ids` is ordered only when the conflict is created; a third exit is appended unordered. For ORPHAN_EXIT and DUPLICATE_ENTRY "second" has no meaning. |
+| `MARK_AS_TEST_ENTRY`      | **No**              | Nothing says which events of the session are removed (entry only, the whole session, its payments and overrides) or whether it applies to a conflict that is still OPEN.                                                                                                                                                                                  |
+| `ADD_NOTE`, `ACKNOWLEDGE` | No effect           | Notes and acknowledgements carry no counting rule. Whether they close a conflict is OQ-49.                                                                                                                                                                                                                                                                |
 
 Blockers, exactly: OQ-49 (which actions close a conflict) is open; `resolve_conflict()` does not exist, so nothing links a
 `conflict_resolutions` row to `sync_conflicts.status`; `status = 'RESOLVED'` is also set by the detector itself
@@ -94,12 +94,12 @@ Dataset (synthetic, inserted in one rolled-back transaction, `analyze`d): **400,
 (20,000 duplicates), 100,000 PAYMENT, 80,000 OVERRIDE; 100,000 sessions, 10 facilities, 60 days. Migrations 0004 to 0006
 triggers were not present during the load. Table owner (no RLS) unless stated.
 
-| Query | Old proposal (ms, successive runs) | New 0009 (ms, successive runs) |
-| --- | --- | --- |
-| daily, one facility, 30 days | 2981, 3392, 2069, 1737 | 419, 316, 290, 275 |
-| hourly, one facility, one day | 372, 383, 386, 503 | 52, 49, 49, 54 |
-| daily, all facilities | 2871, 2245, 1829 | 5021, 3324, 3190 |
-| hourly, all facilities | 1213, 984, 1058 | 759, 860, 855 |
+| Query                         | Old proposal (ms, successive runs) | New 0009 (ms, successive runs) |
+| ----------------------------- | ---------------------------------- | ------------------------------ |
+| daily, one facility, 30 days  | 2981, 3392, 2069, 1737             | 419, 316, 290, 275             |
+| hourly, one facility, one day | 372, 383, 386, 503                 | 52, 49, 49, 54                 |
+| daily, all facilities         | 2871, 2245, 1829                   | 5021, 3324, 3190               |
+| hourly, all facilities        | 1213, 984, 1058                    | 759, 860, 855                  |
 
 The numbers above were measured in the local environment described here. The benchmark harness is not included in this
 repository, so the results are not independently reproducible from the repository as committed.
@@ -116,13 +116,13 @@ only, not timing.
 
 RLS dominates once policies exist (stand-in policies, because 0010 is not in this chain):
 
-| Case (authenticated, 400k events) | ms |
-| --- | --- |
-| Per-row `is_member(facility_id, ...)` policy, as proposed in 0010: daily, one facility, 30 days | 9424, 2724 |
-| Same policy, daily, all facilities (one run) | 40448 |
-| Once-per-query policy (`facility_id in (select my_facilities())`): daily, one facility | 294, 316, 392 |
-| Same, hourly, one facility, one day | 65 |
-| Same, daily, all facilities | 2705 |
+| Case (authenticated, 400k events)                                                               | ms            |
+| ----------------------------------------------------------------------------------------------- | ------------- |
+| Per-row `is_member(facility_id, ...)` policy, as proposed in 0010: daily, one facility, 30 days | 9424, 2724    |
+| Same policy, daily, all facilities (one run)                                                    | 40448         |
+| Once-per-query policy (`facility_id in (select my_facilities())`): daily, one facility          | 294, 316, 392 |
+| Same, hourly, one facility, one day                                                             | 65            |
+| Same, daily, all facilities                                                                     | 2705          |
 
 **Conclusion.** The 500 ms target (T-CLD-05-X1, p95 after the k6 run) is **not shown to pass**. Measured: a facility-filtered
 query on the new views stays near 0.3 to 0.4 s in this setup with a few runs each (too few for a p95), an unfiltered scan takes
@@ -149,16 +149,16 @@ Migration contiguity: 0009 follows 0008 with no gap. The proposals in the refres
 
 ## 7. Test coverage against T-CLD-05
 
-| Test | State |
-| --- | --- |
-| U1 daily golden day | Covered by `kpi_golden_day.test.sql` (5 of 5): the full spec golden day of 100 entries, 90 distinct first exits (89 paired plus 1 orphan; a duplicate EXIT is excluded), 10 overrides, 5 pass entries, CASH 250,000 and UPI 136,000 paise, and a midnight-spanning session. The complete golden-date `v_daily_kpis` row, including `facility_id` and `local_date`, and the next-date row are compared with hand-computed literals using `results_eq`. The 90 is checked through `v_hourly.exits`, because `v_daily_kpis` has no exits column. The exit counting is an assumption (OQ-57). The smaller golden day in `kpi_views.test.sql` remains as an edge-case test |
-| U2 zone now equals occupancy | **Not covered** (`v_zone_now` deferred) |
-| U3 hourly edges (00:00, 00:59:59, 01:00, 23:59:59, +05:45 zone) | Covered |
-| I1 RLS through the views | Covered with stand-in policies for 0001 to 0009 only; **not** validated against 0010, which needs its own test (section 6) |
-| I2 oracle comparison on 30 days of seed | Covered: `kpi_oracle.test.sql`, 25 of 25 against local 0001 to 0009 (section 8). Correctness only; not a performance result and not a 0010 RLS result |
-| N1 empty facility | Covered (no rows, no error) |
-| R1 column contract against an IC-07 file | **Partly**: columns, order and types are asserted; no IC-07 column-list file exists to compare with |
-| X1 performance after k6 load | **Not covered**, see section 5 |
+| Test                                                            | State                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| U1 daily golden day                                             | Covered by `kpi_golden_day.test.sql` (5 of 5): the full spec golden day of 100 entries, 90 distinct first exits (89 paired plus 1 orphan; a duplicate EXIT is excluded), 10 overrides, 5 pass entries, CASH 250,000 and UPI 136,000 paise, and a midnight-spanning session. The complete golden-date `v_daily_kpis` row, including `facility_id` and `local_date`, and the next-date row are compared with hand-computed literals using `results_eq`. The 90 is checked through `v_hourly.exits`, because `v_daily_kpis` has no exits column. The exit counting is an assumption (OQ-57). The smaller golden day in `kpi_views.test.sql` remains as an edge-case test |
+| U2 zone now equals occupancy                                    | **Not covered** (`v_zone_now` deferred)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| U3 hourly edges (00:00, 00:59:59, 01:00, 23:59:59, +05:45 zone) | Covered                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| I1 RLS through the views                                        | Covered with stand-in policies for 0001 to 0009 only; **not** validated against 0010, which needs its own test (section 6)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| I2 oracle comparison on 30 days of seed                         | Covered: `kpi_oracle.test.sql`, 25 of 25 against local 0001 to 0009 (section 8). Correctness only; not a performance result and not a 0010 RLS result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| N1 empty facility                                               | Covered (no rows, no error)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| R1 column contract against an IC-07 file                        | **Partly**: columns, order and types are asserted; no IC-07 column-list file exists to compare with                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| X1 performance after k6 load                                    | **Not covered**, see section 5                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 
 ## 8. Oracle test (T-CLD-05-I2): `kpi_oracle.test.sql`
 
@@ -210,12 +210,12 @@ and divides once (section 3) and reports 104.86. No other KPI rule changed. The 
 **Mutation check.** Each controlled error below was applied to the views in a scratch transaction (rolled back, no file
 changed) and was detected:
 
-| Injected error | Assertions failed |
-| --- | --- |
-| `v_hourly` in UTC instead of the facility zone | 4 (hourly count, both `except all`, `results_eq`) |
-| WAIVED counted as cash | 4 (both daily `except all`, daily `results_eq`, totals) |
-| zero-length stays excluded (`>` for `>=`) | 3 (both daily `except all`, daily `results_eq`) |
-| per-row division put back (`avg(seconds / 60)`) | 3 (both daily `except all`, daily `results_eq`) |
+| Injected error                                  | Assertions failed                                       |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| `v_hourly` in UTC instead of the facility zone  | 4 (hourly count, both `except all`, `results_eq`)       |
+| WAIVED counted as cash                          | 4 (both daily `except all`, daily `results_eq`, totals) |
+| zero-length stays excluded (`>` for `>=`)       | 3 (both daily `except all`, daily `results_eq`)         |
+| per-row division put back (`avg(seconds / 60)`) | 3 (both daily `except all`, daily `results_eq`)         |
 
 **Not shown by this test.** Performance or p95 (X1), RLS (I1), bigint saturation (amounts stay far below it; covered in
 `kpi_views.test.sql`), conflict-resolution effects (section 4), and behaviour on staging or production data.
