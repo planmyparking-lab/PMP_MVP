@@ -36,3 +36,12 @@ and domains, rules, comments, ownership, `ALTER DEFAULT PRIVILEGES`, sequence de
 changed values with unchanged row counts, any schema other than `public`, roles, and tables outside `public` and `auth.users`.
 
 The rehearsal is a synthetic-row count-preservation check on six seeded tables, not a staging-fidelity rehearsal.
+
+CI runs the same SQL tests without Docker: the `db-tests` job (`scripts/test-db-ci.mjs`, `pnpm test:db:ci` with `CI=true` and a local
+PostgreSQL 16 + pgTAP) applies every migration to a throwaway database `pmp_ci` on top of a minimal Supabase stub
+(`scripts/ci-supabase-stub.sql`: the three API roles, `auth.users`, and `auth.uid()` / `auth.jwt()` / `auth.role()` — each matches the
+real Supabase-provided definition exactly, including the coalesce between the flat `request.jwt.claim.*` GUCs and the JSON
+`request.jwt.claims` GUC, so tests that set either convention work the same as they do against the real local stack), runs
+`supabase/tests/*.test.sql`, then the two-connection concurrency test (`scripts/test-db-concurrency.mjs`). The stub is still not a full
+Supabase emulation: behaviour that needs other Supabase internals (storage, realtime, Edge Functions) must also pass `pnpm test:db` on
+the real local stack.
