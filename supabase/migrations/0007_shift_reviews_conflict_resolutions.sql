@@ -30,8 +30,11 @@ create table public.conflict_resolutions (
   note text,
   resolved_by uuid not null references auth.users (id) on delete restrict,
   resolved_at timestamptz not null default now(),
-  -- btrim() alone removes spaces only, so tabs, carriage returns and newlines are listed explicitly.
-  check (action <> 'ADD_NOTE' or btrim(coalesce(note, ''), E' \t\r\n') <> '')
+  -- A note is blank when it is empty after JavaScript trim(), the rule the Console applies: ASCII whitespace plus the
+  -- Unicode spaces (non-breaking space, U+2000-U+200A, line and paragraph separators, ideographic space, BOM). Same
+  -- character class as json_is_nonblank_text in the IC-01 validation migration (PR #30).
+  check (action <> 'ADD_NOTE'
+         or coalesce(note, '') !~ '^[\t\n\v\f\r \u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000\ufeff]*$')
 );
 create index conflict_resolutions_conflict_idx on public.conflict_resolutions (conflict_id);
 

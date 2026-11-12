@@ -3,7 +3,7 @@
 -- (the insert policies arrive with 0010_rls.sql); this file covers structure, constraints, privileges, the append-only rule
 -- and the current deny-by-default RLS behaviour.
 begin;
-select plan(52);
+select plan(56);
 
 -- Fixtures: one organization, two facilities, two users, three conflicts (two in F1, one in F2).
 insert into auth.users (id) values
@@ -130,6 +130,20 @@ select throws_ok($$insert into public.conflict_resolutions (conflict_id, action,
 select throws_ok($$insert into public.conflict_resolutions (conflict_id, action, note, resolved_by) values
   ('00000000-0000-0000-0000-0000000000c3', 'ADD_NOTE', E' \t\r\n \n\t ', '00000000-0000-0000-0000-0000000000a1')$$, '23514', null,
   'ADD_NOTE with a note of mixed spaces, tabs, carriage returns and newlines is rejected');
+-- Unicode whitespace counts as blank, as in JavaScript trim() (PR #31 review).
+select throws_ok($$insert into public.conflict_resolutions (conflict_id, action, note, resolved_by) values
+  ('00000000-0000-0000-0000-0000000000c3', 'ADD_NOTE', E'\u00a0', '00000000-0000-0000-0000-0000000000a1')$$, '23514', null,
+  'ADD_NOTE with a non-breaking-space-only note is rejected');
+select throws_ok($$insert into public.conflict_resolutions (conflict_id, action, note, resolved_by) values
+  ('00000000-0000-0000-0000-0000000000c3', 'ADD_NOTE', E'\u3000\u2028\u2029\ufeff\u202f\u205f\u1680\u2000\u200a ',
+   '00000000-0000-0000-0000-0000000000a1')$$, '23514', null,
+  'ADD_NOTE with a note of mixed Unicode spaces is rejected');
+select throws_ok($$insert into public.conflict_resolutions (conflict_id, action, note, resolved_by) values
+  ('00000000-0000-0000-0000-0000000000c3', 'ADD_NOTE', E'\x0b\f', '00000000-0000-0000-0000-0000000000a1')$$, '23514', null,
+  'ADD_NOTE with a vertical-tab and form-feed note is rejected');
+select lives_ok($$insert into public.conflict_resolutions (conflict_id, action, note, resolved_by) values
+  ('00000000-0000-0000-0000-0000000000c3', 'ADD_NOTE', E'\u00a0checked with the guard\u3000', '00000000-0000-0000-0000-0000000000a1')$$,
+  'a note with text between Unicode spaces is accepted');
 select throws_ok($$insert into public.conflict_resolutions (conflict_id, action, resolved_by) values
   ('00000000-0000-0000-0000-0000000000c3', 'MARK_TEST', '00000000-0000-0000-0000-0000000000a1')$$, '23514', null,
   'the old name MARK_TEST is not an action');
