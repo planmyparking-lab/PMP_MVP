@@ -42,6 +42,44 @@ function withTransactionConcurrencyTracker(db: GateSqliteDb): {
   };
 }
 
+/** Wraps a `GateSqliteDb` so a `runAsync` call matching `shouldPause` suspends mid-transaction,
+ * right after its row is written but before the transaction commits or rolls back — the exact
+ * window a read must never observe anything from. `reached` resolves once that point is hit;
+ * nothing after it runs until the test calls `release()`. Node's `node:sqlite` binding is
+ * synchronous under the hood, so a plain concurrent `await` never naturally interleaves two
+ * "transactions" — this is what creates a real, deterministic window instead. */
+function withPauseAfter(
+  db: GateSqliteDb,
+  shouldPause: (sql: string, params: readonly unknown[]) => boolean,
+): { db: GateSqliteDb; reached: Promise<void>; release: () => void } {
+  let armed = true;
+  let release: (() => void) | undefined;
+  let signalReached: (() => void) | undefined;
+  const reached = new Promise<void>((resolve) => {
+    signalReached = resolve;
+  });
+  return {
+    db: {
+      execAsync: (sql) => db.execAsync(sql),
+      getAllAsync: (sql, params) => db.getAllAsync(sql, params),
+      withTransactionAsync: (task) => db.withTransactionAsync(task),
+      async runAsync(sql, params) {
+        const result = await db.runAsync(sql, params);
+        if (armed && shouldPause(sql, params)) {
+          armed = false;
+          signalReached!();
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        }
+        return result;
+      },
+    },
+    reached,
+    release: () => release?.(),
+  };
+}
+
 /**
  * SqliteOutboxStore tests (pasted brief Step 3 D-list: "Successful atomic write", "Event insert
  * failure", "Outbox insert failure and rollback", "Duplicate event ID", "Upload failure after
@@ -693,12 +731,14 @@ describe("SqliteOutboxStore.queueHealth (IC-02 HealthSnapshot: queueDepth/oldest
     expect((await store.queueHealth()).oldestUnsyncedAgeMs).toBe(0);
   });
 
-  it("an unparseable device_time never produces NaN (defence in depth; cannot happen through this store's own writes)", async () => {
+  it("a NULL device_time_ms (row planted before the column existed, never backfilled) never produces NaN", async () => {
     const db = createNodeSqliteDb();
     const store = new SqliteOutboxStore(db);
     await store.init();
     // Bypass the store's own IC-01-validated write path to plant a corrupted row directly, the
-    // same technique used for the foreign-key-enforcement test above.
+    // same technique used for the foreign-key-enforcement test above. device_time_ms is omitted,
+    // leaving it NULL, as a pre-migration row would be if the backfill UPDATE in
+    // migrateDeviceTimeMs() were ever skipped.
     const id = newId();
     await db.runAsync(
       "INSERT INTO gate_events (id, event_json, device_time, created_at) VALUES (?, '{}', 'not-a-timestamp', '2026-10-29T10:00:00.000Z')",
@@ -713,5 +753,197 @@ describe("SqliteOutboxStore.queueHealth (IC-02 HealthSnapshot: queueDepth/oldest
     expect(health.queueDepth).toBe(1);
     expect(health.oldestUnsyncedAgeMs).toBe(0);
     expect(Number.isNaN(health.oldestUnsyncedAgeMs)).toBe(false);
+  });
+
+  it("a non-numeric device_time_ms (SQLite's weak typing allows it) never produces NaN", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    const id = newId();
+    await db.runAsync(
+      "INSERT INTO gate_events (id, event_json, device_time, device_time_ms, created_at) VALUES (?, '{}', '2026-10-29T10:00:00.000Z', 'garbage', '2026-10-29T10:00:00.000Z')",
+      [id],
+    );
+    await db.runAsync(
+      "INSERT INTO gate_outbox (id, state, attempts, code) VALUES (?, 'PENDING', 0, NULL)",
+      [id],
+    );
+
+    const health = await store.queueHealth();
+    expect(health.queueDepth).toBe(1);
+    expect(health.oldestUnsyncedAgeMs).toBe(0);
+    expect(Number.isNaN(health.oldestUnsyncedAgeMs)).toBe(false);
+  });
+});
+
+describe("SqliteOutboxStore reads never observe an uncommitted write (review finding, PR #39)", () => {
+  /** The exact probe from review: an existing event, then a batch `[fresh, colliding]` where
+   * `colliding` reuses `existing`'s id with different content. The pause lands right after
+   * `fresh`'s outbox row commits-in-transaction, while the batch is still open -- `colliding` has
+   * not been processed yet, so the transaction has not failed or rolled back. */
+  function setupOpenBatch(real: GateSqliteDb, existing: Event) {
+    const fresh = makeEntry("2026-10-29T10:00:00.000Z");
+    const colliding = makeEntry("2026-10-29T11:00:00.000Z", existing.id);
+    const paused = withPauseAfter(
+      real,
+      (sql, params) => sql.includes("INSERT INTO gate_outbox") && params[0] === fresh.id,
+    );
+    return { fresh, colliding, paused };
+  }
+
+  it("pending() never returns a row from a batch that is still open and later rolls back", async () => {
+    const real = createNodeSqliteDb();
+    const bootstrap = new SqliteOutboxStore(real);
+    await bootstrap.init();
+    const existing = makeEntry("2026-10-29T09:00:00.000Z");
+    await bootstrap.writeEventAndEnqueue(existing);
+
+    const { fresh, colliding, paused } = setupOpenBatch(real, existing);
+    const store = new SqliteOutboxStore(paused.db);
+
+    const batch = store.writeEventsAndEnqueue([fresh, colliding]).catch((e: unknown) => e);
+    await paused.reached; // fresh's outbox row is committed-in-transaction; colliding not processed yet
+    // Call now (while the batch is still open) but do not await yet: a fixed pending() must
+    // queue behind the open write rather than run immediately, so awaiting it here — before
+    // release() — would deadlock forever on a correct implementation. release() first, then
+    // await both: a buggy pending() has already run (and wrongly seen `fresh`) by this point; a
+    // fixed one only runs once the batch below has fully settled.
+    const pendingPromise = store.pending(10);
+    paused.release();
+    const [pendingDuringBatch, batchError] = await Promise.all([pendingPromise, batch]);
+
+    expect(batchError).toBeInstanceOf(OutboxCollisionError);
+    // The whole batch rolled back: `fresh` must never have been visible, not even transiently.
+    expect(pendingDuringBatch.map((r) => r.id)).toEqual([existing.id]);
+    expect((await store.listEvents()).map((e) => e.id)).toEqual([existing.id]);
+  });
+
+  it("listEvents() never returns a row from a batch that is still open and later rolls back", async () => {
+    const real = createNodeSqliteDb();
+    const bootstrap = new SqliteOutboxStore(real);
+    await bootstrap.init();
+    const existing = makeEntry("2026-10-29T09:00:00.000Z");
+    await bootstrap.writeEventAndEnqueue(existing);
+
+    const { fresh, colliding, paused } = setupOpenBatch(real, existing);
+    const store = new SqliteOutboxStore(paused.db);
+
+    const batch = store.writeEventsAndEnqueue([fresh, colliding]).catch((e: unknown) => e);
+    await paused.reached;
+    const eventsPromise = store.listEvents(); // see the pending() test above for why not awaited yet
+    paused.release();
+    const [eventsDuringBatch] = await Promise.all([eventsPromise, batch]);
+
+    expect(eventsDuringBatch.map((e) => e.id)).toEqual([existing.id]);
+  });
+
+  it("queueHealth() never counts a row from a batch that is still open and later rolls back", async () => {
+    const real = createNodeSqliteDb();
+    const bootstrap = new SqliteOutboxStore(real);
+    await bootstrap.init();
+    const existing = makeEntry("2026-10-29T09:00:00.000Z");
+    await bootstrap.writeEventAndEnqueue(existing);
+
+    const { fresh, colliding, paused } = setupOpenBatch(real, existing);
+    const store = new SqliteOutboxStore(paused.db);
+
+    const batch = store.writeEventsAndEnqueue([fresh, colliding]).catch((e: unknown) => e);
+    await paused.reached;
+    const healthPromise = store.queueHealth(); // see the pending() test above for why not awaited yet
+    paused.release();
+    const [healthDuringBatch] = await Promise.all([healthPromise, batch]);
+
+    // Only `existing` is PENDING; `fresh` must not be counted even though its row was written
+    // inside the (still uncommitted, soon to roll back) transaction.
+    expect(healthDuringBatch.queueDepth).toBe(1);
+  });
+});
+
+describe("SqliteOutboxStore device_time_ms ordering (review finding, PR #39)", () => {
+  it("orders pending() by instant, not by device_time's string form", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    // ".500Z" sorts BEFORE a bare "Z" as a string (the character "." is less than "Z"), even
+    // though the fractional-second timestamp is the LATER instant. A string ORDER BY would put
+    // these two rows in the wrong order; device_time_ms must not.
+    const later = makeEntry("2026-10-29T10:00:00.500Z", "018f0000-0000-7000-8000-000000000002");
+    const earlier = makeEntry("2026-10-29T10:00:00Z", "018f0000-0000-7000-8000-000000000001");
+    await store.writeEventAndEnqueue(later);
+    await store.writeEventAndEnqueue(earlier);
+
+    const pending = await store.pending(10);
+    expect(pending.map((r) => r.id)).toEqual([earlier.id, later.id]);
+  });
+
+  it("orders listEvents() by instant, not by device_time's string form", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    const later = makeEntry("2026-10-29T10:00:00.500Z", "018f0000-0000-7000-8000-000000000002");
+    const earlier = makeEntry("2026-10-29T10:00:00Z", "018f0000-0000-7000-8000-000000000001");
+    await store.writeEventAndEnqueue(later);
+    await store.writeEventAndEnqueue(earlier);
+
+    expect((await store.listEvents()).map((e) => e.id)).toEqual([earlier.id, later.id]);
+  });
+
+  it("queueHealth()'s oldest-pending age comes from the instant, not the device_time string order", async () => {
+    const clock = "2026-10-29T10:00:01.000Z";
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db, () => clock);
+    await store.init();
+    // By string order "...00Z" < "...00.500Z" is false (the bare "Z" form sorts AFTER), so a
+    // string-based MIN() would have picked the wrong row as "oldest" here.
+    const trueOldest = makeEntry("2026-10-29T10:00:00Z");
+    const notOldest = makeEntry("2026-10-29T10:00:00.500Z");
+    await store.writeEventAndEnqueue(notOldest);
+    await store.writeEventAndEnqueue(trueOldest);
+
+    expect((await store.queueHealth()).oldestUnsyncedAgeMs).toBe(1000);
+  });
+
+  it("restart recovery: a gate_events table created before device_time_ms existed is migrated and backfilled on init()", async () => {
+    const path = join(dir, "pre-migration.db");
+    const pre = createNodeSqliteDb(path);
+    // Recreate the exact schema this store shipped with before device_time_ms, and plant two rows
+    // directly (no device_time_ms column at all), simulating a device that already has local data.
+    await pre.execAsync(
+      `CREATE TABLE gate_events (
+        id TEXT PRIMARY KEY,
+        event_json TEXT NOT NULL,
+        device_time TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      )`,
+    );
+    await pre.execAsync(
+      `CREATE TABLE gate_outbox (
+        id TEXT PRIMARY KEY REFERENCES gate_events(id),
+        state TEXT NOT NULL CHECK (state IN ('PENDING','SENT','QUARANTINED')),
+        attempts INTEGER NOT NULL DEFAULT 0,
+        code TEXT
+      )`,
+    );
+    const later = makeEntry("2026-10-29T10:00:00.500Z", "018f0000-0000-7000-8000-000000000002");
+    const earlier = makeEntry("2026-10-29T10:00:00Z", "018f0000-0000-7000-8000-000000000001");
+    for (const e of [later, earlier]) {
+      await pre.runAsync(
+        "INSERT INTO gate_events (id, event_json, device_time, created_at) VALUES (?, ?, ?, ?)",
+        [e.id, JSON.stringify(e), e.device_time, "2026-10-29T10:00:00.000Z"],
+      );
+      await pre.runAsync(
+        "INSERT INTO gate_outbox (id, state, attempts, code) VALUES (?, 'PENDING', 0, NULL)",
+        [e.id],
+      );
+    }
+    pre.close();
+
+    const reopened = createNodeSqliteDb(path);
+    const store = new SqliteOutboxStore(reopened);
+    await store.init(); // must add + backfill device_time_ms without disturbing the existing rows
+
+    expect((await store.listEvents()).map((e) => e.id)).toEqual([earlier.id, later.id]);
+    expect((await store.pending(10)).map((r) => r.id)).toEqual([earlier.id, later.id]);
+    reopened.close();
   });
 });

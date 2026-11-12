@@ -1,7 +1,8 @@
 # Evidence log: Nikhil (GATE-01..12, IC-02 SyncClient integration)
 
 Prepared 30 Oct 2026, updated 30 Oct 2026 (audit follow-up), updated again 30 Oct 2026
-(`queueHealth`), updated again 31 Oct 2026 (independent code review, commit, PR-readiness audit).
+(`queueHealth`), updated again 31 Oct 2026 (independent code review, commit, PR-readiness audit),
+updated again 12 Nov 2026 (PR #39 review findings fixed).
 Author: Nikhil. Scope: `apps/gate`,
 `packages/domain` (per [README.md](README.md) "Responsibilities, owned paths"). This file records
 what each session implemented and verified; it does not restate the full feature sheet
@@ -362,11 +363,78 @@ message `feat(gate): add SQLite outbox store and Supabase ingest transport`. Not
 | `pnpm --filter @pmp/sync-rules test` | **VERIFIED** — exit 0, 21/21 passed (2 files) |
 | Root `pnpm check` | **VERIFIED** — exit 0, all green (repo checks, migrations, scripts, format, lint, typecheck, every package's tests, build) |
 
+## Fifth round (12 Nov 2026): PR #39 review findings fixed
+
+PR #39 (`feature/gate-sqlite-sync` → `main`) was opened and reviewed by Akanksha and tanamikaa,
+both CHANGES_REQUESTED. tanamikaa independently wrote and ran probe tests against `node:sqlite`
+that reproduced a real bug; Akanksha found the same one from a different angle. This round fixes
+all three blocking/important findings. Scope: `apps/gate/src/data/sqliteOutboxStore.ts`,
+`apps/gate/src/data/supabaseIngestTransport.ts`, and their two test files — no other file touched.
+
+**1. Read/write race — fixed.** `pending()`, `listEvents()` and `queueHealth()` now go through the
+existing `withWriteLock` queue, the same one `writeEventsAndEnqueue`/`apply` already used. Before
+this, a read could observe a row from a batch that was still open and later rolled back — SQLite's
+own isolation is between connections, not within one, so the store's single connection could see
+its own uncommitted writes. Concretely: `pending()` could hand `Uploader` an event whose batch then
+failed on a later collision and rolled back, so the server could end up holding an event the phone
+no longer has. Fixed by serializing reads behind the same lock as writes.
+
+**2. `device_time` ordering — fixed.** Added a `device_time_ms INTEGER` column, populated via
+`Date.parse(device_time)` on every write. `ORDER BY`/`MIN()` in `pending()`, `listEvents()` and
+`queueHealth()` now use it instead of the `device_time` TEXT column — a string comparison put
+`...10:00:00.500Z` before `...10:00:00Z` even though it is the later instant, since `.` sorts
+before `Z`. A `migrateDeviceTimeMs()` step in `init()` (`PRAGMA table_info` check, `ALTER TABLE ADD
+COLUMN`, then a backfill `UPDATE` from the existing `device_time` text) adds and backfills the
+column for a `gate_events` table created before this fix, so existing local data is not lost or
+left unordered.
+
+**3. `AuthError` missing 401/403 — fixed.** `SupabaseRpcClient`'s return type gained an optional
+`status?: number` field, matching `@supabase/postgrest-js`'s actual response shape (`status` is a
+sibling of `error`, not nested inside it — read from that package's own source, not guessed).
+`ingest()` now treats HTTP 401/403 as an auth failure alongside the existing SQLSTATE check, which
+only ever fires for a rejection raised inside `ingest_events` itself — an expired or invalid JWT is
+rejected by PostgREST's own auth layer before the function ever runs, with a `PGRST3xx`-style code
+and no SQLSTATE, which previously fell through to the retryable-failure path instead of
+`AUTH_REQUIRED`.
+
+**Regression tests added** (12 new, 0 existing tests weakened or removed — one existing test was
+split in two to match the new schema, both its original assertions kept): 3 for the read/write race
+(one per method, using a new `withPauseAfter` test helper that suspends a write mid-transaction to
+create a real interleaving window — confirmed node:sqlite's synchronous internals mean a plain
+concurrent `await` never naturally interleaves, so this is necessary, not decorative), 5 for
+`device_time_ms` ordering (one per read method, plus a restart-recovery test that manually recreates
+the pre-fix schema, inserts rows directly, reopens via `init()`, and asserts the column is backfilled
+and ordering is correct afterward), 4 for the 401/403 mapping (both statuses, one non-matching
+status to prove the check isn't over-broad, and one through `Uploader` end to end).
+
+**Verified each of the 3 fixes is load-bearing, not cosmetic**: reverted each one individually and
+re-ran its regression test, confirming a real, reproducible failure each time (not just a changed
+assertion), then restored and re-ran the full suite clean.
+
+**Commands and results** (all run fresh this round, in a separate clone since the primary working
+tree was read-only — see "Reviewer / sign-off status" below):
+
+| Command | Result |
+| --- | --- |
+| `apps/gate` full test suite | **VERIFIED** — 292/292 passed (29 files; was 280) |
+| `sqliteOutboxStore.test.ts` alone | **VERIFIED** — 41/41 passed (was 33) |
+| `supabaseIngestTransport.test.ts` alone | **VERIFIED** — 13/13 passed (was 9) |
+| `pnpm --filter @pmp/gate typecheck` | **VERIFIED** — exit 0, clean |
+| `eslint` (4 changed files) | **VERIFIED** — exit 0, clean |
+| `prettier --check` (4 changed files) | **VERIFIED** — exit 0, clean |
+
+**Not run, not claimed**: `apps/gate`'s Android bundle (`bundle:android`/Expo export). None of the
+four changed files are imported by any screen yet (unchanged from earlier rounds — still unwired
+from the app shell), so a bundle build would not exercise this round's changes; it was skipped
+rather than claimed.
+
 ## Reviewer / sign-off status
 
-No pull request has been opened yet and no review has been requested on GitHub. 14 files are
-committed locally (`8eff474`) on `feature/gate-sqlite-sync`, not pushed. `packages/sync-rules` was
-read but not modified, so no second-workstream-owner review is required by `CLAUDE.md`'s "Shared
-packages ... need a second workstream owner's review" rule for that package — but `expo-sqlite`'s
-addition to `apps/gate/package.json`/`app.json` still needs Afzal's sign-off per OQ-59 before this
-should be treated as fully reviewed.
+PR #39 is open on GitHub (`feature/gate-sqlite-sync` → `main`), reviewed by Akanksha and tanamikaa
+(both CHANGES_REQUESTED, now addressed above — their reviews have not been re-requested or cleared
+yet; that is their call, not recorded here as done). `packages/sync-rules` was read but not
+modified, so no second-workstream-owner review is required by `CLAUDE.md`'s "Shared packages ...
+need a second workstream owner's review" rule for that package — but `expo-sqlite`'s addition to
+`apps/gate/package.json`/`app.json` still needs Afzal's sign-off per OQ-59 before this should be
+treated as fully reviewed. Akanksha separately flagged that OQ-59 itself may collide with a
+private, not-yet-pushed follow-up on her side; unresolved as of this round.

@@ -89,6 +89,43 @@ describe("SupabaseIngestTransport.ingest", () => {
     expect(error).toBeInstanceOf(Error);
   });
 
+  it("maps HTTP 401 (expired/invalid JWT, rejected before the function ever runs) to AuthError", async () => {
+    // PostgREST's own auth layer rejects this before `ingest_events` executes: no SQLSTATE from
+    // the function body, just a PGRST-family code and a 401 status (review finding, PR #39).
+    const transport = new SupabaseIngestTransport({
+      rpc: async () => ({
+        data: null,
+        error: { message: "JWT expired", code: "PGRST301" },
+        status: 401,
+      }),
+    });
+    await expect(transport.ingest([makeEntry()])).rejects.toBeInstanceOf(AuthError);
+  });
+
+  it("maps HTTP 403 to AuthError even without one of the known SQLSTATEs", async () => {
+    const transport = new SupabaseIngestTransport({
+      rpc: async () => ({
+        data: null,
+        error: { message: "forbidden", code: "PGRST302" },
+        status: 403,
+      }),
+    });
+    await expect(transport.ingest([makeEntry()])).rejects.toBeInstanceOf(AuthError);
+  });
+
+  it("does not misclassify a non-401/403 status as an auth failure", async () => {
+    const transport = new SupabaseIngestTransport({
+      rpc: async () => ({
+        data: null,
+        error: { message: "internal error", code: "XX000" },
+        status: 500,
+      }),
+    });
+    const error = await transport.ingest([makeEntry()]).catch((e: unknown) => e);
+    expect(error).not.toBeInstanceOf(AuthError);
+    expect(error).toBeInstanceOf(Error);
+  });
+
   it("propagates a thrown network/timeout error untouched (no auth misclassification)", async () => {
     const networkError = new Error("fetch failed: network unreachable");
     const transport = new SupabaseIngestTransport({
@@ -129,6 +166,22 @@ describe("SupabaseIngestTransport wired through Uploader end to end (fake RPC, n
     store.add(makeEntry());
     const transport = new SupabaseIngestTransport({
       rpc: async () => ({ data: null, error: { message: "no jwt", code: "28000" } }),
+    });
+    const uploader = new Uploader(store, transport);
+    expect(await uploader.uploadBatch()).toEqual({ kind: "AUTH_REQUIRED" });
+    expect(store.count("PENDING")).toBe(1);
+  });
+
+  it("AUTH_REQUIRED also stops uploading on an HTTP 401 with no SQLSTATE (expired JWT)", async () => {
+    const { MemoryStore } = await import("./helpers/memoryStore");
+    const store = new MemoryStore();
+    store.add(makeEntry());
+    const transport = new SupabaseIngestTransport({
+      rpc: async () => ({
+        data: null,
+        error: { message: "JWT expired", code: "PGRST301" },
+        status: 401,
+      }),
     });
     const uploader = new Uploader(store, transport);
     expect(await uploader.uploadBatch()).toEqual({ kind: "AUTH_REQUIRED" });
