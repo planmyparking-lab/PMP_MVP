@@ -12,22 +12,34 @@ Sync logic shared by the gate app, with no storage or network code of its own (S
 
 ## Occupancy (SYNC-04)
 
-`computeOccupancy({ zones, openSessions, localEvents, zoneCounts, now? })` (`src/occupancy.ts`) is a pure function. Counts are derived, never stored as an
-incremented counter.
+`computeOccupancy({ zones, openSessions, localEvents, zoneCounts, closedSessions?, now? })` (`src/occupancy.ts`) is a pure function. Counts are derived,
+never stored as an incremented counter.
 
-- **With a physical `ZONE_COUNT` baseline** for a zone: `count = counted + entries after the baseline - exits after it` (strictly later `device_time`).
-- **Without one:** vehicles in the `open_sessions` snapshot plus local entries not yet in it, minus local exits.
+- **With a physical `ZONE_COUNT` baseline** for a zone: `count = counted + entries after the baseline - exits after it` (strictly later `device_time`),
+  where an exit counts whether it is a local `EXIT` event or reported through `closedSessions` (see below).
+- **Without one:** vehicles in the `open_sessions` snapshot plus local entries not yet in it, minus exits (local, or through `closedSessions`).
 - Entries are matched by session id and events by event id, so a record seen twice counts once, a second exit for a session removes one vehicle, and the
   result does not depend on the order of the inputs.
 - Displayed `count` is clamped at 0. `rawCount` keeps the real value and a `NEGATIVE` warning is raised.
 - Warnings: `NEGATIVE`, `OVER_CAPACITY` (the guard may still let a vehicle in; policy, see OQ-23), `STALE_BASELINE` (older than 24 h, needs `now`),
-  `ORPHAN_EXIT` (exit for a session unknown here: not decremented), `FUTURE_EVENT_IGNORED` (device clock more than 5 minutes ahead of `now`).
-  The handbook lists only the first three; the last two come from the SYNC-04 edge cases.
+  `ORPHAN_EXIT` (a local `EXIT` event for a session unknown here: not decremented, even if `closedSessions` separately corrects the count),
+  `FUTURE_EVENT_IGNORED` (any timestamp-bearing input more than 5 minutes ahead of `now`: a local event, an `open_sessions` entry, a `ZONE_COUNT`
+  baseline, or a `closedSessions` record — none is a trusted exception). The handbook lists only the first three; the last two come from the SYNC-04
+  edge cases.
 - A zone mentioned by the data but missing from `zones` returns `{ ok: false, error: "MISSING_ZONE_CONFIG", zoneIds }`, never zeros.
-- `drift(zoneCounts, zoneId)` is `counted - system_count_at_time` of the latest count; `isDriftFlagged(counted, system)` is the Console's 3% rule.
+- `drift(zoneCounts, zoneId, now?)` is `counted - system_count_at_time` of the latest count (a future-dated count is dropped first, same as the baseline
+  `computeOccupancy` selects); `isDriftFlagged(counted, system)` is the Console's 3% rule.
 
-Limit (by design): a phone sees its own events at once and another phone's only after sync, so a vehicle that left through another gate after the
-baseline shows only once `open_sessions` is refreshed. The Console computes the merged truth.
+**Cross-device exits (OQ-16 amendment).** A baseline-branch exit used to be subtracted only when the session was still in `entries` — the
+`open_sessions` snapshot plus local `ENTRY` events. But `0005_open_sessions.sql` deletes a session's row on `EXIT`, and a cross-device exit never
+reaches this device's local events, so a vehicle that left through another gate after the baseline was never subtracted, not just delayed: the count
+stayed stale-high permanently, even after `open_sessions` refreshed (the opposite of what an earlier version of this README claimed). `closedSessions`
+(`{ sessionId, zoneId, entryTime, exitTime }[]`) fixes this: a session counted at the baseline (`entryTime <= baselineTime`) that closed after it
+(`exitTime > baselineTime`) is subtracted, reported by any device, regardless of whether this device ever saw the `ENTRY` or `EXIT` locally.
+
+This is download sync (SYNC-03), which does not exist yet — callers must pass `closedSessions: []` until it does, so cross-device exits are **not**
+corrected in practice before SYNC-03 ships; only the API and the correction logic are in place now, so no further signature change is needed once it
+does. The Console computes the merged truth independently in the meantime and is unaffected by this gap.
 
 `observeOccupancy(facilityId)` (recompute on local DB changes) belongs to the gate app and is not in this package.
 

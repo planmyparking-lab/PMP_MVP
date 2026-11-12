@@ -5,6 +5,7 @@ import {
   drift,
   isDriftFlagged,
   zoneCountFromEvent,
+  type ClosedSession,
   type OccupancyInput,
   type OccupancyResult,
   type ZoneCountRecord,
@@ -62,6 +63,9 @@ function count(
   id = uid("c"),
 ): ZoneCountRecord {
   return { id, zoneId: zone, counted, systemCountAtTime: system, deviceTime: time };
+}
+function closed(session: string, zone: string, entryTime: string, exitTime: string): ClosedSession {
+  return { sessionId: session, zoneId: zone, entryTime, exitTime };
 }
 const s = (n: number): string => uid(`5${n}`);
 
@@ -246,6 +250,92 @@ describe("computeOccupancy with a ZONE_COUNT baseline", () => {
   });
 });
 
+describe("cross-device exits (closedSessions, SYNC-03 stub, Akanksha's finding)", () => {
+  it("subtracts a session the baseline counted even once it is gone from the open_sessions snapshot", () => {
+    // 0005_open_sessions.sql deletes the row on EXIT, so after a refresh the session leaves no local trace at all.
+    const old = s(1);
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(1))],
+        openSessions: [], // already refreshed: the row for `old` is gone
+        closedSessions: [closed(old, Z1, T(0), T(5))], // entered before the baseline, exited after it
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(2);
+  });
+
+  it("a session that entered and exited entirely after the baseline, on other devices, nets to zero", () => {
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(1))],
+        closedSessions: [closed(s(1), Z1, T(5), T(6))], // both after the baseline
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(3);
+  });
+
+  it("does not double-subtract a session reported both locally and through closedSessions", () => {
+    const a = s(1);
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(1))],
+        openSessions: [{ sessionId: a, zoneId: Z1, entryTime: T(0) }],
+        localEvents: [exit(a, T(5))],
+        closedSessions: [closed(a, Z1, T(0), T(5))],
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(2); // one subtraction, not two
+  });
+
+  it("without a baseline, a closed session is not counted as open even with no local EXIT event", () => {
+    const a = s(1);
+    const r = ok(
+      run({
+        openSessions: [{ sessionId: a, zoneId: Z1, entryTime: T(1) }],
+        closedSessions: [closed(a, Z1, T(1), T(2))],
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(0);
+  });
+
+  it(
+    "a local EXIT for a session unknown from open_sessions still raises ORPHAN_EXIT, but closedSessions still " +
+      "corrects the count (the case the README's old claim did not cover)",
+    () => {
+      const remote = s(1);
+      const localExit = exit(remote, T(5));
+      const r = ok(
+        run({
+          zoneCounts: [count(Z1, 3, 3, T(1))],
+          localEvents: [localExit], // this device never saw the ENTRY, so `remote` is not in `entries`
+          closedSessions: [closed(remote, Z1, T(0), T(5))],
+        }),
+      );
+      expect(r.zones[Z1]!.count).toBe(2);
+      expect(r.warnings).toEqual([{ zoneId: null, kind: "ORPHAN_EXIT", ref: localExit.id }]);
+    },
+  );
+
+  it("a future-dated closedSessions exitTime is ignored with a warning, not trusted", () => {
+    const a = s(1);
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(1))],
+        closedSessions: [closed(a, Z1, T(0), T(600))],
+        now: T(3),
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(3);
+    expect(r.warnings).toEqual([{ zoneId: Z1, kind: "FUTURE_EVENT_IGNORED", ref: a }]);
+  });
+
+  it("a zone mentioned only by closedSessions still needs zone config", () => {
+    const unknown = "00000000-0000-4000-8000-0000000000ee";
+    const r = run({ closedSessions: [closed(s(1), unknown, T(0), T(1))] });
+    expect(r).toEqual({ ok: false, error: "MISSING_ZONE_CONFIG", zoneIds: [unknown] });
+  });
+});
+
 describe("computeOccupancy clock and config rules", () => {
   it("ignores events more than 5 minutes ahead of the receiving clock and says so", () => {
     const future = entry(s(1), Z1, T(10));
@@ -257,6 +347,38 @@ describe("computeOccupancy clock and config rules", () => {
 
   it("accepts an event up to exactly 5 minutes ahead", () => {
     expect(ok(run({ localEvents: [entry(s(1), Z1, T(8))], now: T(3) })).zones[Z1]!.count).toBe(1);
+  });
+
+  it("a future-dated ZONE_COUNT does not become the baseline (Nikhil's finding)", () => {
+    const past = count(Z1, 3, 3, T(1));
+    const future = count(Z1, 9, 9, T(600)); // minutes, far beyond the 5-minute tolerance
+    const r = ok(run({ zoneCounts: [past, future], now: T(3) }));
+    expect(r.zones[Z1]).toMatchObject({ count: 3, baselineAt: T(1) });
+    expect(r.warnings).toEqual([{ zoneId: Z1, kind: "FUTURE_EVENT_IGNORED", ref: future.id }]);
+  });
+
+  it("a future baseline cannot suppress STALE_BASELINE or silently absorb later entries", () => {
+    // Without the fix, the future count would become the baseline, now - t would go negative (no STALE_BASELINE),
+    // and this later entry (after the real, past baseline) would be read as "before" the (wrongly future) baseline.
+    const future = count(Z1, 0, 0, "2026-10-05T00:00:00.000Z");
+    const r = ok(
+      run({
+        zoneCounts: [future],
+        openSessions: [{ sessionId: s(1), zoneId: Z1, entryTime: T(1) }],
+        now: T(3),
+      }),
+    );
+    expect(r.zones[Z1]).toMatchObject({ count: 1, baselineAt: null });
+    expect(r.warnings).toEqual([{ zoneId: Z1, kind: "FUTURE_EVENT_IGNORED", ref: future.id }]);
+  });
+
+  it("a future-dated open_sessions entryTime is ignored with a warning, not trusted", () => {
+    const a = s(1);
+    const r = ok(
+      run({ openSessions: [{ sessionId: a, zoneId: Z1, entryTime: T(10) }], now: T(3) }),
+    );
+    expect(r.zones[Z1]!.count).toBe(0);
+    expect(r.warnings).toEqual([{ zoneId: Z1, kind: "FUTURE_EVENT_IGNORED", ref: a }]);
   });
 
   it("returns an explicit error, not zeros, when a zone is not configured", () => {
@@ -276,6 +398,12 @@ describe("drift", () => {
     expect(drift(history, Z1)).toBe(3);
     expect(drift(history, Z2)).toBe(-4);
     expect(drift(history, "none")).toBeNull();
+  });
+
+  it("ignores a future-dated count when now is given (Nikhil's finding)", () => {
+    const history = [count(Z1, 10, 10, T(1)), count(Z1, 99, 1, T(600))];
+    expect(drift(history, Z1, T(3))).toBe(0); // the far-future count is dropped; T(1) (10-10=0) is latest
+    expect(drift(history, Z1)).toBe(98); // without `now`, nothing is filtered (same as before this fix)
   });
   it("flags more than 3% of the system count", () => {
     expect(isDriftFlagged(103, 100)).toBe(false);
