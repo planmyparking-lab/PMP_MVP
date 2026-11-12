@@ -2,10 +2,13 @@
 // incremented counter, so a lost or repeated update cannot make them drift.
 //
 // With a physical ZONE_COUNT baseline for a zone: count = counted + entries after the baseline - exits after it,
-// where "exits after it" includes cross-device exits reported through `closedSessions` (OQ-16 amendment; stubbed
-// until SYNC-03 exists), not only this device's own local EXIT events.
-// Without a baseline: count = vehicles in the open_sessions snapshot plus local entries not yet in it, minus exits
-// (local, or reported through `closedSessions`).
+// where a session is subtracted once its EARLIEST known exit (local EXIT event, or a closedSessions report, from
+// either side of a sync — see ClosedSession) is after the baseline, whichever source that earliest exit comes
+// from. A session's zone is always the one from a known ENTRY (open_sessions or a local event) when there is one;
+// a closedSessions record never overrides it, only supplies the exit time (or, for a session never seen locally
+// at all, the zone too, since it is then the only source).
+// Without a baseline: count = sessions with a known ENTRY (open_sessions, local, or closedSessions-only) and no
+// known exit yet, from either source.
 // Sessions are matched by session id and events by event id, so the same record seen twice (open_sessions and the
 // local store, or a re-sent event) is counted once, and the result does not depend on the order of the input arrays.
 // Every timestamp-bearing input (local events, open_sessions entries, ZONE_COUNT baselines, closed sessions) is held
@@ -43,12 +46,16 @@ export interface ZoneCountRecord {
 }
 
 /**
- * A session known to have closed, reported by any device (OQ-16 amendment). A baseline-branch exit is only ever
- * subtracted when the session is still in `entries` — the open_sessions snapshot plus local ENTRY events — but
+ * A session known to have closed, reported by any device (OQ-16 amendment). A baseline-branch exit used to be
+ * subtracted only when the session was still in the open_sessions snapshot plus local ENTRY events — but
  * 0005_open_sessions.sql deletes the row on EXIT, and a cross-device exit never reaches this device's local events.
  * Without this input, such an exit is silently never subtracted and the baseline stays stale-high forever, not just
  * until the next sync (see CLAUDE.md's occupancy rule). This is download sync (SYNC-03), which does not exist yet:
  * pass [] until it does. It is wired here so the fix needs no further API change once SYNC-03 lands.
+ *
+ * Takes effect for a session entered either before the baseline (part of its physical count) or locally after it
+ * (added to `entered`); either way, whichever of the local EXIT event and this record reports the earlier exit
+ * decides when the session closed, so a later or duplicate report from either source is always inert.
  */
 export interface ClosedSession {
   sessionId: string;
@@ -113,9 +120,15 @@ export function computeOccupancy(input: OccupancyInput): OccupancyResult {
   const nowMs = input.now === undefined ? undefined : ms(input.now);
   const warnings: OccupancyWarning[] = [];
   // Every timestamp-bearing input is held to the same trust boundary: ignored, with a warning, when it is more than
-  // FUTURE_TOLERANCE_MS ahead of `now`. None is a special, implicitly-trusted case.
-  const isFuture = (iso: string): boolean =>
-    nowMs !== undefined && ms(iso) > nowMs + FUTURE_TOLERANCE_MS;
+  // FUTURE_TOLERANCE_MS ahead of `now`, OR malformed (Date.parse returns NaN). Neither is a trusted exception. A
+  // malformed timestamp is not merely "not future" — every NaN comparison is false, so an unguarded one would be
+  // silently inert at best (never counted, never flagged stale) and, in a MAX-style selection with no fallback, can
+  // get stuck in first permanently (see drift()). Reusing FUTURE_EVENT_IGNORED rather than adding a new kind: both
+  // mean "this input cannot be trusted, so it was not used."
+  const isFuture = (iso: string): boolean => {
+    const t = ms(iso);
+    return Number.isNaN(t) || (nowMs !== undefined && t > nowMs + FUTURE_TOLERANCE_MS);
+  };
 
   // De-duplicate local events by id, then drop events from a clock that runs too far ahead.
   const events = new Map<string, Event>();
@@ -159,16 +172,16 @@ export function computeOccupancy(input: OccupancyInput): OccupancyResult {
     }
   }
 
-  // Cross-device exits (SYNC-03; see ClosedSession). Dropped the same way as any other future-dated input.
+  // Cross-device exits (SYNC-03; see ClosedSession). Dropped the same way as any other future-dated or malformed
+  // input; both entryTime and exitTime are checked, since either could be bad.
   const closedSessions: ClosedSession[] = [];
   for (const cs of closedSessionsInput) {
-    if (isFuture(cs.exitTime)) {
+    if (isFuture(cs.exitTime) || isFuture(cs.entryTime)) {
       warnings.push({ zoneId: cs.zoneId, kind: "FUTURE_EVENT_IGNORED", ref: cs.sessionId });
     } else {
       closedSessions.push(cs);
     }
   }
-  const closedSessionIds = new Set(closedSessions.map((cs) => cs.sessionId));
 
   // Exits: one per session (the earliest), since a second exit for the same session never removes a second vehicle.
   const exits = new Map<string, { time: number; ref: string }>();
@@ -180,12 +193,47 @@ export function computeOccupancy(input: OccupancyInput): OccupancyResult {
       exits.set(e.session_id, { time: t, ref: e.id });
   }
 
+  // One view per session, merging every source. The zone always comes from a known ENTRY (open_sessions or a local
+  // event) when there is one — never from `closedSessions.zoneId`, which this device cannot verify and which may
+  // disagree with what it already knows. `earliestExit` is the earliest exit reported by ANY source (a local EXIT
+  // event or a closedSessions record for the same session): taking the earliest, not "whichever source we checked
+  // last", means a later or duplicate report — local or remote, in either order — can never re-open a session
+  // that an earlier report already closed, and a session this device entered locally but only saw leave through
+  // `closedSessions` is still closed exactly once.
+  interface SessionView {
+    zoneId: string;
+    entryTime: number;
+    earliestExit: number | null;
+  }
+  const sessions = new Map<string, SessionView>();
+  for (const en of entries.values()) {
+    sessions.set(en.sessionId, { zoneId: en.zoneId, entryTime: en.time, earliestExit: null });
+  }
+  for (const [sessionId, ex] of exits) {
+    const sv = sessions.get(sessionId);
+    if (sv)
+      sv.earliestExit = sv.earliestExit === null ? ex.time : Math.min(sv.earliestExit, ex.time);
+  }
+  for (const cs of closedSessions) {
+    const exitT = ms(cs.exitTime);
+    const sv = sessions.get(cs.sessionId);
+    if (sv) {
+      sv.earliestExit = sv.earliestExit === null ? exitT : Math.min(sv.earliestExit, exitT);
+    } else {
+      // Never seen locally at all: closedSessions is the only source for both the zone and the entry time.
+      sessions.set(cs.sessionId, {
+        zoneId: cs.zoneId,
+        entryTime: ms(cs.entryTime),
+        earliestExit: exitT,
+      });
+    }
+  }
+
   // Zone config must cover every zone the data mentions; guessing zero would hide a setup problem.
   const configured = new Map(zones.map((z) => [z.id, z]));
   const mentioned = new Set<string>();
-  for (const en of entries.values()) mentioned.add(en.zoneId);
+  for (const sv of sessions.values()) mentioned.add(sv.zoneId);
   for (const c of zoneCounts) mentioned.add(c.zoneId);
-  for (const cs of closedSessions) mentioned.add(cs.zoneId);
   const missing = [...mentioned].filter((id) => !configured.has(id)).sort();
   if (missing.length > 0) return { ok: false, error: "MISSING_ZONE_CONFIG", zoneIds: missing };
 
@@ -219,30 +267,16 @@ export function computeOccupancy(input: OccupancyInput): OccupancyResult {
     let raw: number;
     if (baseline) {
       const t = ms(baseline.deviceTime);
-      // Entries after the baseline add one each; exits after it remove one each (the vehicle was either counted in the
-      // baseline or entered after it, so either way it was part of this zone's count).
+      // A session counted at the baseline (entryTime <= t) or entered after it (entryTime > t, added to `entered`)
+      // is subtracted once its earliest known exit, from either source, is after the baseline too — a session
+      // whose earliest exit is at or before the baseline was already gone (or never here) by the time of the
+      // baseline and contributes nothing either way.
       let entered = 0;
       let exited = 0;
-      const subtracted = new Set<string>();
-      for (const en of entries.values()) {
-        if (en.zoneId !== zone.id) continue;
-        if (en.time > t) entered += 1;
-        const ex = exits.get(en.sessionId);
-        if (ex && ex.time > t) {
-          exited += 1;
-          subtracted.add(en.sessionId);
-        }
-      }
-      // Cross-device exits (SYNC-03; see ClosedSession): a session the baseline already counted (entryTime <= t)
-      // that closed after it, even when the open_sessions snapshot has already dropped the row and no local EXIT
-      // event ever reached this device. Skipped when the local path above already subtracted the same session, so
-      // a session reported both ways is never double-counted.
-      for (const cs of closedSessions) {
-        if (cs.zoneId !== zone.id || subtracted.has(cs.sessionId)) continue;
-        if (ms(cs.entryTime) <= t && ms(cs.exitTime) > t) {
-          exited += 1;
-          subtracted.add(cs.sessionId);
-        }
+      for (const sv of sessions.values()) {
+        if (sv.zoneId !== zone.id) continue;
+        if (sv.entryTime > t) entered += 1;
+        if (sv.earliestExit !== null && sv.earliestExit > t) exited += 1;
       }
       raw = baseline.counted + entered - exited;
       if (nowMs !== undefined && nowMs - t > (input.staleBaselineMs ?? DEFAULT_STALE_BASELINE_MS)) {
@@ -250,13 +284,8 @@ export function computeOccupancy(input: OccupancyInput): OccupancyResult {
       }
     } else {
       raw = 0;
-      for (const en of entries.values()) {
-        if (
-          en.zoneId === zone.id &&
-          !exits.has(en.sessionId) &&
-          !closedSessionIds.has(en.sessionId)
-        )
-          raw += 1;
+      for (const sv of sessions.values()) {
+        if (sv.zoneId === zone.id && sv.earliestExit === null) raw += 1;
       }
     }
     const count = Math.max(0, raw);
@@ -282,19 +311,19 @@ export function computeOccupancy(input: OccupancyInput): OccupancyResult {
 /**
  * counted - system_count_at_time of the latest ZONE_COUNT for the zone, or null when the zone has no baseline.
  * `now`, when given, drops a future-dated count first — the same guard computeOccupancy applies to the baseline it
- * selects, so drift() cannot report against a count that a correct baseline selection would have ignored.
+ * selects, so drift() cannot report against a count that a correct baseline selection would have ignored. A
+ * malformed deviceTime (Date.parse returns NaN) is dropped unconditionally, `now` or not: left unguarded, every
+ * comparison against it is false, so it can never be displaced once selected — if the first record for a zone
+ * happened to be malformed, it would stay "latest" forever, no matter how many valid records follow.
  */
 export function drift(zoneCounts: ZoneCountRecord[], zoneId: string, now?: string): number | null {
   const nowMs = now === undefined ? undefined : ms(now);
   let latest: ZoneCountRecord | undefined;
   for (const c of zoneCounts) {
     if (c.zoneId !== zoneId) continue;
-    if (nowMs !== undefined && ms(c.deviceTime) > nowMs + FUTURE_TOLERANCE_MS) continue;
-    if (
-      !latest ||
-      ms(c.deviceTime) > ms(latest.deviceTime) ||
-      (ms(c.deviceTime) === ms(latest.deviceTime) && c.id > latest.id)
-    ) {
+    const t = ms(c.deviceTime);
+    if (Number.isNaN(t) || (nowMs !== undefined && t > nowMs + FUTURE_TOLERANCE_MS)) continue;
+    if (!latest || t > ms(latest.deviceTime) || (t === ms(latest.deviceTime) && c.id > latest.id)) {
       latest = c;
     }
   }

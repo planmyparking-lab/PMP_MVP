@@ -334,6 +334,73 @@ describe("cross-device exits (closedSessions, SYNC-03 stub, Akanksha's finding)"
     const r = run({ closedSessions: [closed(s(1), unknown, T(0), T(1))] });
     expect(r).toEqual({ ok: false, error: "MISSING_ZONE_CONFIG", zoneIds: [unknown] });
   });
+
+  it("a session entered locally after the baseline and closed only through closedSessions is still subtracted", () => {
+    // Akanksha's finding: the first fix only subtracted a closedSessions exit when entryTime <= baselineTime, so a
+    // session entered locally AFTER the baseline (added to `entered`) but exited only on another device was never
+    // subtracted — it stayed counted forever, not just until the next sync.
+    const a = s(1);
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(1))],
+        localEvents: [entry(a, Z1, T(5))],
+        closedSessions: [closed(a, Z1, T(5), T(6))],
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(3); // entered after baseline (+1), closed after baseline (-1): net 0
+  });
+
+  it("the earliest exit wins: a closedSessions exit cannot re-subtract a session that already exited before the baseline", () => {
+    // Akanksha's finding: a session with both a local exit before the baseline and a (stale or duplicate) later
+    // closedSessions exit must use the EARLIEST of the two, not treat the closedSessions one as an independent,
+    // un-deduplicated signal.
+    const a = s(1);
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(10))],
+        openSessions: [{ sessionId: a, zoneId: Z1, entryTime: T(0) }],
+        localEvents: [exit(a, T(5))], // exited well before the baseline: never part of baseline.counted
+        closedSessions: [closed(a, Z1, T(0), T(20))], // a later, inconsistent report of the same session
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(3); // unaffected: the real (earliest) exit was before the baseline
+  });
+
+  it("entry and exit exactly at the baseline boundary are not counted as after it (closedSessions)", () => {
+    const a = s(1);
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(10))],
+        closedSessions: [closed(a, Z1, T(10), T(10))], // both exactly at the baseline, not strictly after
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(3);
+  });
+
+  it("duplicate closedSessions rows for the same session do not double-subtract", () => {
+    const a = s(1);
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(1))],
+        closedSessions: [closed(a, Z1, T(0), T(5)), closed(a, Z1, T(0), T(6))],
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(2); // one subtraction, not two, however many records report it
+  });
+
+  it("zone isolation: a known session's zone always wins over a disagreeing closedSessions.zoneId", () => {
+    const a = s(1);
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(1)), count(Z2, 1, 1, T(1))],
+        openSessions: [{ sessionId: a, zoneId: Z1, entryTime: T(0) }], // the real, known zone is Z1
+        closedSessions: [closed(a, Z2, T(0), T(5))], // disagrees: claims Z2
+      }),
+    );
+    // Subtracted from Z1 (the zone this device actually knows the session belongs to), not Z2.
+    expect(r.zones[Z1]!.count).toBe(2);
+    expect(r.zones[Z2]!.count).toBe(1);
+  });
 });
 
 describe("computeOccupancy clock and config rules", () => {
@@ -347,6 +414,27 @@ describe("computeOccupancy clock and config rules", () => {
 
   it("accepts an event up to exactly 5 minutes ahead", () => {
     expect(ok(run({ localEvents: [entry(s(1), Z1, T(8))], now: T(3) })).zones[Z1]!.count).toBe(1);
+  });
+
+  it("drops a malformed device_time instead of silently treating NaN comparisons as valid (review follow-up)", () => {
+    // Date.parse('not-a-real-date') is NaN, and every comparison against NaN is false — unguarded, this would
+    // neither be flagged future nor used, just silently absorbed as if the event were fine.
+    const bad = { ...entry(s(1), Z1, T(1)), device_time: "not-a-real-date" };
+    const r = ok(run({ localEvents: [bad] }));
+    expect(r.zones[Z1]!.count).toBe(0);
+    expect(r.warnings).toEqual([{ zoneId: Z1, kind: "FUTURE_EVENT_IGNORED", ref: bad.id }]);
+  });
+
+  it("drops a malformed closedSessions entryTime, not only exitTime", () => {
+    const a = s(1);
+    const r = ok(
+      run({
+        zoneCounts: [count(Z1, 3, 3, T(1))],
+        closedSessions: [closed(a, Z1, "not-a-real-date", T(5))],
+      }),
+    );
+    expect(r.zones[Z1]!.count).toBe(3);
+    expect(r.warnings).toEqual([{ zoneId: Z1, kind: "FUTURE_EVENT_IGNORED", ref: a }]);
   });
 
   it("a future-dated ZONE_COUNT does not become the baseline (Nikhil's finding)", () => {
@@ -404,6 +492,21 @@ describe("drift", () => {
     const history = [count(Z1, 10, 10, T(1)), count(Z1, 99, 1, T(600))];
     expect(drift(history, Z1, T(3))).toBe(0); // the far-future count is dropped; T(1) (10-10=0) is latest
     expect(drift(history, Z1)).toBe(98); // without `now`, nothing is filtered (same as before this fix)
+  });
+
+  it("accepts a count up to exactly 5 minutes ahead (the same boundary computeOccupancy uses)", () => {
+    const history = [count(Z1, 10, 10, T(1)), count(Z1, 5, 5, T(8))]; // T(8) is exactly 5 minutes after T(3)
+    expect(drift(history, Z1, T(3))).toBe(0); // T(8) is accepted and becomes latest (5-5=0)
+  });
+
+  it("drops a malformed deviceTime instead of letting it get stuck as latest forever (review follow-up)", () => {
+    // Every comparison against NaN is false, so an unguarded malformed first record would never be displaced by
+    // any later, valid one — this must be dropped outright, `now` or not.
+    const malformed = { ...count(Z1, 999, 1, "not-a-real-date") };
+    const valid = count(Z1, 10, 10, T(5));
+    expect(drift([malformed, valid], Z1)).toBe(0);
+    expect(drift([malformed, valid], Z1, T(10))).toBe(0);
+    expect(drift([malformed], Z1)).toBeNull();
   });
   it("flags more than 3% of the system count", () => {
     expect(isDriftFlagged(103, 100)).toBe(false);
