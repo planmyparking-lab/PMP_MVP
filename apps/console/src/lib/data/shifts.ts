@@ -3,6 +3,8 @@ import { buildShiftRows, SHIFT_EVENT_LIMIT } from "../shifts";
 import type { ShiftBuild, ShiftEventRow } from "../shifts";
 import { createSupabaseServerClient } from "../supabase/server";
 import { getConsoleSession } from "./session";
+import { probeResult } from "./probe";
+import type { Probe } from "./probe";
 import type { Loaded } from "./types";
 
 export const SHIFT_WINDOW_DAYS = 30;
@@ -16,6 +18,18 @@ export interface ShiftsLive {
   /** True when the read hit SHIFT_EVENT_LIMIT, so older shifts in the window may be missing. */
   truncated: boolean;
   deviceNames: Record<string, string>;
+  /** `shift_reviews` rows, newest first; `absent` until #31 is merged (sign-off stays disabled then). */
+  reviews: Probe<ShiftReviewLive[]>;
+  /** The signed-in user, to show "you" on their own reviews. */
+  userId: string;
+}
+
+export interface ShiftReviewLive {
+  shiftId: string;
+  reviewedBy: string;
+  reviewedAt: string;
+  status: "approved" | "flagged";
+  note: string | null;
 }
 
 /**
@@ -32,7 +46,7 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
   const asOf = new Date().toISOString();
   const since = new Date(Date.parse(asOf) - SHIFT_WINDOW_DAYS * 86_400_000).toISOString();
 
-  const [eventsRes, staffRes, devicesRes] = await Promise.all([
+  const [eventsRes, staffRes, devicesRes, reviewsRes] = await Promise.all([
     supabase
       .from("events")
       .select("type, device_time, device_id, staff_id, payload")
@@ -43,6 +57,12 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
       .limit(SHIFT_EVENT_LIMIT),
     supabase.from("staff").select("id, name").eq("facility_id", facility.id),
     supabase.from("devices").select("id, name").eq("facility_id", facility.id),
+    supabase
+      .from("shift_reviews")
+      .select("shift_id, reviewed_by, reviewed_at, status, note")
+      .eq("facility_id", facility.id)
+      .order("reviewed_at", { ascending: false })
+      .limit(SHIFT_EVENT_LIMIT),
   ]);
 
   const shifts: Loaded<ShiftBuild> = eventsRes.error
@@ -70,5 +90,20 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
     truncated: (eventsRes.data?.length ?? 0) >= SHIFT_EVENT_LIMIT,
     staffNames: names(staffRes.data),
     deviceNames: names(devicesRes.data),
+    reviews: probeResult("shift_reviews", reviewsRes, (rows) =>
+      (rows ?? []).map((r) => {
+        const status = String(r.status);
+        if (status !== "approved" && status !== "flagged")
+          throw new Error(`unknown status ${status}`);
+        return {
+          shiftId: String(r.shift_id),
+          reviewedBy: String(r.reviewed_by),
+          reviewedAt: String(r.reviewed_at),
+          status,
+          note: r.note === null ? null : String(r.note),
+        } satisfies ShiftReviewLive;
+      }),
+    ),
+    userId: session.userId,
   };
 }

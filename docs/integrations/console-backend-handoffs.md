@@ -199,7 +199,20 @@ An exact `facility_setup_drafts` shape cannot be requested yet because operating
 the stored draft/version/concurrency model has not been agreed. Facility overstay storage is also blocked on OQ-46.
 Those migrations should wait for decisions rather than encode the current UI's local draft shape.
 
-## 6. No ingest change requested
+## 6. Report route data access (CON-08, CLD-06): decision needed
+
+The report route (`apps/console/app/api/reports/[type]/route.ts`) is called by the scheduler with the shared secret
+(IC-08), so there is **no user session** and RLS gives it no rows. The Console never uses the service-role key
+(member-03-anamika.md, security section). Reading the KPI views for a report therefore needs one of:
+
+1. a `SECURITY DEFINER` function such as `report_data(p_facility_id uuid, p_from date, p_to date)` that the route calls
+   with the secret checked first, returning only that facility's aggregates; or
+2. the scheduler (database side) reading the views itself and passing the figures to the route; or
+3. an explicit, documented exception allowing the service-role key in the report route only.
+
+Until one is chosen the route keeps answering 501 for real data (OQ-40). Owners: Anamika with Akanksha and Afzal.
+
+## 7. No ingest change requested
 
 `public.ingest_events(events jsonb)` already exists in migration 0004 and is owned by Afzal. CON-07 and CON-09 need
 read policies and the contracts above; they do not require an ingest signature or detector change.

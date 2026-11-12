@@ -1360,3 +1360,32 @@ table.data td.nowrap {
 .limit-form-row .input {
   width: 140px;
 }
+
+/* ---------- shift review ---------- */
+.review-choice {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.review-choice legend {
+  margin-bottom: 6px;
+}
+.review-choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+textarea.input {
+  height: auto;
+  resize: vertical;
+  font: inherit;
+  padding: 10px 12px;
+}
+.review-cell {
+  min-width: 190px;
+}

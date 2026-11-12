@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { ReactNode } from "react";
 import { formatRupees } from "@pmp/contracts";
-import type { ShiftsLive } from "../lib/data/shifts";
+import type { ShiftReviewLive, ShiftsLive } from "../lib/data/shifts";
+import { ShiftReviewDialog } from "./ShiftReviewDialog";
+import type { ReviewTarget } from "./ShiftReviewDialog";
 import { formatIstDateTime } from "../lib/format";
 import { formatSignedRupees, hasVariance, SHIFT_EVENT_LIMIT } from "../lib/shifts";
 import type { ShiftRow } from "../lib/shifts";
 import {
   Banner,
+  Button,
   Card,
   EmptyState,
   PageHeader,
@@ -20,8 +23,13 @@ import {
 
 type Filter = "all" | "variance" | "closed" | "open";
 
-const SIGN_OFF_WHY =
-  "Signing off writes a shift_reviews row. That table and its security policy are not built yet (Akanksha).";
+function signOffWhy(state: ShiftsLive["reviews"]["state"]): string {
+  return state === "denied"
+    ? "The shift_reviews table exists, but your account cannot use it yet (row-level security)."
+    : state === "error"
+      ? "Shift reviews could not be read, so sign-off is disabled."
+      : "Signing off writes a shift_reviews row. That table is not deployed yet.";
+}
 
 function Money({ paise }: { paise: number | undefined }) {
   return <span className="num">{paise === undefined ? "—" : formatRupees(paise)}</span>;
@@ -47,6 +55,14 @@ export function LiveShifts({ live, liveStatus }: { live: ShiftsLive; liveStatus?
           ? r.status === "closed"
           : r.status === "open",
   );
+  const [target, setTarget] = useState<ReviewTarget | null>(null);
+  const closeDialog = useCallback(() => setTarget(null), []);
+  const canReview = live.reviews.state === "ok";
+  // Reviews arrive newest first; the first one per shift is its current decision (older rows stay as history).
+  const latest = new Map<string, ShiftReviewLive>();
+  if (live.reviews.state === "ok") {
+    for (const r of live.reviews.data) if (!latest.has(r.shiftId)) latest.set(r.shiftId, r);
+  }
   const who = (id: string) => live.staffNames[id] ?? "Unknown guard";
   const device = (id: string) => live.deviceNames[id] ?? "Unknown device";
 
@@ -58,9 +74,15 @@ export function LiveShifts({ live, liveStatus }: { live: ShiftsLive; liveStatus?
         actions={
           <>
             {liveStatus}
-            <UnavailableButton variant="primary" icon="check" reason={SIGN_OFF_WHY}>
-              Sign off shift
-            </UnavailableButton>
+            {!canReview && (
+              <UnavailableButton
+                variant="primary"
+                icon="check"
+                reason={signOffWhy(live.reviews.state)}
+              >
+                Sign off shift
+              </UnavailableButton>
+            )}
           </>
         }
       />
@@ -69,10 +91,17 @@ export function LiveShifts({ live, liveStatus }: { live: ShiftsLive; liveStatus?
           {live.shifts.error}
         </Banner>
       ) : (
-        <Banner tone="info" icon="info" title="Read-only for now">
+        <Banner
+          tone="info"
+          icon="info"
+          title={canReview ? "Sign-off is available" : "Read-only for now"}
+        >
           Shifts are built from SHIFT_OPEN and SHIFT_CLOSE events until the shift views exist.
           Variances are shown exactly as the phone sent them; the sign convention and the
           &ldquo;needs a note&rdquo; threshold are not decided yet (OQ-22).
+          {canReview
+            ? " Until then any variance needs a note when you sign off. Each review is a separate record; events are never edited."
+            : ""}
           {build && build.skipped > 0
             ? ` ${build.skipped} event(s) had a payload that did not match the contract and were left out.`
             : ""}
@@ -140,13 +169,13 @@ export function LiveShifts({ live, liveStatus }: { live: ShiftsLive; liveStatus?
                 <tr>
                   <th>Closed</th>
                   <th>Guard</th>
+                  <th>Review</th>
                   <th>Expected cash</th>
                   <th>Counted cash</th>
                   <th>Cash variance</th>
                   <th>UPI declared</th>
                   <th>UPI attested</th>
                   <th>UPI variance</th>
-                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -161,6 +190,37 @@ export function LiveShifts({ live, liveStatus }: { live: ShiftsLive; liveStatus?
                     <td className="nowrap">
                       <b>{who(r.staffId)}</b>
                       <div className="small muted">{device(r.deviceId)}</div>
+                    </td>
+                    <td className="review-cell">
+                      {latest.has(r.shiftId) ? (
+                        <ReviewBadge review={latest.get(r.shiftId)!} userId={live.userId} />
+                      ) : r.status === "closed" ? (
+                        <StatusBadge tone="info">Closed · not reviewed</StatusBadge>
+                      ) : (
+                        <StatusBadge tone="off">Open or waiting for sync</StatusBadge>
+                      )}
+                      {r.close?.reason && (
+                        <div className="small muted" title={r.close.reason}>
+                          Guard note: {r.close.reason}
+                        </div>
+                      )}
+                      {canReview && r.status === "closed" && (
+                        <div style={{ marginTop: 6 }}>
+                          <Button
+                            size="sm"
+                            icon="check"
+                            onClick={() =>
+                              setTarget({
+                                shiftId: r.shiftId,
+                                label: `${who(r.staffId)}, ${r.closedAt ? formatIstDateTime(r.closedAt) : "open"}`,
+                                hasVariance: hasVariance(r),
+                              })
+                            }
+                          >
+                            {latest.has(r.shiftId) ? "Review again" : "Review"}
+                          </Button>
+                        </div>
+                      )}
                     </td>
                     <td>
                       <Money paise={r.close?.expectedCashPaise} />
@@ -180,18 +240,6 @@ export function LiveShifts({ live, liveStatus }: { live: ShiftsLive; liveStatus?
                     <td>
                       <Variance paise={r.close?.varianceUpiPaise} />
                     </td>
-                    <td>
-                      {r.status === "closed" ? (
-                        <StatusBadge tone="info">Closed · not reviewed</StatusBadge>
-                      ) : (
-                        <StatusBadge tone="off">Open or waiting for sync</StatusBadge>
-                      )}
-                      {r.close?.reason && (
-                        <div className="small muted" title={r.close.reason}>
-                          Guard note: {r.close.reason}
-                        </div>
-                      )}
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -199,6 +247,26 @@ export function LiveShifts({ live, liveStatus }: { live: ShiftsLive; liveStatus?
           </div>
         )}
       </Card>
+      <ShiftReviewDialog target={target} onClose={closeDialog} />
+    </>
+  );
+}
+
+function ReviewBadge({ review, userId }: { review: ShiftReviewLive; userId: string }) {
+  const by = review.reviewedBy === userId ? "you" : "another manager";
+  return (
+    <>
+      <StatusBadge tone={review.status === "approved" ? "ok" : "warn"}>
+        {review.status === "approved" ? "Approved" : "Flagged"}
+      </StatusBadge>
+      <div className="small muted">
+        by {by}, {formatIstDateTime(review.reviewedAt)}
+      </div>
+      {review.note && (
+        <div className="small muted" title={review.note}>
+          Note: {review.note.length > 60 ? `${review.note.slice(0, 60)}…` : review.note}
+        </div>
+      )}
     </>
   );
 }

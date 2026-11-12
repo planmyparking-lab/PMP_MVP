@@ -52,3 +52,12 @@ platform location in this inventory as configured or approved.
   succeeds. The scan redacts detected values from its output. A GitHub administrator
   must make `secret-scan` a required status check for it to block merges; see
   `docs/development/github-repository-settings.md`.
+- `scripts/check-client-bundles.mjs` (T-CLD-01-N1, `pnpm check:bundles`) scans the
+  built Console client output (`.next/static` and the prerendered pages) in the
+  `check` job, and the gate Android bundle (`apps/gate/dist`) in the `android-bundle`
+  job. It fails on the `SUPABASE_SERVICE_ROLE_KEY` name, the text `service_role`, a
+  JWT whose role claim is `service_role`, or a `sb_secret_` key, and on the key's
+  own value when that variable is set in the environment running the check. CI sets
+  no secrets, so CI relies on the pattern rules. Findings name the file, line, and
+  rule, never the value. Server output is not scanned because server code may hold
+  the key.
