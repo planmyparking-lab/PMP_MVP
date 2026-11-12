@@ -32,3 +32,7 @@ Rules: a failing detector raises a warning and never rolls back the event insert
 - **Facility scoping.** Already done: every key, the unique index, the orphan auto-resolve and `open_sessions` are per facility.
 
 Not covered yet: resolving conflicts, RLS policies (CLD-03), CLOCK_SKEW handling in occupancy (SYNC-04), and the Console inbox.
+
+The Console row parser, action matrix and exact backend requests are documented in
+[`console-backend-handoffs.md`](console-backend-handoffs.md). Resolution remains disabled until OQ-49 and the atomic
+function are settled.
