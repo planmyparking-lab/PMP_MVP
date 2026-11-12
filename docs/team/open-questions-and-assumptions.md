@@ -1,8 +1,8 @@
 # Open Questions and Assumptions Register
 
-Prepared 24 Oct 2026. Companion to [README.md](README.md). Item numbers (OQ-xx) are the ones cited in the four member sheets and the README.
+Prepared 24 Oct 2026. Companion to [README.md](README.md). Item numbers (OQ-xx) are the ones cited in the four member sheets and the README. Reconciled against the repository on 12 Nov 2026 by Akanksha (Member 04): see section "Reconciliation, 12 Nov 2026" below the register. Decisions and deciders are unchanged by that reconciliation.
 
-**Established facts** (from the repository and source documents): the repository holds only `doc/` and no application code, tests, schema or CI; the Phase 2 plan began on 22 Sep 2026 and runs 18 weeks; the MVP is the 12 must-haves P0-1 to P0-12; operators collect UPI on their own static QR; partners run different incumbent systems (Park+ among them). Everything else below is a question, assumption or recommendation, and each is marked as such.
+**Established facts** (from the repository and source documents): when this register was prepared the repository held only `doc/`; as of 12 Nov 2026 `main` (`2faf3ec`) holds the gate app, the Console, the `contracts`, `domain` and `sync-rules` packages, migrations `0001`-`0006` with pgTAP tests, and CI (see `feature-traceability.md`); the Phase 2 plan began on 22 Sep 2026 and runs 18 weeks; the MVP is the 12 must-haves P0-1 to P0-12; operators collect UPI on their own static QR; partners run different incumbent systems (Park+ among them). Everything else below is a question, assumption or recommendation, and each is marked as such.
 
 Type key: **Q** question, **A** assumption currently used, **R** recommendation awaiting a decision.
 
@@ -59,3 +59,53 @@ Type key: **Q** question, **A** assumption currently used, **R** recommendation 
 | OQ-49 | Q | CON-07 permits `Add note` for every conflict and `Acknowledge` for `CLOCK_SKEW`, but does not say which actions close the conflict. Should `ADD_NOTE` leave `sync_conflicts.status = OPEN` while the other actions resolve it, or does every action create a resolution and close it? | The requested `resolve_conflict` function must update status atomically and the Console must not remove a conflict merely because somebody added context | CON-07, IC-10 / Anamika, Afzal, Akanksha | A note can accidentally hide an unresolved conflict, or an acknowledged clock issue can remain permanently open | Decide before implementing `conflict_resolutions` and `resolve_conflict`; the Console keeps every action disabled meanwhile. OQ-45 to OQ-48 remain reserved by the unmerged CON-09 PR. | Afzal with Akanksha and Anamika | Open |
 | OQ-50 | A | The Console now signs in through Supabase (`@supabase/ssr`, anon key, user JWT) and reads zones, `open_sessions`, `sync_conflicts`, devices, staff and today's events directly, because `v_zone_now`, `v_daily_kpis` and `v_hourly` do not exist yet. Zone occupancy is shown as the count of `open_sessions` rows per zone, and today's entries use the phone's `device_time` bucketed by IST hour. No RLS policy exists (CLD-03), so a signed-in manager currently receives no rows and sees the "no access" screen. | Live Console figures (CON-03, CON-04, CON-05, CON-07) | CON-03..07 / Anamika ← Akanksha | Console figures disagree with the KPI views once they land; or the Console stays empty in the pilot if CLD-03 slips | Provisional: switch the loaders in `apps/console/src/lib/data/facility.ts` to the views when IC-07 lands; Akanksha's CLD-03 policies must let owners/managers SELECT these tables for their own facilities | Anamika with Akanksha | Open |
 | OQ-51 | A | CON-06 needs shift views and a `shift_reviews` table, neither of which exists. The Console now lists shifts straight from `SHIFT_OPEN` and `SHIFT_CLOSE` events (last 30 days), pairing them by `payload.shift_id`; payloads are checked with the shared zod schemas and non-matching events are skipped and counted. The first open and the latest close win. Variances are shown exactly as sent, because the sign convention is not fixed. Sign-off and drilling into a shift's events are not built: the first needs `shift_reviews` (columns requested in `docs/integrations/console-backend-handoffs.md`), the second needs a rule for which events belong to a shift (OQ-23). | Shift review (CON-06) | CON-06 / Anamika ← Akanksha, Afzal | Console totals differ from the shift views once they land; managers cannot sign off yet | Provisional: switch `apps/console/src/lib/data/shifts.ts` to the shift view when it exists; Akanksha to add `shift_reviews` and its RLS policy | Anamika with Akanksha | Open |
+
+## Reconciliation, 12 Nov 2026
+
+Prepared by Akanksha (Member 04) against `main` at `2faf3ec` and the open pull requests of that day. Purpose: record
+where the repository now bears on an item. **No status, decision or decider in the register above was changed**: an
+item closes only when its decider records the decision in that row. "Evidence" below is what can be checked in the
+repository or on GitHub; it is not a decision.
+
+### Structure check
+
+- IDs on `main`: OQ-01 to OQ-51, contiguous, no duplicates, every row has the nine columns of the header.
+- Statuses on `main`: Resolved: OQ-36, OQ-38, OQ-45, OQ-46 (each with a recorded rationale and decider). All others Open.
+
+### IDs already claimed by open pull requests
+
+These rows exist only on the named branches. They are listed so that no other change reuses the numbers; the next
+free number for new rows on `main` is **OQ-59**. When a PR merges, its rows arrive with it.
+
+| ID    | Topic (short)                                                       | Proposed in | Decider (as proposed) |
+| ----- | ------------------------------------------------------------------- | ----------- | --------------------- |
+| `OQ-52` | Was `0004` applied anywhere; final number of the IC-01 migration    | PR #30 | Afzal with Akanksha |
+| `OQ-53` | IC-01 result details (`schema_version` range, missing `payload`)    | PR #30      | Afzal                 |
+| `OQ-54` | Retry versus quarantine for permanently rejected events             | PR #30      | Afzal                 |
+| `OQ-55` | Which conflict resolutions change the KPI numbers                   | PR #33 | Afzal with Akanksha and Anamika |
+| `OQ-56` | KPI view performance architecture                                   | PR #33 | Afzal with Akanksha |
+| `OQ-57` | How the CLD-05 golden day's "90 exits" is counted (assumption)      | PR #33 | Akanksha (spec owner) with Anamika |
+| `OQ-58` | Fail-closed RLS choices in `0010_rls.sql` (assumption)              | PR #34      | Afzal                 |
+
+Rows on `main` that open PRs also edit: OQ-02 and OQ-16 (PR #28 proposes resolutions), OQ-42 (PR #20 rewords it).
+
+### Items the repository now bears on (status unchanged)
+
+| ID    | Finding                                                                                                                                                              | Evidence                                                                                              | Who confirms |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------ |
+| `OQ-01` | Answered in practice: the code lives in the private GitHub repository `planmyparking-lab/PMP_MVP`, not a repository named `parkos`.                                  | GitHub repository settings (private, default branch `main`).                                          | Afzal        |
+| `OQ-02` | A hand-written outbox is what was built; PR #28 proposes recording that as the decision. Download sync (SYNC-03) is not built.                                        | `packages/sync-rules/src/outbox.ts` (PR #18); PR #28 (open).                                          | Afzal        |
+| `OQ-07` | No backup mechanism or Supabase plan exists yet. A local restore drill is proposed; it is not a production backup.                                                  | No hosted project; PR #35 (`tools/restore/`, `ops/runbook.md`).                                       | Akanksha     |
+| `OQ-16` | The occupancy rule is implemented only in PR #28, which has open review findings on how exits after a physical baseline are counted.                                | PR #28 (changes requested).                                                                           | Afzal        |
+| `OQ-24` | Its premise ("no code exists in week 5") is out of date: the gate app runs on a labelled fake data layer (`apps/gate/README.md`). The scope decision is still unrecorded. | `apps/gate/src/ui/port.tsx`, `apps/gate/README.md`.                                                   | Afzal        |
+| `OQ-35` | The gate app cites `parkos-pass:<facilityId>:<passId>` only as a recommendation; no QR is issued by the Console yet.                                               | `apps/gate/src/domain/pass.ts` (comment).                                                             | Anamika, Nikhil |
+| `OQ-39` | The Console PIN rule is implemented provisionally; the database function that would store a PIN hash (`set_staff_pin`) does not exist.                              | `apps/console/src/lib/pinPolicy.ts`; no such function in `supabase/migrations`.                       | Akanksha, Afzal |
+| `OQ-40` | The KPI views the route waits for are in PR #33 (`0009_views_kpis.sql`), not on `main`, so the route still answers 501 for real data.                              | PR #33 (open).                                                                                        | Akanksha     |
+| `OQ-42` | The question text is partly out of date: `packages/contracts/src/events.ts` now has an optional `recorded_at` (PR #12). There is no SQL column on `main`; PR #26 and PR #30 each add one. | `packages/contracts/src/events.ts`; `supabase/migrations/0003_events.sql`; PR #20 rewords this row. | Afzal        |
+| `OQ-45` | Resolved row: the agreed columns (`cash_paise`, `upi_paise`, `pass_paise`, `declared_total_paise`) are implemented, with WAIVED excluded from every total, only in PR #33. | PR #33 `0009_views_kpis.sql`, `kpi_oracle.test.sql`.                                                  | (resolved)   |
+| `OQ-46` | Resolved row with one part still open: its own text says the **default** threshold "is still to be set". No migration stores a threshold.                           | Register row; no threshold column in `supabase/migrations`.                                           | Akanksha, Anamika |
+| `OQ-49` | Its last sentence ("OQ-45 to OQ-48 remain reserved by the unmerged CON-09 PR") is out of date: that PR (#23) merged and those rows exist. The question itself is open; `conflict_resolutions` is proposed in PR #31. | PR #23 (merged); PR #31 (open).                                                                       | Afzal, Akanksha, Anamika |
+| `OQ-50` | Still accurate on `main`: no RLS policy exists, so a signed-in manager reads no rows. Policies are proposed in PR #34.                                              | No `create policy` in `supabase/migrations`; PR #34 (open).                                           | Anamika, Akanksha |
+| `OQ-51` | `shift_reviews` is proposed in PR #31; no shift view exists anywhere.                                                                                              | PR #31 (open).                                                                                        | Anamika, Akanksha |
+
+Feature-level status for every item above: `docs/team/feature-traceability.md` (updated the same day).
