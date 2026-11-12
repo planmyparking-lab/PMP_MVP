@@ -107,9 +107,10 @@ sign convention of the shift-close variances is an open specification item, so n
 
 ## Tests
 
-`supabase/tests/ingest_events.test.sql` (protocol, authorization, result shape and detail), `supabase/tests/event_parity.test.sql` (generated from the shared
-fixtures) and `supabase/proposed-tests/event_payload_validation.test.sql` (value rules: numbers, UUIDs, trim, `recorded_at`, detail paths). Counts are in the
-files' `plan(...)` lines.
+`supabase/tests/ingest_events.test.sql` (protocol, authorization and result shape; it passes with and without `--proposed`, so it asserts nothing that only
+the proposed validation migration provides), `supabase/tests/event_parity.test.sql` (generated from the shared fixtures) and
+`supabase/proposed-tests/event_payload_validation.test.sql` (value rules: numbers, UUIDs, trim, `recorded_at`, the `schema_version` range, detail paths).
+Counts are in the files' `plan(...)` lines.
 
 ## open_sessions (0005)
 

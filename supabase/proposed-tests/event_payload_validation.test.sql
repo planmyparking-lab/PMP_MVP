@@ -1,7 +1,7 @@
 -- Tests for strict event payload validation introduced by migration 0013.
 begin;
 
-select plan(211);
+select plan(219);
 
 insert into auth.users (id) values
   ('00000000-0000-0000-0000-0000000000a1');
@@ -2482,6 +2482,54 @@ create or replace function public.min_supported_schema_version() returns integer
 
 select is(pg_temp.payload_full('ic01_too_old', 0), 'REJECTED:SCHEMA_VERSION_TOO_OLD@schema_version',
   'a contract-valid version below the server minimum is TOO_OLD (minimum raised to 2 for this call), detail names schema_version');
+
+-- Leap-year century rule (PR #30 review): a year divisible by 100 is a leap year only when it is also divisible by 400.
+-- 1900 and 2100 have no 29 February; 2000 does. Checked for recorded_at and for device_time, which share the validator.
+set local role authenticated;
+select pg_temp.call_payloads('leap_century', array[
+  '{"id": "018f0000-0000-7000-8000-0000000017c0", "session_id": "018f0000-0000-7000-8000-0000000027c0",
+    "recorded_at": "1900-02-29T10:00:00Z",
+    "payload": {"vehicle_class": "CAR", "zone_id": "00000000-0000-4000-8000-0000000000c1", "short_code": "C1900"}}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-0000000017c1", "session_id": "018f0000-0000-7000-8000-0000000027c1",
+    "recorded_at": "2100-02-29T10:00:00Z",
+    "payload": {"vehicle_class": "CAR", "zone_id": "00000000-0000-4000-8000-0000000000c1", "short_code": "C2100"}}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-0000000017c2", "session_id": "018f0000-0000-7000-8000-0000000027c2",
+    "recorded_at": "2000-02-29T10:00:00Z",
+    "payload": {"vehicle_class": "CAR", "zone_id": "00000000-0000-4000-8000-0000000000c1", "short_code": "C2000"}}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-0000000017c3", "session_id": "018f0000-0000-7000-8000-0000000027c3",
+    "device_time": "1900-02-29T10:00:00Z",
+    "payload": {"vehicle_class": "CAR", "zone_id": "00000000-0000-4000-8000-0000000000c1", "short_code": "D1900"}}'::jsonb,
+  '{"id": "018f0000-0000-7000-8000-0000000017c4", "session_id": "018f0000-0000-7000-8000-0000000027c4",
+    "device_time": "2000-02-29T10:00:00Z",
+    "payload": {"vehicle_class": "CAR", "zone_id": "00000000-0000-4000-8000-0000000000c1", "short_code": "D2000"}}'::jsonb
+]);
+reset role;
+
+select is(pg_temp.payload_full('leap_century', 0), 'REJECTED:INVALID_ENVELOPE@recorded_at',
+  'recorded_at 29 February 1900 (century, not divisible by 400): rejected');
+select is(pg_temp.payload_full('leap_century', 1), 'REJECTED:INVALID_ENVELOPE@recorded_at',
+  'recorded_at 29 February 2100 (century, not divisible by 400): rejected');
+select is(pg_temp.payload_full('leap_century', 2), 'ACCEPTED',
+  'recorded_at 29 February 2000 (divisible by 400): accepted');
+select is(pg_temp.payload_full('leap_century', 3), 'REJECTED:INVALID_ENVELOPE@device_time',
+  'device_time 29 February 1900: rejected');
+select is(pg_temp.payload_full('leap_century', 4), 'ACCEPTED',
+  'device_time 29 February 2000: accepted');
+select is(
+  (select to_char(recorded_at at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS')
+   from public.events where id = '018f0000-0000-7000-8000-0000000017c2'),
+  '2000-02-29T10:00:00',
+  'recorded_at 29 February 2000 is persisted');
+select is(
+  (select to_char(device_time at time zone 'utc', 'YYYY-MM-DD"T"HH24:MI:SS')
+   from public.events where id = '018f0000-0000-7000-8000-0000000017c4'),
+  '2000-02-29T10:00:00',
+  'device_time 29 February 2000 is persisted');
+select is(
+  (select count(*)::int from public.events where id in ('018f0000-0000-7000-8000-0000000017c0',
+     '018f0000-0000-7000-8000-0000000017c1', '018f0000-0000-7000-8000-0000000017c3')),
+  0,
+  'no rejected century event is stored');
 
 select * from finish();
 rollback;
