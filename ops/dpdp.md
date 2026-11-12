@@ -1,0 +1,77 @@
+# Data protection (DPDP Act, 2023): data inventory and request procedure (DRAFT)
+
+Owner: Akanksha (Member 04). Deliverable from `docs/team/member-04-akanksha.md` (CLD-08, step 4.6, and section I.1:
+"DPDP procedure"). Snapshot of 12 Nov 2026 against `main` at `4e936df`.
+
+**Status: DRAFT. This is not legal advice and nothing here has had legal review.** The retention period, the consent text and
+the exact legal duties are open (OQ-12, owner: team with a mentor) and are deliberately **not** filled in below. The
+mechanisms in section 3 are the design in the member sheet; **none of them is implemented** (`0011`, `data_export`, the
+purge job and facility deletion do not exist). No hosted database exists yet either (`ops/known-limitations.md`, L1), so
+today no real personal data is stored anywhere by this system.
+
+## 1. What personal data the system can hold
+
+Read from the migrations on `main` and the event contract (`packages/contracts/src/events.ts`), not from the sheet.
+
+| Data                                   | Where                                                                                                                                 | Whose                              | Required or optional                           | Notes                                                                                                         |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Vehicle number (`vehicle_no`)          | `events.payload` of an `ENTRY` event                                                                                                  | Vehicle owner / driver             | Optional                                       | Can identify a person. Sits inside a JSON payload, so it needs a JSON-aware export and purge, not a column.   |
+| Free-text notes                        | `events.payload.note` (`OVERRIDE`); also the `note` columns of `shift_reviews` and `conflict_resolutions` once `0007` merges (PR #31) | Anyone a guard or manager mentions | Optional (required when the reason is `OTHER`) | Free text can contain anything, including names or phone numbers. Treat as potentially personal.              |
+| Guard name and phone (`name`, `phone`) | `staff`                                                                                                                               | Guard                              | Name required; phone optional                  | `phone` is marked personal data in the migration (OQ-12).                                                     |
+| Guard PIN hash and salt                | `staff.pin_hash`, `staff.pin_salt`                                                                                                    | Guard                              | Required                                       | A salted hash, never the PIN. Not readable by application roles (`ops/rls-matrix.md` section 4, once merged). |
+| Sign-in email                          | `auth.users` (Console users, and the generated device login)                                                                          | Owner, manager; none for a device  | Required for Console users                     | Held by Supabase Auth, outside `public`. The device login is generated, not a person's address.               |
+| Staff and device identifiers on events | `events.staff_id`, `events.device_id`                                                                                                 | Guard                              | Required                                       | These link every event to a guard. They are what makes event history "about" a person.                        |
+
+Not stored: no payment card or UPI account data (a payment event holds a mode, an amount and an attestation flag only); no
+location; no photographs (none exist in the schema).
+
+## 2. Open decisions that block a final procedure
+
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                     | Where                                            |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ |
+| D1  | Default retention period and its minimum, and whether it differs for events, notes and staff records.                                                                                                                                                                                                                                                        | OQ-12                                            |
+| D2  | Consent text and where it is shown (Console set-up, gate app, or both) and who may change it.                                                                                                                                                                                                                                                                | OQ-12                                            |
+| D3  | Who is the data fiduciary for the pilot (the university team, the partner facility owner, or both) and who answers a request.                                                                                                                                                                                                                                | Not recorded in the repository                   |
+| D4  | How a **guard's** erasure request is met. `events` reference `staff` and `devices` with `on delete restrict` (`0003`), so a staff row cannot be deleted while events refer to it. Erasing a person without erasing the facility's event history would need the staff record anonymised (name, phone) instead of deleted. That is a product and legal choice. | Foundation: `0003_events.sql`; decision not made |
+| D5  | Whether a legal hold is needed (the sheet says it is not supported in the pilot).                                                                                                                                                                                                                                                                            | Sheet CLD-08, edge cases                         |
+| D6  | Time limit for answering a request, and the log format that proves it.                                                                                                                                                                                                                                                                                       | Not recorded in the repository                   |
+
+## 3. Mechanisms in the design (none implemented)
+
+From the member sheet, CLD-08. Names and paths are recommendations (R) unless the sheet marks them (H).
+
+| Need                         | Design                                                                                                                                                                                                                                                                            | Status             |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| Retention                    | `facilities.retention_days`; nightly `retention_purge` run as a dedicated role that alone may delete events; never purges the entries of sessions that have not exited; failure leaves data intact and alerts.                                                                    | Not built (`0011`) |
+| Export (access, portability) | `data_export` Edge Function: owner of the organization only, one facility per call, a zip of CSVs for `events`, `facilities`, `zones`, `tariffs`, `passes`, `shifts`, `overrides`; all or nothing; reads a snapshot.                                                              | Not built          |
+| Deletion                     | Facility deletion function with two-step confirmation and an optional 7-day hold; deletes rows in dependency order and storage objects; keeps only the facility id and a timestamp in `audit_log`.                                                                                | Not built          |
+| Audit                        | Append-only `audit_log` entry for every export and deletion, holding no personal data.                                                                                                                                                                                            | Table not created  |
+| Correction                   | Not in the sheet. A wrong guard name or phone can be edited by an owner or manager once the RLS policies merge (PR #34; `main` currently denies every non-superuser role) and the Console offers it. A wrong event is corrected by an `OVERRIDE` event, never by editing history. | Partly possible    |
+
+The CSV column names are a contract (the sheet says they must be stable and documented here). They cannot be fixed until
+`data_export` is written, so this file does **not** list them; add them when the function exists.
+
+## 4. Request procedure (draft, to be confirmed after D1 to D6)
+
+Until the mechanisms exist, a request cannot be fulfilled by the system, and no hosted data exists. Once a hosted
+database holds real data, a request should follow these steps. Every step that depends on an open decision says so.
+
+1. **Receive and record.** Note the date, who asked, what they asked for (access, correction, deletion) and which facility.
+   Decide who answers (D3) and by when (D6).
+2. **Verify who is asking.** A guard through their facility owner or manager; an owner through their Console sign-in.
+   Do not search by vehicle number for an unverified caller.
+3. **Find the data.** Use the inventory in section 1: `staff` rows for the guard, `events` rows by `staff_id`, and events
+   whose payload contains the vehicle number or a note. A vehicle number search needs a JSON-aware query (section 1).
+4. **Access.** Produce the export for the facility (section 3) and give the requester only their own rows.
+5. **Correction.** Staff details: an owner or manager edits them once the policies above exist. Events: add an `OVERRIDE` event with a reason code; never edit
+   the original (events are append-only).
+6. **Deletion.** Not possible for a guard's events without D4. For a whole facility, use the deletion function once it exists.
+7. **Log.** Write the outcome to `audit_log` once it exists; until then, keep a dated note outside the database that
+   contains no personal data.
+8. **Close.** Tell the requester what was done and what could not be done, and why.
+
+## 5. What is needed to finish this document
+
+- Answers to D1 to D6 (legal review through the university or a mentor, OQ-12).
+- `0011` and `data_export` written, so section 3 can state real behaviour and section 3's CSV columns can be listed.
+- A test run for T-CLD-08-I1 to I3, N1 to N3 and X1 (sheet D.8), with the evidence linked here. None has been run.
