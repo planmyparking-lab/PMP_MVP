@@ -10,25 +10,30 @@ Function is written). Schema sketch: PRD appendix; features CLD-02, CLD-03.
 
 ## Migrations in this tree
 
-| File                                     | Feature           | Creates                                                                           | Tests (`supabase/tests/`)                            |
-| ---------------------------------------- | ----------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| `0001_org_facility_zone_tariff_pass.sql` | CLD-02 (Akanksha) | `organizations`, `facilities`, `zones`, `tariffs`, `passes`                       | `base_schema.test.sql`                               |
-| `0002_staff_devices_memberships.sql`     | CLD-02 (Akanksha) | `staff`, `devices`, `memberships`, `enrollment_codes`                             | `base_schema.test.sql`                               |
-| `0003_events.sql`                        | CLD-02 (Akanksha) | `events` (append-only)                                                            | `events_schema.test.sql`                             |
-| `0004_ingest_events.sql`                 | SYNC-02 (Afzal)   | `ingest_events()` (SECURITY DEFINER), `min/max_supported_schema_version()`        | `ingest_events.test.sql`, `event_parity.test.sql`    |
-| `0005_open_sessions.sql`                 | SYNC-02 (Afzal)   | `open_sessions`, its trigger function, `normalize_vehicle_no()`, `lock_session()` | `open_sessions.test.sql`, `pnpm test:db:concurrency` |
-| `0006_conflict_detector.sql`             | SYNC-05 (Afzal)   | `sync_conflicts`, `detect_conflicts()` trigger                                    | `conflicts.test.sql`, `pnpm test:db:concurrency`     |
+| File                                          | Feature                   | Creates                                                                                                     | Tests (`supabase/tests/`)                                                     |
+| --------------------------------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `0001_org_facility_zone_tariff_pass.sql`      | CLD-02 (Akanksha)         | `organizations`, `facilities`, `zones`, `tariffs`, `passes`                                                 | `base_schema.test.sql`                                                        |
+| `0002_staff_devices_memberships.sql`          | CLD-02 (Akanksha)         | `staff`, `devices`, `memberships`, `enrollment_codes`                                                       | `base_schema.test.sql`                                                        |
+| `0003_events.sql`                             | CLD-02 (Akanksha)         | `events` (append-only)                                                                                      | `events_schema.test.sql`                                                      |
+| `0004_ingest_events.sql`                      | SYNC-02 (Afzal)           | `ingest_events()` (SECURITY DEFINER), `min/max_supported_schema_version()`                                  | `ingest_events.test.sql`, `event_parity.test.sql`                             |
+| `0005_open_sessions.sql`                      | SYNC-02 (Afzal)           | `open_sessions`, its trigger function, `normalize_vehicle_no()`, `lock_session()`                           | `open_sessions.test.sql`, `pnpm test:db:concurrency`                          |
+| `0006_conflict_detector.sql`                  | SYNC-05 (Afzal)           | `sync_conflicts`, `detect_conflicts()` trigger                                                              | `conflicts.test.sql`, `pnpm test:db:concurrency`                              |
+| `0007_shift_reviews_conflict_resolutions.sql` | CLD-02 (Akanksha, PR #31) | `shift_reviews`, `conflict_resolutions` (append-only for application roles)                                 | `shift_reviews_conflict_resolutions.test.sql`                                 |
+| `0008_device_heartbeats.sql`                  | CLD-04 (Akanksha, PR #31) | `device_heartbeats`, `heartbeat()` (one row per device, 5-minute window)                                    | `device_heartbeats.test.sql`                                                  |
+| `0009_views_kpis.sql`                         | CLD-05 (Akanksha)         | `v_hourly`, `v_daily_kpis` (security_invoker; WAIVED excluded from every revenue total)                     | `kpi_views.test.sql`, `kpi_oracle.test.sql`, `kpi_golden_day.test.sql`        |
+| `0010_rls.sql`                                | CLD-03 (Akanksha)         | `is_member()`, `is_org_member()`, `device_facility()`, the `staff_for_device` view, policies on every table | `rls_policies.test.sql`, `rls_sync_tables.test.sql`, `open_sessions.test.sql` |
 
-Every table has RLS enabled and **no policy exists yet**, so every non-superuser role is denied (CLD-03 is not
-merged). Two suites therefore report known gaps rather than bugs in this tree:
+Every table has RLS enabled; `0010` adds the policies (owner and manager memberships, and enrolled devices identified by
+their JWT `app_metadata` claims). Its fail-closed choices where the permission matrix is silent are assumption OQ-58 and
+need Afzal's review. `v_zone_now` (IC-07) is not written: it needs the agreed occupancy rule from SYNC-04 (PR #28).
 
-- `open_sessions.test.sql` marks one assertion TODO until CLD-03 policies let a device read its own facility's sessions.
-- `event_parity.test.sql` (T-IC01-C1, generated from `packages/contracts/fixtures/events`) fails 10 of 37 assertions:
-  `0004` checks that payload keys are present but not their values, so it accepts payloads zod rejects. The fix is
-  either PR #26 (edits `0004` in place) or PR #30 (a forward validation migration); the team has not chosen yet.
+Known failing suite: `event_parity.test.sql` (T-IC01-C1, generated from `packages/contracts/fixtures/events`) fails 10 of
+37 assertions: `0004` checks that payload keys are present but not their values, so it accepts payloads zod rejects. The
+fix is either PR #26 (edits `0004` in place) or PR #30 (a forward validation migration); the team has not chosen yet.
 
-Not in this tree (open PRs): `0007_shift_reviews_conflict_resolutions.sql` and `0008_device_heartbeats.sql` (PR #31).
-CI runs no SQL tests on `main`; PR #27 proposes the `db-tests` job.
+CI runs no SQL tests on `main`; PR #27 proposes the `db-tests` job. Not written, each waiting on a team decision: overstay
+and stale-device alerts (CLD-07: OQ-46 default threshold, OQ-47, OQ-48), retention and export (CLD-08: OQ-12), and the
+`0011` number they compete for.
 
 SQL tests: `pnpm test:db` (needs the local stack running) runs `supabase/tests/*.test.sql` in the local database container,
 applies migrations missing from local history inside a rolled-back transaction, and fails on any SQL error, failed assertion

@@ -1,6 +1,6 @@
 -- 0009 (CLD-05): v_hourly and v_daily_kpis. Read-only views over events; no table, no function, no data change.
 --
--- NOT IN THIS FILE: v_zone_now. It needs the occupancy definition shared with Afzal's occupancy.ts (OQ-A7, unresolved),
+-- NOT IN THIS FILE: v_zone_now. It needs the occupancy definition shared with Afzal's occupancy.ts (SYNC-04, PR #28, unresolved),
 -- and the sheet requires it to equal occupancy.ts on shared fixtures (T-CLD-05-U2). It is deferred, not forgotten.
 --
 -- DEPENDENCIES: 0001-0003 only (events, facilities). Who may READ the views is decided by the RLS policies on events and

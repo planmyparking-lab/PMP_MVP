@@ -1,5 +1,5 @@
 -- pgTAP tests for migration 0009_views_kpis.sql (CLD-05: v_hourly, v_daily_kpis). Run with `pnpm test:db`.
--- v_zone_now is NOT tested: it is not written (occupancy definition pending, OQ-A7), so T-CLD-05-U2 is not covered.
+-- v_zone_now is NOT tested: it is not written (occupancy definition pending, SYNC-04 PR #28), so T-CLD-05-U2 is not covered.
 -- T-CLD-05-I2 (30-day oracle), R1 (a column-list FILE does not exist yet; the column assertions below pin the proposed
 -- names and types) and X1 (k6 p95) are NOT covered here; see docs/integrations/cld-05-kpi-views.md.
 -- Covered: U1 (golden day), U3 (hour edges), I1 (RLS through the views), N1 (empty facility), plus the CLD-05 edge cases.
