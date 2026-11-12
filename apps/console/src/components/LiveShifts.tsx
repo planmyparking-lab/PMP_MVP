@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { formatRupees } from "@pmp/contracts";
 import type { ShiftsLive } from "../lib/data/shifts";
 import { formatIstDateTime } from "../lib/format";
-import { formatSignedRupees, hasVariance } from "../lib/shifts";
+import { formatSignedRupees, hasVariance, SHIFT_EVENT_LIMIT } from "../lib/shifts";
 import type { ShiftRow } from "../lib/shifts";
 import {
   Banner,
@@ -76,6 +76,13 @@ export function LiveShifts({ live, liveStatus }: { live: ShiftsLive; liveStatus?
           {build && build.skipped > 0
             ? ` ${build.skipped} event(s) had a payload that did not match the contract and were left out.`
             : ""}
+        </Banner>
+      )}
+      {live.truncated && (
+        <Banner tone="warn" icon="alert" title="Only the most recent shift events are shown">
+          This page reads at most the latest {SHIFT_EVENT_LIMIT.toLocaleString("en-IN")} shift
+          events. The limit was reached, so older shifts from the last 30 days may be missing, and
+          the oldest shift shown may be missing its open or close.
         </Banner>
       )}
 

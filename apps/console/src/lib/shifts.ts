@@ -8,6 +8,9 @@ import { formatRupees, ShiftClosePayload, ShiftOpenPayload } from "@pmp/contract
  * The variance sign convention is not fixed in the specification (see `packages/contracts/src/events.ts`), so
  * variances are shown exactly as the phone sent them and only "zero" versus "not zero" is judged here.
  */
+/** Most recent shift events the Console reads per request (the shift view will replace this, OQ-51). */
+export const SHIFT_EVENT_LIMIT = 2000;
+
 export interface ShiftEventRow {
   type: "SHIFT_OPEN" | "SHIFT_CLOSE";
   device_time: string;

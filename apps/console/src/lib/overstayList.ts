@@ -1,4 +1,5 @@
 import type { VehicleInside } from "./data/types";
+import { csvCell as cell } from "./csv";
 import { findOverstays, validateOverstayMinutes } from "./overstay";
 
 /** Example threshold used until facility storage exists (OQ-46: the default value is still to be set). */
@@ -57,9 +58,7 @@ export function overstayList(
   });
 }
 
-const cell = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
-
-/** RFC 4180 CSV of the list. Vehicle numbers are never included (OQ-26). */
+/** RFC 4180 CSV of the list, formula-safe. Vehicle numbers are never included (OQ-26). */
 export function overstayCsv(rows: readonly OverstayListRow[]): string {
   const header = ["token", "zone", "vehicle_class", "entry_time", "minutes_inside", "session_id"];
   const lines = [

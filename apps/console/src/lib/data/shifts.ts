@@ -1,5 +1,5 @@
 import "server-only";
-import { buildShiftRows } from "../shifts";
+import { buildShiftRows, SHIFT_EVENT_LIMIT } from "../shifts";
 import type { ShiftBuild, ShiftEventRow } from "../shifts";
 import { createSupabaseServerClient } from "../supabase/server";
 import { getConsoleSession } from "./session";
@@ -13,6 +13,8 @@ export interface ShiftsLive {
   shifts: Loaded<ShiftBuild>;
   /** id -> name, for display only. */
   staffNames: Record<string, string>;
+  /** True when the read hit SHIFT_EVENT_LIMIT, so older shifts in the window may be missing. */
+  truncated: boolean;
   deviceNames: Record<string, string>;
 }
 
@@ -38,7 +40,7 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
       .in("type", ["SHIFT_OPEN", "SHIFT_CLOSE"])
       .gte("device_time", since)
       .order("device_time", { ascending: false })
-      .limit(2000),
+      .limit(SHIFT_EVENT_LIMIT),
     supabase.from("staff").select("id, name").eq("facility_id", facility.id),
     supabase.from("devices").select("id, name").eq("facility_id", facility.id),
   ]);
@@ -65,6 +67,7 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
     facilityName: facility.name,
     asOf,
     shifts,
+    truncated: (eventsRes.data?.length ?? 0) >= SHIFT_EVENT_LIMIT,
     staffNames: names(staffRes.data),
     deviceNames: names(devicesRes.data),
   };
