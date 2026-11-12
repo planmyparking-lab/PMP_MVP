@@ -3,6 +3,7 @@
  * components can import them. Every field that could not be read is a `Loaded` error, never a made-up value.
  */
 import type { SyncConflictRow } from "../conflicts";
+import type { Probe } from "./probe";
 
 export type Loaded<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -21,6 +22,8 @@ export type ConsoleSession =
   | { kind: "denied"; email: string; detail: string }
   | {
       kind: "ok";
+      /** auth.users id of the signed-in user (attributes reviews; never taken from a request). */
+      userId: string;
       email: string;
       role: "owner" | "manager";
       facilities: FacilitySummary[];
@@ -60,6 +63,36 @@ export interface StaffLive {
   createdAt: string;
 }
 
+/** Today's figures from the KPI views (#33): `v_daily_kpis` for the day, `v_hourly` for the hours. */
+export interface KpiToday {
+  /** Facility-local date the figures are for. */
+  localDate: string;
+  vehicles: number;
+  exits: number;
+  cashPaise: number;
+  upiPaise: number;
+  passPaise: number;
+  declaredTotalPaise: number;
+  overrides: number;
+  overridesPer100: number | null;
+  avgStayMinutes: number | null;
+  orphanExits: number;
+  /** 24 buckets, facility-local hour. */
+  entriesByHour: number[];
+}
+
+/** Latest accepted heartbeat of one device (`device_heartbeats`, #31). */
+export interface HeartbeatLive {
+  deviceId: string;
+  receivedAt: string;
+  queueDepth: number;
+  oldestUnsyncedAgeS: number;
+  appVersion: string;
+  schemaVersion: number;
+  /** Null when the phone cannot read its battery (OQ-29). */
+  batteryPct: number | null;
+}
+
 export interface FacilityLive {
   facility: FacilitySummary;
   asOf: string;
@@ -68,6 +101,10 @@ export interface FacilityLive {
   conflicts: Loaded<SyncConflictRow[]>;
   devices: Loaded<DeviceLive[]>;
   staff: Loaded<StaffLive[]>;
-  /** Today in IST. */
+  /** Today in IST, counted from events directly (used when the KPI views are absent). */
   today: Loaded<{ entries: number; exits: number; overrides: number; entriesByHour: number[] }>;
+  /** Today from the KPI views; `absent` until #33 is merged. */
+  kpis: Probe<KpiToday>;
+  /** Device health; `absent` until #31 is merged. */
+  heartbeats: Probe<HeartbeatLive[]>;
 }

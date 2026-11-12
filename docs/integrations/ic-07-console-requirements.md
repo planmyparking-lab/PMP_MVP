@@ -104,3 +104,14 @@ All of this is Akanksha's recommended design, none of it built:
 
 The report also needs overrides by reason code and average-stay distribution, which neither list covers; the sheet
 expects separate `v_report_*` views (`member-03-anamika.md:263`).
+
+**Agreed (Anamika, review of #33, 12 Nov 2026):** `v_hourly` uses Akanksha's `local_date, hour, entries, exits`
+(not `hour_start`). `v_daily_kpis` is accepted as written in #33: `facility_id, local_date, vehicles, cash_paise,
+upi_paise, pass_paise, declared_total_paise, pass_count, avg_stay_minutes, overrides, overrides_per_100,
+orphan_exits`. There is no daily `exits` column; the Console sums `v_hourly.exits` for the day. `v_zone_now` is still
+open (waits on SYNC-04, #28).
+
+**Console use (progressive):** the dashboard reads today's row of both views for the facility's own `local_date`
+(computed in `facilities.timezone`, `apps/console/src/lib/data/localDay.ts`). While the views are absent (PostgREST
+`PGRST205`) or not readable (`42501`), it keeps counting today's events itself (OQ-50) and says why revenue is missing;
+nothing is invented. See `apps/console/src/lib/data/probe.ts`.
