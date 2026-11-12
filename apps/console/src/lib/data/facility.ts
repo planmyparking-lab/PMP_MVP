@@ -90,6 +90,7 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
             vehicleClass: r.vehicle_class,
             entryTime: r.entry_time,
             hasPass: r.pass_id !== null,
+            passId: r.pass_id,
           })),
         };
 
