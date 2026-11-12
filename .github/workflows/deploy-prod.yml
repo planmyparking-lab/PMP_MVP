@@ -33,16 +33,15 @@ jobs:
         run: node scripts/deploy-preflight.mjs --tag-only "$GITHUB_REF_NAME"
       - name: The tagged commit is on main
         run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-      - name: CI passed for the tagged commit
+      - name: CI passed for the tagged commit (check and db-tests)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          passed=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs" \
-            --jq '[.check_runs[] | select(.name == "check" and .conclusion == "success")] | length')
-          if [ "$passed" -lt 1 ]; then
-            echo "::error::the CI job 'check' has not passed for $GITHUB_SHA; deploy only commits that passed CI on main"
-            exit 1
-          fi
+          set -o pipefail
+          # Latest run of every CI job for this commit, one JSON object per line. The script fails unless BOTH required jobs
+          # succeeded: a failed, skipped, cancelled, unfinished or missing job (or an empty answer from the API) blocks.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?filter=latest&per_page=100" \
+            --jq '.check_runs[]' | node scripts/verify-ci-checks.mjs --require check --require db-tests
 
   deploy:
     name: deploy-production

@@ -89,8 +89,19 @@ test("production deploys only for v* tags, after verification, through the produ
   assert.doesNotMatch(production, /workflow_dispatch/, "no manual run of an arbitrary ref");
   assert.match(production, /--tag-only "\$GITHUB_REF_NAME"/);
   assert.match(production, /git merge-base --is-ancestor "\$GITHUB_SHA" origin\/main/);
-  assert.match(production, /select\(\.name == "check" and \.conclusion == "success"\)/);
+  assert.match(
+    production,
+    /node scripts\/verify-ci-checks\.mjs --require check --require db-tests\n/,
+    "the release gate requires both CI jobs",
+  );
+  assert.match(production, /set -o pipefail/, "a failed API call must not pass the gate");
+  assert.match(production, /check-runs\?filter=latest/, "only the latest run of each job counts");
   assert.match(production, /needs: verify/);
+  assert.doesNotMatch(
+    production,
+    /^ {4}if: .*(always|failure|cancelled)\(\)/m,
+    "no job-level condition may let deploy run after a failed verify",
+  );
   assert.match(production, /environment: production/);
   assert.doesNotMatch(production, /environment: staging/);
 });
