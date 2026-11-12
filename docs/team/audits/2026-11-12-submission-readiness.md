@@ -1,6 +1,8 @@
 # Submission readiness audit: `feature/pmp-submission-completion`
 
-Prepared 12 Nov 2026 by Akanksha (Member 04). Read-only audit: the audited branch was not changed. Evidence is cited as
+Prepared 12 Nov 2026 by Akanksha (Member 04). **Snapshot of one day:** it describes the repository and GitHub state on
+12 Nov 2026 and of a branch that will not be merged, so it is not kept up to date afterwards. Read-only audit: the
+audited branch was not changed. Evidence is cited as
 commit hashes, pull request numbers, file paths and test output. Statements about other members' work describe the
 repository and GitHub state only.
 
@@ -54,7 +56,7 @@ come from `main` (PR #29): the branch starts at `2faf3ec`, the stacked PRs at th
 
 Summarised from `feature-traceability.md`: contracts (SYNC-01), outbox and ingest (SYNC-02, without SQL payload
 validation), conflict detector (SYNC-05), fare engine (GATE-03), Console sign-in (CON-03), the gate app on a labelled
-fake data layer (GATE-01 to GATE-12), Console screens that read live tables (CON-01 to CON-11, partial), migrations
+fake data layer (GATE-01 to GATE-12), Console screens that read live tables (CON-02 to CON-10, partial; CON-01 setup does not read the database yet and CON-11 uses demo data only), migrations
 `0001`-`0006` with pgTAP tests, the test runner and forward rehearsal, the secrets inventory and secret scan, and CI
 (`secret-scan`, `check`, `android-bundle`, `branch-name`, `audit`).
 
@@ -65,7 +67,7 @@ local restore drill and runbooks (#35), strict ingest validation (#30).
 
 | Check                                      | Result                                                                                       |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------- |
-| `pnpm test:db` (local Supabase, rolled back) | 13 of 14 suites pass, including `rls_policies` 100/100, `rls_sync_tables` 40/40, `open_sessions` 27/27, `kpi_views` 37/37, `kpi_oracle` 25/25, `kpi_golden_day` 5/5, `device_heartbeats` 48/48, `shift_reviews_conflict_resolutions` 56/56. **`event_parity` fails 10 of 37** (the `0004` gap, also on `main`). State unchanged afterwards. |
+| `pnpm test:db` (local Supabase, rolled back) | 13 of 14 suites pass, including `rls_policies` 100/100, `rls_sync_tables` 40/40, `open_sessions` 27/27, `kpi_views` 37/37, `kpi_oracle` 25/25, `kpi_golden_day` 5/5, `device_heartbeats` 48/48, `shift_reviews_conflict_resolutions` 56/56. **`event_parity` fails 10 of 37** (the `0004` gap, also on `main`). State unchanged afterwards. A passing `rls_policies` does **not** mean RLS is done: it did not test the two permission holes found in the #34 review (B4). |
 | `pnpm rehearse:forward`                    | Passed (synthetic-row count preservation).                                                    |
 | `pnpm test:restore`                        | 7/7; drill 19 tables, 2979 rows, 40 policies, 3 views, MATCH.                                 |
 | `pnpm test:scripts`                        | 103/103.                                                                                      |
@@ -84,7 +86,7 @@ Required deliverables (member sheet I.1) not present on `main` or in any open pu
 | Generated types (`packages/db-types`)               | Not done                                  | Waits for the migration chain to settle (#31, #33, #34, IC-01 decision). |
 | `enroll_device` and the console write functions     | Not done                                  | IC-05 and IC-06 contracts not agreed (enrollment shape, PIN hashing). |
 | `0011` (scheduler, alerts, retention, export)       | Not done                                  | OQ-12 (legal), OQ-46 default threshold, OQ-47, OQ-48; the number itself is unassigned. |
-| Deployment pipelines                                | Not done on `main`                        | CLD-09 deploy workflows; prepared separately on `feat/cld-09-deployment-workflows-member-04`. They cannot deploy until CLD-01 exists. |
+| Deployment pipelines                                | Not done on `main`                        | CLD-09 deploy workflows; prepared separately on `feature/cld-09-deployment-workflows-member-04`. They cannot deploy until CLD-01 exists. |
 | k6 load script (`tools/load/`)                      | Not done                                  | Needs a staging project and device enrollment.              |
 | RLS matrix document, DPDP procedure, known-limitations list | Not done                          | RLS choices are recorded as OQ-58 (#34); DPDP waits on OQ-12. |
 | Test evidence linked from `feature-traceability.md` | Done on `docs/feature-traceability-member-04` | Not merged.                                              |
@@ -108,7 +110,7 @@ Required deliverables (member sheet I.1) not present on `main` or in any open pu
 | `supabase/README.md` on `main` and in PRs #31 to #35   | Says `migrations/` does not exist and the stack is not run in CI.          | Only on this branch (`a22a4dc`, `c89c50f`) |
 | `supabase/tests/events_schema.test.sql` on `main` and in the PRs | Header calls `0003` proposed and the contract not updated.      | Only on this branch (`0d62a27`)    |
 | PR #33 to #35: `0009_views_kpis.sql`, `kpi_views.test.sql`, `docs/integrations/cld-05-kpi-views.md` | Cite `OQ-A7`, an id that exists in no committed register. | Only on this branch (`c89c50f`)    |
-| IC-07 `v_hourly` column shape                         | Listed as unsettled in `docs/integrations/ic-07-console-requirements.md`; Anamika accepted `local_date`, `hour` in her PR #33 review (12 Nov), but no document records it yet. | Not recorded anywhere yet |
+| IC-07 `v_hourly` column shape                         | Listed as unsettled in `docs/integrations/ic-07-console-requirements.md`; Anamika accepted `local_date`, `hour` in her PR #33 review (12 Nov), but no document records it yet. | Anamika will record it in the IC-07 document |
 
 ## 9. Risks and blockers
 
@@ -117,7 +119,7 @@ Required deliverables (member sheet I.1) not present on `main` or in any open pu
 | B1 | IC-01: choose PR #26 or PR #30. Until then `event_parity` fails 10 of 37 on `main` and on every branch. | Afzal, with Akanksha       |
 | B2 | No SQL tests in CI (PR #27 is red: its `db-tests` hits B1, its `check` fails Prettier, and it conflicts with `main`). | Afzal                      |
 | B3 | Stacked PRs #33, #34, #35 have **no CI runs**: `ci.yml` triggers only on pull requests into `main`. | Akanksha                   |
-| B4 | Approvals: #31 has a stale changes-requested review (the fix `ee77f8a` is pushed); #33 has changes requested (Anamika); `0010` needs Afzal's permission review (OQ-58). | Afzal, Anamika             |
+| B4 | **#34 (`0010_rls.sql`) has two blocking permission findings** (Anamika, reproduced on a local stack): (1) a manager can set `devices.auth_user_id` to their own user and then write events through `ingest_events` in a guard's name; (2) managers can read guards' `pin_hash` and `pin_salt`, and a 4-6 digit PIN is brute-forced in seconds. RLS is not complete until both are fixed and re-reviewed. Approvals: #31 has a stale changes-requested review (the fix `ee77f8a` is pushed); #33 has changes requested (Anamika); `0010` also needs Afzal's permission review (OQ-58). | Akanksha (fix), Afzal, Anamika |
 | B5 | `v_zone_now` and the occupancy parity test wait on PR #28's baseline rule.                           | Afzal                      |
 | B6 | Hosted environments, secrets, backups, monitoring (CLD-01, CLD-10) need administrator accounts.      | Repository administrator, Afzal |
 | R1 | The gate test timeout above can fail a local `pnpm check` on a loaded machine.                       | Nikhil                     |
@@ -131,8 +133,10 @@ Required deliverables (member sheet I.1) not present on `main` or in any open pu
    merged at that time), and the `OQ-A7` reference fix (`c89c50f`), the last one into the relevant stacked PR.
 3. Get CI onto the stacked PRs: retarget each to `main` once the PR below it merges, or merge the stack in order
    #31 → #33 → #34 → #35 so each is retargeted to `main` in turn (B3).
-4. Ask Afzal for the IC-01 decision (B1) and for re-review of #31 and the `0010` permission choices (B4, OQ-58).
-5. Record Anamika's acceptance of the `v_hourly` columns in the IC-07 document or the register.
+4. Fix the two #34 permission findings (B4), then ask Anamika and Afzal to re-review `0010`. Ask Afzal for the IC-01
+   decision (B1) and for re-review of #31 and the `0010` permission choices (OQ-58).
+5. Anamika will record her acceptance of the `v_hourly` columns in `docs/integrations/ic-07-console-requirements.md`
+   herself (her review of #38).
 6. Merge the documentation branches `docs/feature-traceability-member-04` and `docs/oq-register-reconciliation-member-04`.
 
 ## 11. Final assessment
