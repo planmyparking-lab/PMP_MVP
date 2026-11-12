@@ -24,6 +24,22 @@ Status of each item must be recorded by the administrator in the "Applied (date 
 | 14  | Automatically delete head branches (Settings > General)              | On                                                                                                                                                                  | TBD                  |
 | 15  | Collaborators                                                        | Each CODEOWNERS user has Write access; exact roles TBD                                                                                                              | TBD                  |
 
+## Deployment environments (CLD-09)
+
+Used by `.github/workflows/deploy-staging.yml` and `deploy-prod.yml` (see
+[deployment.md](deployment.md)). Apply these **before** setting `DEPLOY_ENABLED`: GitHub creates an
+environment that a workflow names but that does not exist yet, **without** protection rules.
+
+| #   | Setting (Settings > Environments, Settings > Secrets and variables > Actions) | Recommended value                                                                                                    | Applied (date / who) |
+| --- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | -------------------- |
+| D1  | Environment `staging`: deployment branches and tags                           | Selected branches: `main` only                                                                                       | TBD                  |
+| D2  | Environment `staging`: secrets and variables                                  | Secrets `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`; variable `SUPABASE_PROJECT_REF` (the staging project)       | TBD                  |
+| D3  | Environment `production`: required reviewers                                  | Named by Afzal (CLD-01 step 2); "Prevent self-review" on                                                             | TBD                  |
+| D4  | Environment `production`: deployment branches and tags                        | Selected tags: `v*` only                                                                                             | TBD                  |
+| D5  | Environment `production`: secrets and variables                               | Same three names as D2, for the production project; never shared with staging                                        | TBD                  |
+| D6  | Ruleset for tags `v*`                                                         | Restrict creation, update and deletion to the release approvers                                                      | TBD                  |
+| D7  | Repository variable `DEPLOY_ENABLED`                                          | `true`, set last, after D1 to D6 and after the Supabase projects exist (CLD-01). Until then both deploys are skipped | TBD                  |
+
 ## Verification (after applying)
 
 1. Open a throwaway PR: `check`, `branch-name`, and `secret-scan` run and show up in the merge box.
