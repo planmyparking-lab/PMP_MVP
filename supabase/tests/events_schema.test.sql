@@ -1,28 +1,29 @@
--- pgTAP tests for migration 0003_events.sql (CLD-02), as currently proposed. Run with `pnpm test:db`, which applies
--- migrations missing from local history (0003) inside a rolled-back transaction. `supabase test db` alone fails
--- this file until 0003 is applied to the database.
--- Fixtures are inserted as the superuser; the transaction is rolled back at the end.
+-- pgTAP tests for migration 0003_events.sql (CLD-02). Run with `pnpm test:db`, which applies migrations missing from
+-- local history inside a rolled-back transaction. Fixtures are inserted as the superuser; the transaction is rolled back.
 --
--- WHAT THIS FILE VALIDATES: the PROPOSED SQL migration 0003 only, against Afzal's confirmed envelope decisions
--- (docs/team/cld-02-events-review.md, section 7). It does NOT validate the TypeScript contract. packages/contracts
--- is not updated yet (Afzal will change it in the SYNC-01 PR), and nothing here compares SQL with it. That
--- cross-check is T-IC01-C1, to be written and run with SYNC-01; 0003 must not merge before it passes.
---   PROVISIONAL (team assumption, not yet confirmed by Afzal): events must reference a device and staff member of
---     their own facility. 0003 enforces it with composite foreign keys, and the cross-facility assertions below test it.
---   TODO(contract: SYNC-01) packages/contracts still has `device_id: z.string().min(1)`, no facility_id/staff_id/source,
---     top-level payload fields and no LIVE value. Until the SYNC-01 PR lands, the SQL and the TypeScript disagree.
---   TODO(contract: schema_version) The column is integer with check > 0 and no default. The proposal to make it
---     smallint is not confirmed and is NOT applied, so the type assertion below still says integer.
+-- WHAT THIS FILE VALIDATES: the `events` table of 0003 (columns, constraints, privileges) against Afzal's confirmed
+-- envelope decisions (docs/team/cld-02-events-review.md, section 7). It does not validate the TypeScript contract or the
+-- ingest function: the SQL-versus-zod cross-check (T-IC01-C1) is supabase/tests/event_parity.test.sql, generated from
+-- packages/contracts/fixtures/events, and ingest_events (0004) is covered by ingest_events.test.sql.
+--   PROVISIONAL (team assumption, still not confirmed by Afzal in cld-02-events-review.md): events must reference a
+--     device and staff member of their own facility. 0003 enforces it with composite foreign keys, the cross-facility
+--     assertions below test it, and 0004-0006 build on the (id, facility_id) keys.
+--   contract: the envelope in packages/contracts/src/events.ts (SYNC-01) has the same columns as this table: id
+--     (UUIDv7), facility_id, device_id, staff_id (uuid), session_id, device_time, source (LIVE | PAPER_BACKFILL), payload
+--     and schema_version. received_at is server-only. The optional recorded_at (OQ-42) has no column here.
+--   contract: schema_version is 1 to MAX_SCHEMA_VERSION (32767) in the contract; the column is integer with check > 0,
+--     no upper bound and no default. The smallint proposal was not applied, so the type assertion below says integer.
 --   contract: session_id is nullable, with a CHECK requiring it for ENTRY/EXIT/PAYMENT/OVERRIDE and forbidding it
 --     for ZONE_COUNT/SHIFT_OPEN/SHIFT_CLOSE. The seven valid and seven invalid type/session combinations are tested below.
---   TODO(contract: payload) type-specific data lives in `payload jsonb` (default '{}'); the TypeScript schemas are the
---     source of truth. No test asserts payload contents or shape, by decision.
---   TODO(contract: UUIDv7) a uuid column does not enforce version 7; no assertion about it.
+--   contract: type-specific data lives in `payload jsonb` (default '{}'); the zod schemas are the source of truth for
+--     its shape. No test here asserts payload contents, by decision.
+--   contract: a uuid column does not enforce version 7. The contract does, and ingest_events checks the event id; no
+--     assertion about it here.
 --   contract: ingest claim checks live in ingest_events (0004) and are tested in ingest_events.test.sql.
---   TODO(append-only) The privilege assertions below state the documented requirement (docs/team/cld-02-events-review.md,
---     section 5). 0003 revokes UPDATE, DELETE, TRUNCATE (and TRIGGER, REFERENCES) from authenticated and service_role,
---     so those assertions pass. They are not to be weakened. Grants cannot constrain the table owner (postgres) or
---     superusers; nothing here asserts owner-level protection, and no trigger or purge role exists yet.
+--   append-only: the privilege assertions below state the documented requirement (docs/team/cld-02-events-review.md,
+--     section 5). 0003 revokes UPDATE, DELETE, TRUNCATE (and TRIGGER, REFERENCES) from authenticated and service_role.
+--     They are not to be weakened. Grants cannot constrain the table owner (postgres) or superusers; nothing here
+--     asserts owner-level protection, and no trigger or purge role exists (CLD-08 is blocked on OQ-12).
 --     INSERT is revoked from authenticated by 0004 (ingest_events is SECURITY DEFINER); asserted below.
 begin;
 select plan(71);
