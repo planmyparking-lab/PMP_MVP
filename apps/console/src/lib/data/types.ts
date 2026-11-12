@@ -43,6 +43,7 @@ export interface VehicleInside {
   vehicleClass: string;
   entryTime: string;
   hasPass: boolean;
+  passId: string | null;
 }
 
 export interface DeviceLive {
