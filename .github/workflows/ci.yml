@@ -54,8 +54,9 @@ jobs:
       - run: pnpm build # console production build
 
   # Required check name: "db-tests". Plain PostgreSQL 16 + pgTAP with a minimal Supabase stub (scripts/ci-supabase-stub.sql):
-  # applies every migration and runs supabase/tests plus the two-connection concurrency test. The real local stack
-  # (`pnpm test:db`, Docker) stays the authority for Supabase-specific behaviour such as RLS that uses auth.jwt().
+  # applies every migration and runs supabase/tests plus the two-connection concurrency test. The stub implements
+  # auth.uid()/auth.jwt()/auth.role() to match the real Supabase definitions; the real local stack (`pnpm test:db`,
+  # Docker) stays the authority for anything needing other Supabase internals (storage, realtime, Edge Functions).
   db-tests:
     name: db-tests
     runs-on: ubuntu-latest
@@ -72,7 +73,7 @@ jobs:
           sudo pg_ctlcluster 16 main start || true
           sudo -u postgres createuser --superuser "$USER"
       - name: Apply migrations and run the SQL tests
-        run: node scripts/test-db-ci.mjs # CI=true is set by GitHub Actions; the script refuses to run without it
+        run: node scripts/test-db-ci.mjs # CI and GITHUB_ACTIONS are both set true by the runner; the script refuses to run without both
 
   # Verifies the Android JS bundle resolves (Metro). Does not build an APK or run on a device.
   android-bundle:

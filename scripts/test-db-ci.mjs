@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 // CI database tests (needs a plain PostgreSQL 16 with the pgTAP package and a superuser reachable through the standard
-// libpq environment: PGHOST, PGPORT, PGUSER, PGPASSWORD). Usage: CI=true node scripts/test-db-ci.mjs
+// libpq environment: PGHOST, PGPORT, PGUSER, PGPASSWORD). Usage: CI=true GITHUB_ACTIONS=true node scripts/test-db-ci.mjs
 // Creates a throwaway database, applies a minimal Supabase stub and every migration in order, runs every
 // supabase/tests/*.test.sql (same TAP rules as `pnpm test:db`), then the two-connection concurrency test, and drops the
-// database. It DROPS AND CREATES a database named pmp_ci, so it refuses to run unless CI=true is set.
+// database. It DROPS AND CREATES a database named pmp_ci, so it refuses to run unless both CI=true and
+// GITHUB_ACTIONS=true are set (the latter is set automatically by the real runner, not something a developer would
+// export locally, so the two together are a much harder guard to trip by accident than CI=true alone).
 // The real local stack (`pnpm test:db`, needs Docker) stays the authority for Supabase-specific behaviour.
 import { spawn } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
@@ -36,9 +38,13 @@ async function must(args, sql, what) {
 }
 
 async function main() {
-  if (process.env.CI !== "true") {
+  // CI=true alone is too easy to trigger by accident (many tools and shells set it for unrelated reasons).
+  // GITHUB_ACTIONS=true is set automatically by the runner itself and is not something a developer would export
+  // locally, so both must be set together before this drops and recreates a database.
+  if (process.env.CI !== "true" || process.env.GITHUB_ACTIONS !== "true") {
     throw new Error(
-      "refusing to run: this drops and recreates the database pmp_ci; set CI=true (CI only)",
+      "refusing to run: this drops and recreates the database pmp_ci; " +
+        "set CI=true and GITHUB_ACTIONS=true (GitHub Actions only)",
     );
   }
   const admin = ["-d", "postgres"];
