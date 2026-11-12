@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// LiveShifts imports the sign-off server action, which pulls in server-only code; it is not called when rendering.
+vi.mock("../app/shifts/actions", () => ({ reviewShift: vi.fn() }));
 import { LiveShifts } from "../src/components/LiveShifts";
 import { csvCell } from "../src/lib/csv";
 import type { ShiftsLive } from "../src/lib/data/shifts";
@@ -43,6 +46,8 @@ describe("LiveShifts: event limit notice (PR #29 review)", () => {
     staffNames: {},
     deviceNames: {},
     truncated,
+    reviews: { state: "absent" },
+    userId: "00000000-0000-4000-8000-0000000000a1",
   });
 
   it("says when only the most recent 2,000 events were read", () => {

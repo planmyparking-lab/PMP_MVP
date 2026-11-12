@@ -23,10 +23,10 @@ export const FEATURES: FeatureStatus[] = [
     href: "/occupancy",
     state: "partial",
     works:
-      "Sign-in and server loaders read zones, open_sessions and today's events; the board refreshes every 10 seconds.",
+      "Reads zones, open_sessions and today's events; uses v_daily_kpis and v_hourly (revenue by mode) as soon as they are deployed. Refreshes every 10 seconds.",
     needs: [
       "Row-level security policies so signed-in managers can read rows (CLD-03, Akanksha)",
-      "Views v_zone_now, v_daily_kpis and v_hourly to replace the open_sessions count (Akanksha)",
+      "KPI views merged (#33) and v_zone_now for occupancy (Akanksha, after SYNC-04)",
     ],
   },
   {
@@ -58,7 +58,8 @@ export const FEATURES: FeatureStatus[] = [
     title: "Devices and health",
     href: "/devices",
     state: "partial",
-    works: "Lists enrolled devices and guards from the database. Health status rules are tested.",
+    works:
+      "Lists enrolled devices and guards. Shows each phone's health (last heartbeat, queue, battery) as soon as device_heartbeats is deployed.",
     needs: [
       "device_heartbeats table, enrollment function and PIN function (Akanksha)",
       "Row-level security policies (CLD-03)",
@@ -82,9 +83,9 @@ export const FEATURES: FeatureStatus[] = [
     href: "/shifts",
     state: "partial",
     works:
-      "Lists the last 30 days of shifts from SHIFT_OPEN and SHIFT_CLOSE events, with cash and UPI variance and filters.",
+      "Lists the last 30 days of shifts from shift events with variance and filters. Sign-off writes shift_reviews as soon as that table is deployed.",
     needs: [
-      "shift_reviews table for sign-off, and shift views (Akanksha, Afzal); see OQ-51",
+      "shift_reviews table and its insert policy (#31, #34); shift views (Akanksha, Afzal); see OQ-51",
       "Row-level security so events are readable (CLD-03)",
     ],
   },

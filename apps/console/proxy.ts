@@ -7,6 +7,8 @@ import { sanitizeRedirect } from "./src/lib/safeRedirect";
 /** Paths reachable without a session. The report route has its own shared-secret check (CON-08). */
 const PUBLIC_PATHS = ["/login"];
 const SELF_AUTHENTICATED = ["/api/reports/"];
+/** Answer without a session or a session refresh: the uptime check returns only a status, never data (CLD-10). */
+const OPEN_ENDPOINTS = ["/api/health"];
 
 /**
  * CON-03: refresh the Supabase session cookie on every request and send signed-out visitors to /login.
@@ -19,6 +21,7 @@ export async function proxy(request: NextRequest) {
 
   const path = request.nextUrl.pathname;
   if (SELF_AUTHENTICATED.some((p) => path.startsWith(p))) return NextResponse.next();
+  if (OPEN_ENDPOINTS.includes(path)) return NextResponse.next();
 
   let response = NextResponse.next({ request });
   const supabase = createServerClient(env.url, env.anonKey, {
