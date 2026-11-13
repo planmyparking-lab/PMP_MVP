@@ -17,7 +17,7 @@
     "check:branch": "node scripts/check-branch-name.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
     "check:bundles": "node scripts/check-client-bundles.mjs",
-    "test:scripts": "node --test scripts/check-migrations.test.mjs scripts/test-db.test.mjs scripts/rehearse-forward.test.mjs scripts/gen-event-parity.test.mjs scripts/check-client-bundles.test.mjs scripts/seed-demo.test.mjs",
+    "test:scripts": "node --test scripts/check-migrations.test.mjs scripts/test-db.test.mjs scripts/rehearse-forward.test.mjs scripts/gen-event-parity.test.mjs scripts/check-client-bundles.test.mjs scripts/seed-demo.test.mjs scripts/deploy-preflight.test.mjs scripts/deploy-workflows.test.mjs scripts/verify-ci-checks.test.mjs",
     "test:pilot": "node --test field/cons12/roi.test.mjs ops/metrics/pilot-metrics.test.mjs",
     "gen:event-parity": "node scripts/gen-event-parity.mjs --write",
     "test:db": "node scripts/test-db.mjs",
