@@ -5,7 +5,7 @@
 -- NOT covered (blocked): job_runs, audit_log, enroll_device, and the IC-09 contract test against Afzal's sender.
 -- Principals are simulated with request.jwt.claims plus SET ROLE; fixtures are inserted as the superuser.
 begin;
-select plan(100);
+select plan(114);
 
 -- Helper that runs one DML statement as the current role and returns the affected row count. Errors propagate.
 create function public.t_count(stmt text) returns bigint language plpgsql as $$
@@ -131,6 +131,34 @@ select throws_ok($$select public.t_count($x$update public.events set source = 'L
   'manager cannot update events');
 select throws_ok($$select public.t_count($x$delete from public.events$x$)$$, '42501', null,
   'T-CLD-08-N2: manager cannot delete events');
+-- Regression (review of #34): a manager must not take over a device identity and write events in a guard's name.
+select throws_ok(
+  $$select public.t_count($x$update public.devices set auth_user_id = '00000000-0000-0000-0000-000000000f02' where id = '00000000-0000-0000-0000-000000000d01'$x$)$$,
+  '42501', null, 'manager cannot repoint devices.auth_user_id to their own user');
+select throws_ok(
+  $$select public.t_count($x$insert into public.devices (facility_id, name, auth_user_id) values ('00000000-0000-0000-0000-000000000a01', 'forged', '00000000-0000-0000-0000-000000000f02')$x$)$$,
+  '42501', null, 'manager cannot insert a device (devices come from the enrollment function, IC-05)');
+select throws_ok($$select public.ingest_events('[]'::jsonb)$$, '42501', null,
+  'so ingest_events still refuses the manager: no device row points at their user');
+select is(public.t_count($$update public.devices set name = 'D1 gate' where id = '00000000-0000-0000-0000-000000000d01'$$), 1::bigint,
+  'manager can still rename a device of their facility');
+-- Regression (review of #34): managers never read or write PIN material.
+select throws_ok($$select pin_hash from public.staff$$, '42501', null, 'manager cannot read staff.pin_hash');
+select throws_ok($$select pin_salt from public.staff$$, '42501', null, 'manager cannot read staff.pin_salt');
+select throws_ok($$select * from public.staff$$, '42501', null, 'manager cannot SELECT * from staff (it would include the PIN columns)');
+select throws_ok($$select s.* from public.staff s$$, '42501', null, 'manager cannot SELECT s.* from staff');
+select throws_ok($$select public.t_count($x$update public.staff set active = true where id = '00000000-0000-0000-0000-000000000c02' returning pin_hash$x$)$$,
+  '42501', null, 'manager cannot read PIN material through UPDATE ... RETURNING');
+select is((select count(*) from (select id, facility_id, name, phone, active, created_at from public.staff) s), 2::bigint,
+  'manager reads the non-secret staff columns the Console uses');
+select throws_ok(
+  $$select public.t_count($x$update public.staff set pin_hash = 'x' where id = '00000000-0000-0000-0000-000000000c01'$x$)$$,
+  '42501', null, 'manager cannot overwrite a PIN hash directly (PINs are set only through set_staff_pin, IC-06)');
+select throws_ok(
+  $$select public.t_count($x$insert into public.staff (facility_id, name, pin_hash, pin_salt) values ('00000000-0000-0000-0000-000000000a01', 'forged', 'h', 's')$x$)$$,
+  '42501', null, 'manager cannot insert staff with a chosen PIN hash');
+select is(public.t_count($$update public.staff set active = false where id = '00000000-0000-0000-0000-000000000c02'$$), 1::bigint,
+  'manager can still deactivate a guard');
 reset role;
 
 -- Device at A1 (valid) ---------------------------------------------------------------------------------------------
@@ -329,6 +357,13 @@ select is_empty(
   $$select privilege_type from information_schema.role_table_grants
     where grantee = 'authenticated' and table_name = 'staff_for_device' and privilege_type <> 'SELECT'$$,
   'staff_for_device is read-only for authenticated (it runs as its owner, so a write would bypass RLS on staff)');
+select is_empty(
+  $$select table_name, column_name, privilege_type from information_schema.column_privileges
+    where grantee = 'authenticated' and table_schema = 'public'
+      and ((table_name = 'staff' and column_name in ('pin_hash', 'pin_salt'))
+        or (table_name = 'devices' and privilege_type in ('INSERT', 'UPDATE')
+            and column_name not in ('name', 'revoked_at')))$$,
+  'authenticated holds no privilege on PIN columns and cannot write device identity columns');
 
 -- A token carrying device claims for D1 but issued to another auth user (D2's user) reads nothing
 select set_config('request.jwt.claims',

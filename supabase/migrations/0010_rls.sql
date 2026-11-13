@@ -114,13 +114,20 @@ create policy passes_delete on public.passes for delete to authenticated
 -- staff: owner and manager only. Devices never read the base table; they use staff_for_device below.
 create policy staff_select on public.staff for select to authenticated
   using (public.is_member(facility_id, array['owner', 'manager']));
-create policy staff_insert on public.staff for insert to authenticated
-  with check (public.is_member(facility_id, array['owner', 'manager']));
 create policy staff_update on public.staff for update to authenticated
   using (public.is_member(facility_id, array['owner', 'manager']))
   with check (public.is_member(facility_id, array['owner', 'manager']));
 create policy staff_delete on public.staff for delete to authenticated
   using (public.is_member(facility_id, array['owner', 'manager']));
+-- PIN material is never readable or writable by an application role (found in review): a 4-6 digit PIN behind a salted
+-- hash is brute-forced in seconds, so a manager who could read pin_hash and pin_salt could learn a guard's PIN and sign
+-- in as them. Column privileges, not RLS, are what limit columns. Devices still read the hashes through
+-- staff_for_device (it runs as its owner). There is no insert privilege and no insert policy: pin_hash and pin_salt are
+-- NOT NULL, so a staff row can only be created, and a PIN only set, by a security definer function such as
+-- set_staff_pin (IC-06, not written yet; OQ-58 item 8). Moving staff to another facility (facility_id) is not allowed.
+revoke select, insert, update on table public.staff from authenticated;
+grant select (id, facility_id, name, phone, active, created_at) on table public.staff to authenticated;
+grant update (name, phone, active) on table public.staff to authenticated;
 
 -- IC-06: the only staff data a device may read. Runs with the view owner's rights on purpose (it must read the base
 -- table that devices cannot), so its WHERE clause is the whole access control: own facility, active staff only.
@@ -134,13 +141,17 @@ grant select on public.staff_for_device to authenticated;
 -- devices and enrollment_codes: owner and manager of the facility; a device cannot read any device row.
 create policy devices_select on public.devices for select to authenticated
   using (public.is_member(facility_id, array['owner', 'manager']));
-create policy devices_insert on public.devices for insert to authenticated
-  with check (public.is_member(facility_id, array['owner', 'manager']));
 create policy devices_update on public.devices for update to authenticated
   using (public.is_member(facility_id, array['owner', 'manager']))
   with check (public.is_member(facility_id, array['owner', 'manager']));
 create policy devices_delete on public.devices for delete to authenticated
   using (public.is_member(facility_id, array['owner', 'manager']));
+-- devices.auth_user_id is the device's identity: ingest_events (0004) and device_facility() find the calling device by
+-- it. If a manager could write it, they could point a guard's device at their own user and write events in that
+-- device's and guard's name (found in review). So no application role inserts devices (they are created by the
+-- enrollment function, IC-05, not written yet), and an update may change only the name and the revocation time.
+revoke insert, update on table public.devices from authenticated;
+grant update (name, revoked_at) on table public.devices to authenticated;
 
 create policy enrollment_codes_select on public.enrollment_codes for select to authenticated
   using (public.is_member(facility_id, array['owner', 'manager']));
