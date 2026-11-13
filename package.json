@@ -16,12 +16,15 @@
     "check:repo": "node scripts/check-repo.mjs",
     "check:branch": "node scripts/check-branch-name.mjs",
     "check:migrations": "node scripts/check-migrations.mjs",
-    "test:scripts": "node --test scripts/check-migrations.test.mjs scripts/test-db.test.mjs scripts/rehearse-forward.test.mjs scripts/gen-event-parity.test.mjs",
+    "check:bundles": "node scripts/check-client-bundles.mjs",
+    "test:scripts": "node --test scripts/check-migrations.test.mjs scripts/test-db.test.mjs scripts/rehearse-forward.test.mjs scripts/gen-event-parity.test.mjs scripts/check-client-bundles.test.mjs scripts/seed-demo.test.mjs",
     "gen:event-parity": "node scripts/gen-event-parity.mjs --write",
     "test:db": "node scripts/test-db.mjs",
+    "test:db:ci": "node scripts/test-db-ci.mjs",
     "rehearse:forward": "node scripts/rehearse-forward.mjs",
     "test:db:concurrency": "node scripts/test-db-concurrency.mjs",
-    "check": "pnpm check:repo && pnpm check:migrations && pnpm test:scripts && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "check": "pnpm check:repo && pnpm check:migrations && pnpm test:scripts && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm check:bundles console",
     "build": "pnpm -r --if-present run build"
   },
   "devDependencies": {
@@ -41,7 +44,7 @@
     },
     "overrides": {
       "uuid@<11.1.1": "11.1.1",
-      "node-forge@<1.4.1": "1.4.1",
+      "node-forge@<1.4.3": "1.4.3",
       "minimatch@>=7.0.0 <11.0.1": "11.0.1",
       "glob@>=9.0.0 <14.0.2": "14.0.2"
     }

@@ -2,7 +2,7 @@
 -- Fixtures are inserted as the superuser; callers are simulated with request.jwt.claims plus SET LOCAL ROLE.
 -- The transaction is rolled back at the end. The read policy arrives with 0010_rls.sql and is not tested here.
 begin;
-select plan(48);
+select plan(52);
 
 -- Fixtures: one organization, two facilities; devices d1 (F1), d2 (F2), d3 (F1, revoked), d4 (F1, deleted in a test).
 insert into auth.users (id) values
@@ -41,6 +41,7 @@ select columns_are('public', 'device_heartbeats',
   array['device_id', 'facility_id', 'received_at', 'queue_depth', 'oldest_unsynced_age_s', 'app_version',
         'schema_version', 'battery_pct'], 'device_heartbeats columns');
 select col_is_pk('public', 'device_heartbeats', 'device_id', 'one row per device: device_id is the primary key');
+select col_is_null('public', 'device_heartbeats', 'battery_pct', 'battery_pct is nullable (unknown battery, OQ-29)');
 select col_type_is('public', 'device_heartbeats', 'received_at', 'timestamp with time zone',
   'device_heartbeats.received_at is timestamptz');
 select ok(exists (select 1 from pg_indexes where schemaname = 'public' and tablename = 'device_heartbeats'
@@ -61,6 +62,10 @@ select lives_ok($$insert into public.device_heartbeats
   ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000f1', 0, 0, '1.0.0', 1, 100)$$,
   'a valid heartbeat row can be inserted (zero queue, full battery)');
 select is((select received_at = now() from public.device_heartbeats), true, 'received_at defaults to the database time');
+select lives_ok($$insert into public.device_heartbeats
+  (device_id, facility_id, queue_depth, oldest_unsynced_age_s, app_version, schema_version, battery_pct) values
+  ('00000000-0000-0000-0000-0000000000d3', '00000000-0000-0000-0000-0000000000f1', 0, 0, '1.0.0', 1, null)$$,
+  'a row with an unknown (null) battery_pct can be inserted');
 select throws_ok($$insert into public.device_heartbeats
   (device_id, facility_id, queue_depth, oldest_unsynced_age_s, app_version, schema_version, battery_pct) values
   ('00000000-0000-0000-0000-0000000000d1', '00000000-0000-0000-0000-0000000000f1', 1, 1, '1.0.0', 1, 50)$$, '23505', null,
@@ -151,6 +156,16 @@ select is((select facility_id from public.device_heartbeats where device_id = '0
   '00000000-0000-0000-0000-0000000000f2'::uuid, 'the facility comes from the devices table, not from the caller');
 select is((select count(*)::int from public.device_heartbeats), 2, 'one row per device');
 
+-- heartbeat(): an unknown battery (null) is accepted and stored as null, not as 0 (the gate has no battery module yet, OQ-29)
+update public.device_heartbeats set received_at = now() - interval '6 minutes' where device_id = '00000000-0000-0000-0000-0000000000d2';
+select pg_temp.claims('00000000-0000-0000-0000-0000000000a2', pg_temp.device_meta('00000000-0000-0000-0000-0000000000d2'));
+set local role authenticated;
+select is(public.heartbeat('00000000-0000-0000-0000-0000000000d2', 0, 0, '1.0.0', 1, null), true,
+  'a heartbeat without a battery reading is stored');
+reset role;
+select is((select battery_pct is null from public.device_heartbeats where device_id = '00000000-0000-0000-0000-0000000000d2'), true,
+  'an unknown battery is stored as null, not as 0');
+
 -- heartbeat(): malformed values are rejected, not clamped
 select pg_temp.claims('00000000-0000-0000-0000-0000000000a1', pg_temp.device_meta('00000000-0000-0000-0000-0000000000d1'));
 set local role authenticated;
@@ -160,8 +175,8 @@ select throws_ok($$select public.heartbeat('00000000-0000-0000-0000-0000000000d1
   'a negative oldest_unsynced_age is rejected');
 select throws_ok($$select public.heartbeat('00000000-0000-0000-0000-0000000000d1', 0, 0, '1.0.0', 1, 120)$$, '22023', null,
   'a battery above 100 is rejected');
-select throws_ok($$select public.heartbeat('00000000-0000-0000-0000-0000000000d1', 0, 0, '1.0.0', 1, null)$$, '22023', null,
-  'a null battery is rejected');
+select throws_ok($$select public.heartbeat('00000000-0000-0000-0000-0000000000d1', 0, 0, '1.0.0', 1, -1)$$, '22023', null,
+  'a negative battery is rejected');
 select throws_ok($$select public.heartbeat('00000000-0000-0000-0000-0000000000d1', 0, 0, ' ', 1, 50)$$, '22023', null,
   'a blank app version is rejected');
 select throws_ok($$select public.heartbeat('00000000-0000-0000-0000-0000000000d1', 0, 0, '1.0.0', 0, 50)$$, '22023', null,

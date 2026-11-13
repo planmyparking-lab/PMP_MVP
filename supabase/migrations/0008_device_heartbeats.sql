@@ -3,6 +3,14 @@
 -- the latest accepted heartbeat; there is no history. IC-09 is not yet confirmed with the sender (Afzal) or the reader
 -- (Anamika). Depends on 0003 for the unique (id, facility_id) key on devices. The read policy (owner and manager) arrives
 -- in 0010_rls.sql; until then RLS denies every non-superuser role.
+--
+-- Battery is optional: battery_pct and the battery argument may be null ("unknown"). The gate app cannot read the battery
+-- until a battery module is approved (OQ-29), and the SYNC-06 spec says to send null when the battery API is unavailable
+-- (member-01-afzal.md). When a value is present it must be 0 to 100; null is stored as null, never as 0.
+--
+-- Caller identity: heartbeat() needs the JWT app_metadata claims role = 'device' and device_id (equal to the device row)
+-- in addition to devices.auth_user_id, while ingest_events (0004) checks auth_user_id only. The enrollment flow (CLD-03,
+-- enroll_device, IC-05) must put both claims in the device's token, or every heartbeat is refused with 42501.
 
 create table public.device_heartbeats (
   device_id uuid primary key,
@@ -12,7 +20,7 @@ create table public.device_heartbeats (
   oldest_unsynced_age_s integer not null check (oldest_unsynced_age_s >= 0),
   app_version text not null check (length(btrim(app_version)) > 0),
   schema_version integer not null check (schema_version > 0),
-  battery_pct integer not null check (battery_pct between 0 and 100),
+  battery_pct integer check (battery_pct between 0 and 100), -- null = unknown (no battery module yet, OQ-29)
   -- a heartbeat can only carry the facility its device belongs to
   constraint device_heartbeats_device_facility_fkey
     foreign key (device_id, facility_id) references public.devices (id, facility_id) on delete cascade
@@ -52,7 +60,7 @@ begin
      or heartbeat.oldest_unsynced_age is null or heartbeat.oldest_unsynced_age < 0
      or heartbeat.app_version is null or length(btrim(heartbeat.app_version)) = 0
      or heartbeat.schema_version is null or heartbeat.schema_version <= 0
-     or heartbeat.battery is null or heartbeat.battery < 0 or heartbeat.battery > 100 then
+     or (heartbeat.battery is not null and (heartbeat.battery < 0 or heartbeat.battery > 100)) then
     raise exception 'invalid heartbeat' using errcode = '22023';
   end if;
 

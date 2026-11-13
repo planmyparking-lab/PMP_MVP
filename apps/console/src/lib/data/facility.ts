@@ -3,9 +3,13 @@ import { cache } from "react";
 import { parseSyncConflictRows } from "../conflicts";
 import { OpenSessionRowSchema } from "../openSessions";
 import { createSupabaseServerClient } from "../supabase/server";
+import { mapHeartbeats, mapKpiToday } from "./backendMaps";
 import { countByIstHour, istDayStart } from "./istDay";
+import { localDate } from "./localDay";
+import { probeResult } from "./probe";
+import type { Probe } from "./probe";
 import { getConsoleSession } from "./session";
-import type { FacilityLive, Loaded } from "./types";
+import type { FacilityLive, KpiToday, Loaded } from "./types";
 
 const fail = (what: string, message: string): { ok: false; error: string } => ({
   ok: false,
@@ -20,6 +24,9 @@ const ROW_LIMIT = 2000;
  * its own, so one missing grant or policy shows as one "unavailable" card, not a broken page.
  * Sources (all implemented in supabase/migrations): zones (0001), devices and staff (0002), events (0003),
  * open_sessions (0005) and sync_conflicts (0006).
+ * Progressive (still in open PRs, see probe.ts): the KPI views `v_daily_kpis` and `v_hourly` (#33) and
+ * `device_heartbeats` (#31). While they are absent the screens fall back to the reads above; once merged they are
+ * used with no Console change.
  */
 export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => {
   const session = await getConsoleSession();
@@ -30,8 +37,19 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
   const facility = session.facility;
   const asOf = new Date().toISOString();
   const dayStart = istDayStart(asOf);
+  const facilityToday = localDate(asOf, facility.timezone);
 
-  const [zonesRes, insideRes, conflictsRes, devicesRes, staffRes, todayRes] = await Promise.all([
+  const [
+    zonesRes,
+    insideRes,
+    conflictsRes,
+    devicesRes,
+    staffRes,
+    todayRes,
+    dailyRes,
+    hourlyRes,
+    heartbeatsRes,
+  ] = await Promise.all([
     supabase
       .from("zones")
       .select("id, name, capacity, vehicle_class")
@@ -67,6 +85,24 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
       .in("type", ["ENTRY", "EXIT", "OVERRIDE"])
       .gte("device_time", dayStart)
       .limit(ROW_LIMIT * 5),
+    supabase
+      .from("v_daily_kpis")
+      .select(
+        "local_date, vehicles, cash_paise, upi_paise, pass_paise, declared_total_paise, overrides, overrides_per_100, avg_stay_minutes, orphan_exits",
+      )
+      .eq("facility_id", facility.id)
+      .eq("local_date", facilityToday ?? "1970-01-01"),
+    supabase
+      .from("v_hourly")
+      .select("local_date, hour, entries, exits")
+      .eq("facility_id", facility.id)
+      .eq("local_date", facilityToday ?? "1970-01-01"),
+    supabase
+      .from("device_heartbeats")
+      .select(
+        "device_id, received_at, queue_depth, oldest_unsynced_age_s, app_version, schema_version, battery_pct",
+      )
+      .eq("facility_id", facility.id),
   ]);
 
   const zoneNames = new Map<string, string>(
@@ -90,6 +126,7 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
             vehicleClass: r.vehicle_class,
             entryTime: r.entry_time,
             hasPass: r.pass_id !== null,
+            passId: r.pass_id,
           })),
         };
 
@@ -163,7 +200,48 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
     };
   }
 
-  return { facility, asOf, zones, inside, conflicts, devices, staff, today };
+  // Both KPI views must be readable; if either is absent the dashboard keeps counting events itself.
+  let kpis: Probe<KpiToday>;
+  if (facilityToday === null) {
+    kpis = {
+      state: "error",
+      error: `facility timezone "${facility.timezone}" is not a valid IANA name`,
+    };
+  } else {
+    const daily = probeResult("v_daily_kpis", dailyRes, (rows) => rows as unknown[]);
+    const hourly = probeResult("v_hourly", hourlyRes, (rows) => rows as unknown[]);
+    if (daily.state !== "ok") {
+      kpis = daily;
+    } else if (hourly.state !== "ok") {
+      kpis = hourly;
+    } else {
+      try {
+        kpis = { state: "ok", data: mapKpiToday(facilityToday, daily.data, hourly.data) };
+      } catch (e) {
+        kpis = {
+          state: "error",
+          error: `KPI views: ${e instanceof Error ? e.message : "unexpected shape"}`,
+        };
+      }
+    }
+  }
+
+  const heartbeats = probeResult("device_heartbeats", heartbeatsRes, (rows) =>
+    mapHeartbeats(rows as unknown[]),
+  );
+
+  return {
+    facility,
+    asOf,
+    zones,
+    inside,
+    conflicts,
+    devices,
+    staff,
+    today,
+    kpis,
+    heartbeats,
+  };
 });
 
 export function unwrap<T>(value: Loaded<T>): T | null {

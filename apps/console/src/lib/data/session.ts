@@ -61,5 +61,5 @@ export const getConsoleSession = cache(async (): Promise<ConsoleSession> => {
 
   const chosen = (await cookies()).get(FACILITY_COOKIE)?.value;
   const facility = facilities.find((f) => f.id === chosen) ?? facilities[0] ?? null;
-  return { kind: "ok", email, role: ctx.role, facilities, facility };
+  return { kind: "ok", userId: user.id, email, role: ctx.role, facilities, facility };
 });
