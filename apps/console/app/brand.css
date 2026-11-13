@@ -1389,3 +1389,30 @@ textarea.input {
 .review-cell {
   min-width: 190px;
 }
+
+/* ---------- activity and facility ---------- */
+.tabs .tab-link {
+  display: inline-block;
+  padding: 10px 2px;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+.tabs .tab-link:hover {
+  color: var(--ink);
+}
+.tabs .tab-link[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--lime);
+}
+table.data tr.row-attention td {
+  background: #fffbeb;
+}
+.rule-lines {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
+}
