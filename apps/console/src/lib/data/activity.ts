@@ -17,7 +17,9 @@ export interface ActivityLive {
 
 /**
  * The selected facility's recent events (migration 0003, written by `ingest_events`), newest first, read with the
- * user's JWT. A session or event-id filter (from a conflict) searches all time; otherwise the last 7 days.
+ * user's JWT. A session or event-id filter (from a conflict) searches all time; otherwise the events RECEIVED in the
+ * last 7 days, ordered by receipt. `received_at` is the cloud's clock, so a paper backfill or a phone that was offline for
+ * days still shows up when it syncs; `device_time` (the phone's claimed time) is what the table displays.
  */
 export async function loadActivity(filter: ActivityFilter): Promise<ActivityLive | null> {
   const session = await getConsoleSession();
@@ -30,16 +32,16 @@ export async function loadActivity(filter: ActivityFilter): Promise<ActivityLive
 
   let query = supabase
     .from("events")
-    .select("id, type, device_time, source, staff_id, device_id, session_id, payload")
+    .select("id, type, device_time, received_at, source, staff_id, device_id, session_id, payload")
     .eq("facility_id", facility.id)
-    .order("device_time", { ascending: false })
+    .order("received_at", { ascending: false })
     .limit(ACTIVITY_LIMIT);
   if (filter.type) query = query.eq("type", filter.type);
   if (filter.sessionId) query = query.eq("session_id", filter.sessionId);
   if (filter.eventIds.length > 0) query = query.in("id", filter.eventIds);
   if (!filter.sessionId && filter.eventIds.length === 0) {
     const since = new Date(Date.parse(asOf) - ACTIVITY_WINDOW_DAYS * 86_400_000).toISOString();
-    query = query.gte("device_time", since);
+    query = query.gte("received_at", since);
   }
 
   const [eventsRes, staffRes, devicesRes, zonesRes] = await Promise.all([
@@ -63,6 +65,7 @@ export async function loadActivity(filter: ActivityFilter): Promise<ActivityLive
               id: String(e.id),
               type: String(e.type),
               device_time: String(e.device_time),
+              received_at: String(e.received_at),
               source: String(e.source),
               staff_id: String(e.staff_id),
               device_id: String(e.device_id),

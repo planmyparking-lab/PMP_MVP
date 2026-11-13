@@ -1,6 +1,11 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { ACTIVITY_LIMIT, ACTIVITY_TYPES, ACTIVITY_WINDOW_DAYS } from "../lib/activity";
+import {
+  ACTIVITY_LIMIT,
+  ACTIVITY_TYPES,
+  ACTIVITY_WINDOW_DAYS,
+  LATE_SYNC_MINUTES,
+} from "../lib/activity";
 import type { ActivityLine } from "../lib/activity";
 import type { ActivityLive } from "../lib/data/activity";
 import { formatIstDateTime } from "../lib/format";
@@ -64,7 +69,7 @@ export function ActivityView({
     <>
       <PageHeader
         title="Activity"
-        description={`Every entry, exit, payment, override, zone count and shift event from the gate phones${scoped ? "" : ` in the last ${ACTIVITY_WINDOW_DAYS} days`}, newest first. Number plates are never shown.`}
+        description={`Every entry, exit, payment, override, zone count and shift event from the gate phones${scoped ? "" : ` in the last ${ACTIVITY_WINDOW_DAYS} days`}, received most recently first. Vehicle numbers are not shown; numbers typed into override notes are masked.`}
         actions={liveStatus ?? <StatusBadge tone="off">Live data disconnected</StatusBadge>}
       />
 
@@ -104,7 +109,7 @@ export function ActivityView({
                 <table className="data">
                   <thead>
                     <tr>
-                      <th>Time</th>
+                      <th>Time (phone)</th>
                       <th>Event</th>
                       <th>Details</th>
                       <th>Guard</th>
@@ -114,7 +119,15 @@ export function ActivityView({
                   <tbody>
                     {live.lines.data.map((l) => (
                       <tr key={l.id} className={l.attention ? "row-attention" : undefined}>
-                        <td className="num">{formatIstDateTime(l.deviceTime)}</td>
+                        <td className="num">
+                          {formatIstDateTime(l.deviceTime)}
+                          {Date.parse(l.receivedAt) - Date.parse(l.deviceTime) >=
+                            LATE_SYNC_MINUTES * 60_000 && (
+                            <div className="small muted" title="When the cloud received this event">
+                              Synced {formatIstDateTime(l.receivedAt)}
+                            </div>
+                          )}
+                        </td>
                         <td className="nowrap">
                           <StatusBadge tone={l.valid ? TYPE_TONE[l.type] : "bad"}>
                             {TYPE_LABEL[l.type]}

@@ -14,12 +14,14 @@ import { formatSignedRupees } from "./shifts";
 /**
  * Activity log (P0-7 override log, and the rest of the gate's event stream): one readable line per event. Every
  * payload is checked with the shared contract schema; a row that does not match is shown as such, never guessed.
- * Vehicle numbers are never part of the text (OQ-26).
+ * Vehicle numbers from the payload are never part of the text, and digit-bearing words in free-text override notes
+ * are masked (OQ-26).
  */
 export interface EventRowIn {
   id: string;
   type: string;
   device_time: string;
+  received_at: string;
   source: string;
   staff_id: string;
   device_id: string;
@@ -30,7 +32,10 @@ export interface EventRowIn {
 export interface ActivityLine {
   id: string;
   type: EventType | "UNKNOWN";
+  /** When the phone says it happened (shown). */
   deviceTime: string;
+  /** When the cloud received it (window and order), so late syncs and paper backfills are not lost. */
+  receivedAt: string;
   backfill: boolean;
   staffId: string;
   deviceId: string;
@@ -65,6 +70,18 @@ const MODE_LABEL: Readonly<Record<string, string>> = {
   WAIVED: "waived",
 };
 
+/**
+ * Free-text notes are typed by staff and may contain a plate or a phone number. Every word that contains a digit is
+ * replaced with bullets, so "Plate MH12AB1234, call 98765 43210" reads "Plate ••••, call •••• ••••". This removes the
+ * usual plate and phone shapes; it is not a guarantee for a number written out in words.
+ */
+export function maskNote(note: string): string {
+  return note.trim().replace(/[\p{L}\p{N}_-]*\p{N}[\p{L}\p{N}_-]*/gu, "••••");
+}
+
+/** Minutes between the claimed time and receipt above which the log says the event arrived late. */
+export const LATE_SYNC_MINUTES = 10;
+
 export const ACTIVITY_WINDOW_DAYS = 7;
 export const ACTIVITY_LIMIT = 500;
 
@@ -85,6 +102,7 @@ export function summarizeEvent(row: EventRowIn, zoneName: (id: string) => string
     id: row.id,
     type: (KNOWN.has(row.type) ? row.type : "UNKNOWN") as ActivityLine["type"],
     deviceTime: row.device_time,
+    receivedAt: row.received_at,
     backfill: row.source === "PAPER_BACKFILL",
     staffId: row.staff_id,
     deviceId: row.device_id,
@@ -132,7 +150,7 @@ export function summarizeEvent(row: EventRowIn, zoneName: (id: string) => string
     case "OVERRIDE": {
       const p = OverridePayload.safeParse(row.payload);
       if (!p.success) return bad();
-      const note = p.data.note?.trim();
+      const note = p.data.note === undefined ? "" : maskNote(p.data.note);
       return ok(
         `${REASON_LABELS[p.data.reason_code] ?? p.data.reason_code}${note ? `: ${note}` : ""}`,
         true,
