@@ -148,7 +148,10 @@ describe("Facility page", () => {
     const html = renderToStaticMarkup(<FacilityView live={facilityLive()} />);
     expect(html).toContain("In force");
     expect(html).toContain("Starts later");
-    expect(html).toContain("id 0192f0a0");
+    // The random tail, not the timestamp head that two versions created together would share.
+    expect(html).toContain("id …0000a001");
+    expect(html).toContain("id …0000a002");
+    expect(html).not.toContain(">id 0192f0a0");
     expect(html).toContain("The gate phones use the rule&#x27;s date.");
   });
 

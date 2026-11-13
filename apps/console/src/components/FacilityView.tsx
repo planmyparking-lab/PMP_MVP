@@ -154,7 +154,9 @@ export function FacilityView({ live, reason }: { live?: FacilityConfigLive; reas
                           className="small muted"
                           title={`Tariff id ${t.id}, recorded on each exit`}
                         >
-                          id {t.id.slice(0, 8)}
+                          {/* The last 8 characters: the first 8 of a UUIDv7 are its timestamp, so versions
+                              created close together would look the same. */}
+                          id …{t.id.slice(-8)}
                         </div>
                       </td>
                       <td className="num">
