@@ -1,0 +1,83 @@
+name: Deploy production
+
+# CLD-09 / REL-01 release process: a release tag deploys production after manual approval through the `production`
+# GitHub environment (required reviewers are set by an administrator, CLD-01). Ordinary branches and pull requests
+# never trigger this workflow. Database only for now; see docs/development/deployment.md for what is not wired yet.
+# Nothing runs until the repository variable DEPLOY_ENABLED is "true": GitHub creates a missing environment on first
+# use WITHOUT protection rules, so a production job must not run before the environment has been configured.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  # Runs without secrets: a tag that fails here never reaches the approval prompt or the production environment.
+  verify:
+    name: verify-release
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0 # needs origin/main to check that the tagged commit is on it
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      - name: The tag is a release tag (vMAJOR.MINOR.PATCH, optional pre-release)
+        run: node scripts/deploy-preflight.mjs --tag-only "$GITHUB_REF_NAME"
+      - name: The tagged commit is on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: CI passed for the tagged commit (check and db-tests)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          # Latest run of every CI job for this commit, one JSON object per line. The script fails unless BOTH required jobs
+          # succeeded: a failed, skipped, cancelled, unfinished or missing job (or an empty answer from the API) blocks.
+          # Only runs created by GitHub Actions count: a check run posted under the same name by another app must not
+          # satisfy the gate (select on app.slug). If the slug ever differs the filter yields nothing and the gate fails closed.
+          gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?filter=latest&per_page=100" \
+            --jq '.check_runs[] | select(.app.slug == "github-actions")' | node scripts/verify-ci-checks.mjs --require check --require db-tests
+
+  deploy:
+    name: deploy-production
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production # the approval gate: required reviewers configured on this environment
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      SUPABASE_PROJECT_REF: ${{ vars.SUPABASE_PROJECT_REF }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      - name: Preflight (fails with the missing setting names, never values)
+        run: node scripts/deploy-preflight.mjs --environment production --tag "$GITHUB_REF_NAME"
+      - name: Link the production Supabase project
+        id: link
+        run: npx --yes supabase@2.122.0 link --project-ref "$SUPABASE_PROJECT_REF"
+      - name: Pending migrations (dry run)
+        run: npx --yes supabase@2.122.0 db push --dry-run
+      - name: Apply migrations
+        run: npx --yes supabase@2.122.0 db push
+      - name: Record the migration list in the job summary
+        if: always() && steps.link.outcome == 'success'
+        run: |
+          {
+            echo "### Production deploy of $GITHUB_REF_NAME ($GITHUB_SHA)"
+            echo '```'
+            npx --yes supabase@2.122.0 migration list || echo "migration list unavailable"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
