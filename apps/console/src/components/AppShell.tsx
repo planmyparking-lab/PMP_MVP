@@ -25,8 +25,10 @@ const OPERATIONS: NavItem[] = [
   { href: "/devices", label: "Devices & staff", icon: "device", state: "live" },
   { href: "/overstay", label: "Overstay", icon: "alert", state: "live" },
   { href: "/shifts", label: "Shifts", icon: "clock", state: "live" },
+  { href: "/activity", label: "Activity", icon: "list", state: "live" },
 ];
 const MANAGE: NavItem[] = [
+  { href: "/facility", label: "Facility", icon: "building", state: "live" },
   { href: "/setup", label: "Setup", icon: "settings", state: "logic" },
   { href: "/reports", label: "Reports", icon: "file", state: "logic" },
 ];
