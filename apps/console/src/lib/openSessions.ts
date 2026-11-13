@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { csvCell } from "./csv";
 
 const instant = z.iso.datetime({ offset: true });
 
@@ -58,11 +59,7 @@ const SAFE_COLUMNS = [
   "created_at",
 ] as const satisfies readonly (keyof OpenSessionRow)[];
 
-function csvCell(value: string | null): string {
-  return `"${(value ?? "").replaceAll('"', '""')}"`;
-}
-
-/** RFC 4180-style CSV. Vehicle numbers are excluded by default and require an explicit option. */
+/** RFC 4180-style CSV, formula-safe (see csv.ts). Vehicle numbers are excluded by default and require an explicit option. */
 export function openSessionsToCsv(
   rows: readonly OpenSessionRow[],
   options: OpenSessionCsvOptions = {},

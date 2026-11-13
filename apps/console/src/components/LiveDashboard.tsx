@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { formatRupees } from "@pmp/contracts";
 import { isUnresolvedOver24Hours } from "../lib/conflicts";
 import { istHour } from "../lib/data/istDay";
 import type { FacilityLive, Loaded } from "../lib/data/types";
@@ -84,6 +85,66 @@ function err<T>(v: Loaded<T>): string | undefined {
   return v.ok ? undefined : v.error;
 }
 
+/** Facility-local hour of an instant (falls back to 0 for an invalid zone; the KPI probe reports that case). */
+function localHour(nowIso: string, timeZone: string): number {
+  try {
+    const h = new Intl.DateTimeFormat("en-GB", {
+      timeZone,
+      hour: "2-digit",
+      hourCycle: "h23",
+    }).format(new Date(nowIso));
+    return Number(h);
+  } catch {
+    return 0;
+  }
+}
+
+/** Revenue by mode from `v_daily_kpis` (OQ-45 columns). Says plainly why it is missing when the views are not live. */
+function RevenueCard({ live }: { live: FacilityLive }) {
+  const k = live.kpis;
+  if (k.state !== "ok") {
+    const text =
+      k.state === "absent"
+        ? "Revenue by cash, UPI and pass appears here once the KPI views are deployed."
+        : k.state === "denied"
+          ? "The KPI views exist, but your account cannot read them yet (row-level security)."
+          : `Revenue could not be read: ${k.error}`;
+    return (
+      <Card title="Revenue today">
+        <p className="small muted">{text}</p>
+      </Card>
+    );
+  }
+  const d = k.data;
+  const rows: [string, number][] = [
+    ["Cash", d.cashPaise],
+    ["UPI", d.upiPaise],
+    ["Pass", d.passPaise],
+  ];
+  return (
+    <Card
+      title="Revenue today"
+      subtitle={`Declared payments on ${d.localDate}; waived fares excluded`}
+      action={<StatusBadge tone="ok">{formatRupees(d.declaredTotalPaise)}</StatusBadge>}
+    >
+      <dl className="glance">
+        {rows.map(([label, paise]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd className="num">{formatRupees(paise)}</dd>
+          </div>
+        ))}
+        <div>
+          <dt>Average stay</dt>
+          <dd className="num">
+            {d.avgStayMinutes === null ? "—" : `${Math.round(d.avgStayMinutes)} min`}
+          </dd>
+        </div>
+      </dl>
+    </Card>
+  );
+}
+
 export function LiveDashboard({ live }: { live: FacilityLive }) {
   const zones = live.zones.ok ? live.zones.data : [];
   const capacity = zones.reduce((s, z) => s + z.capacity, 0);
@@ -99,10 +160,22 @@ export function LiveDashboard({ live }: { live: FacilityLive }) {
   const activeDevices = devices.filter((d) => d.revokedAt === null).length;
   const guards = live.staff.ok ? live.staff.data.filter((s) => s.active).length : 0;
 
-  const today = live.today.ok ? live.today.data : null;
+  // Prefer the KPI views (#33) when they are deployed; otherwise count today's events directly (OQ-50).
+  const kpi = live.kpis.state === "ok" ? live.kpis.data : null;
+  const today = kpi
+    ? {
+        entries: kpi.vehicles,
+        exits: kpi.exits,
+        overrides: kpi.overrides,
+        entriesByHour: kpi.entriesByHour,
+      }
+    : live.today.ok
+      ? live.today.data
+      : null;
+  const todayError = kpi ? undefined : err(live.today);
   const hours = today?.entriesByHour ?? [];
   const maxHour = Math.max(1, ...hours);
-  const nowHour = istHour(live.asOf);
+  const nowHour = kpi ? localHour(live.asOf, live.facility.timezone) : istHour(live.asOf);
 
   return (
     <>
@@ -145,8 +218,10 @@ export function LiveDashboard({ live }: { live: FacilityLive }) {
           label="Entries today"
           icon="car"
           value={today ? String(today.entries) : "—"}
-          sub={today ? `${today.exits} exits since midnight IST` : ""}
-          error={err(live.today)}
+          sub={
+            today ? `${today.exits} exits since midnight${kpi ? " (facility time)" : " IST"}` : ""
+          }
+          error={todayError}
         />
         <Kpi
           label="Open conflicts"
@@ -171,7 +246,11 @@ export function LiveDashboard({ live }: { live: FacilityLive }) {
         <div className="stack">
           <Card
             title="Arrivals by hour"
-            subtitle="ENTRY events today, by the gate phone's clock (IST)"
+            subtitle={
+              kpi
+                ? "Vehicles that entered today, from the KPI views (facility time)"
+                : "ENTRY events today, by the gate phone's clock (IST)"
+            }
             action={today ? <StatusBadge tone="ok">{today.entries} today</StatusBadge> : undefined}
           >
             {today ? (
@@ -200,7 +279,7 @@ export function LiveDashboard({ live }: { live: FacilityLive }) {
               )
             ) : (
               <EmptyState icon="plugOff" title="Arrivals could not be read">
-                {err(live.today)}
+                {todayError}
               </EmptyState>
             )}
           </Card>
@@ -246,6 +325,7 @@ export function LiveDashboard({ live }: { live: FacilityLive }) {
         </div>
 
         <div className="stack">
+          <RevenueCard live={live} />
           <Card title="Today at a glance">
             <dl className="glance">
               <div>

@@ -9,17 +9,25 @@ needs a second workstream owner's review and, if breaking, a `SCHEMA_VERSION` bu
 
 | Field            | Type and rule                                                                                                                                |
 | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `id`             | UUIDv7, generated on the device (`newId()`), primary key. Version 7 is checked in the contract, not in SQL.                                  |
+| `id`             | UUIDv7, generated on the device (`newId()`), primary key. Version 7 is checked in the contract and in SQL.                                   |
 | `type`           | One of `ENTRY`, `EXIT`, `PAYMENT`, `OVERRIDE`, `ZONE_COUNT`, `SHIFT_OPEN`, `SHIFT_CLOSE`. `PAYMENT_CORRECTION` is NOT accepted (OQ-30 open). |
 | `facility_id`    | uuid. `ingest_events` rejects a value different from the JWT facility claim.                                                                 |
 | `device_id`      | uuid, equal to `devices.id` and the device claim.                                                                                            |
 | `staff_id`       | uuid of an active staff member of the facility (checked by ingest).                                                                          |
 | `session_id`     | uuid for `ENTRY`, `EXIT`, `PAYMENT`, `OVERRIDE`; `null` for `ZONE_COUNT`, `SHIFT_OPEN`, `SHIFT_CLOSE`.                                       |
 | `device_time`    | UTC ISO 8601 with trailing `Z` (offsets rejected).                                                                                           |
+| `recorded_at`    | UTC ISO 8601, optional; when a paper record was keyed in. See note below.                                                                    |
 | `source`         | `LIVE` or `PAPER_BACKFILL`. Required in the contract; SQL also defaults to `LIVE`.                                                           |
 | `schema_version` | Integer from 1 to 32767. SQL column is `integer`, no default.                                                                                |
 | `payload`        | Object, per type (below).                                                                                                                    |
 | `received_at`    | Server only (`default now()`); not part of the client contract.                                                                              |
+
+`recorded_at` is for `PAPER_BACKFILL` events: `device_time` carries the stay's claimed time, and
+`recorded_at` records when the guard actually keyed the paper record in; unset for `LIVE`. No SQL
+column on `main` yet: today's `ingest_events` (`0004`) accepts and silently drops `recorded_at`
+rather than rejecting it, since it has no unknown-key check either. The column and the unknown-key
+rejection come with `0013` (staged in `supabase/proposed-migrations/`, #30) once it is promoted —
+the migration number and promotion timing are OQ-52. (OQ-42)
 
 Unknown keys are **rejected** in the envelope and in every payload (not stripped).
 

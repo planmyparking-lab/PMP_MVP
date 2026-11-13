@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
+import { formatIstDateTime } from "../lib/format";
 import { isOverstay, MIN_OVERSTAY_MINUTES, validateOverstayMinutes } from "../lib/overstay";
+import { overstayCsv } from "../lib/overstayList";
+import type { OverstayListRow } from "../lib/overstayList";
 import {
   Button,
   Banner,
@@ -14,13 +18,38 @@ import {
 } from "./ui/primitives";
 import { useToast } from "./ui/Toast";
 
-const COLUMNS = ["Token", "Vehicle class", "Entered", "Time inside", "Alert"] as const;
+const COLUMNS = ["Token", "Zone", "Vehicle class", "Entered", "Time inside"] as const;
 const DEFAULTS = { threshold: "240", age: "239" };
 
 const whole = (s: string): number | null => (/^\d+$/.test(s.trim()) ? Number(s.trim()) : null);
 const hours = (m: number) => `${Math.floor(m / 60)} h ${m % 60} min`;
 
-export function OverstayView() {
+export interface OverstayLive {
+  facilityName: string;
+  asOf: string;
+  thresholdMinutes: number;
+  /** False when the example threshold is in use because no valid ?threshold= was given. */
+  thresholdFromQuery: boolean;
+  thresholdError?: string;
+  rows: OverstayListRow[];
+  /** Set when open_sessions could not be read. */
+  error?: string;
+}
+
+function downloadCsv(rows: readonly OverstayListRow[], facilityName: string) {
+  const blob = new Blob([overstayCsv(rows)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `overstay-${facilityName.replace(/[^A-Za-z0-9]+/g, "-").toLowerCase()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+export function OverstayView({
+  live,
+  liveStatus,
+}: { live?: OverstayLive; liveStatus?: ReactNode } = {}) {
   const [v, setV] = useState(DEFAULTS);
   const toast = useToast();
   const threshold = whole(v.threshold);
@@ -33,13 +62,29 @@ export function OverstayView() {
       <PageHeader
         title="Overstay"
         description="Spot vehicles that have been inside longer than the limit you set. Alerts go to the manager once per vehicle."
-        actions={<StatusBadge tone="off">Live data disconnected</StatusBadge>}
+        actions={liveStatus ?? <StatusBadge tone="off">Live data disconnected</StatusBadge>}
       />
-      <Banner tone="off" icon="plugOff" title="Overstay is not connected to live sessions yet">
-        The list needs open_sessions on the main branch (built by Afzal on
-        feature/sync-02-open-sessions, not merged), a place to store the threshold (Akanksha), and
-        sign-in with security policies. No vehicles are shown or invented.
-      </Banner>
+      {live ? (
+        live.error ? (
+          <Banner tone="bad" icon="alert" title="Open sessions could not be read">
+            {live.error}
+          </Banner>
+        ) : (
+          <Banner tone="info" icon="info" title="The limit is not saved yet">
+            {live.thresholdFromQuery
+              ? `Showing vehicles at or over ${hours(live.thresholdMinutes)}, the limit you entered.`
+              : `Showing vehicles at or over ${hours(live.thresholdMinutes)}, an example limit; the facility default is not decided yet (OQ-46).`}{" "}
+            Saving a limit per facility and emailing alerts need Akanksha&rsquo;s threshold storage
+            and alert job (CLD-07).
+            {live.thresholdError ? ` ${live.thresholdError}` : ""}
+          </Banner>
+        )
+      ) : (
+        <Banner tone="off" icon="plugOff" title="Overstay is not connected to live sessions yet">
+          Sign in with a Supabase project, and row-level security must let you read open_sessions
+          (CLD-03). No vehicles are shown or invented.
+        </Banner>
+      )}
 
       <div className="grid grid-main">
         <Card flush>
@@ -47,33 +92,91 @@ export function OverstayView() {
             <div>
               <h2>Vehicles over the limit</h2>
               <p>
-                Open sessions at or over the threshold, longest first. Pass holders are left out.
+                Open sessions at or over the limit, longest first. Pass holders are left out and
+                number plates are never shown.
               </p>
             </div>
+            {live && !live.error && (
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={live.rows.length === 0}
+                onClick={() => {
+                  downloadCsv(live.rows, live.facilityName);
+                  toast(`Exported ${live.rows.length} row(s) as CSV.`);
+                }}
+              >
+                Export CSV
+              </button>
+            )}
           </div>
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  {COLUMNS.map((c) => (
-                    <th key={c}>{c}</th>
+          {live && !live.error && (
+            <form method="get" className="limit-form">
+              <label htmlFor="ov-limit">Limit (minutes)</label>
+              <div className="limit-form-row">
+                <input
+                  id="ov-limit"
+                  name="threshold"
+                  className="input num"
+                  inputMode="numeric"
+                  defaultValue={String(live.thresholdMinutes)}
+                  aria-describedby="ov-limit-hint"
+                />
+                <button type="submit" className="btn btn-primary">
+                  Apply
+                </button>
+                <span id="ov-limit-hint" className="small muted">
+                  At least {MIN_OVERSTAY_MINUTES}. Not saved.
+                </span>
+              </div>
+            </form>
+          )}
+          {live && !live.error && live.rows.length > 0 ? (
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    {COLUMNS.map((c) => (
+                      <th key={c}>{c}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {live.rows.map((r) => (
+                    <tr key={r.sessionId}>
+                      <td>
+                        <code>{r.shortCode}</code>
+                      </td>
+                      <td>{r.zoneName}</td>
+                      <td>{r.vehicleClass}</td>
+                      <td className="num">{formatIstDateTime(r.entryTime)}</td>
+                      <td>
+                        <StatusBadge tone="warn">{hours(r.ageMinutes)}</StatusBadge>
+                      </td>
+                    </tr>
                   ))}
-                </tr>
-              </thead>
-            </table>
-          </div>
-          <EmptyState
-            icon="clock"
-            title="No overstay data yet"
-            needs={[
-              "open_sessions table on main (Afzal): entry time and pass id per vehicle inside",
-              "Threshold storage and the alert job (Akanksha, CLD-07)",
-              "Console sign-in and row-level security",
-            ]}
-          >
-            Each row will show the vehicle token (never the number plate by default), its class,
-            entry time and how long it has been inside.
-          </EmptyState>
+                </tbody>
+              </table>
+            </div>
+          ) : live && !live.error ? (
+            <EmptyState icon="checkCircle" title="No vehicle is over the limit">
+              Every vehicle inside has been there for less than {hours(live.thresholdMinutes)}, or
+              holds a pass.
+            </EmptyState>
+          ) : (
+            <EmptyState
+              icon="clock"
+              title="No overstay data yet"
+              needs={[
+                "Console sign-in with a Supabase project (CON-03)",
+                "Row-level security so open_sessions is readable (CLD-03)",
+                "Threshold storage and the alert job (Akanksha, CLD-07)",
+              ]}
+            >
+              Each row will show the vehicle token (never the number plate by default), its zone,
+              class, entry time and how long it has been inside.
+            </EmptyState>
+          )}
         </Card>
 
         <div className="stack">
