@@ -131,11 +131,18 @@ select is((select count(*)::int from public.events where id = '018f0000-0000-700
         + (select count(*)::int from public.open_sessions where session_id = '018f0000-0000-7000-8000-000000000107'),
   1, 'the event is kept and no session was opened for it');
 
--- Facility isolation. No policies exist yet (CLD-03 / 0010_rls.sql), so a device sees nothing today. Another facility's
--- device must never see this facility's sessions; the assertion for the device's OWN sessions is blocked until CLD-03.
+-- Facility isolation under the 0010_rls.sql policies: a device reads its own facility's sessions and never another
+-- facility's. A device is identified by its auth user plus the app_metadata claims (role, device_id, facility_id) that
+-- public.device_facility() checks against the devices row.
 create table public.t_seen (label text primary key, n int);
 grant all on public.t_seen to authenticated;
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000000a3', true);   -- device of F2
+
+-- auth.uid() prefers the flat request.jwt.claim.sub, which the ingest section above left set to device a1; PostgREST
+-- sends only request.jwt.claims, so clear the flat one to simulate a real device request.
+select set_config('request.jwt.claim.sub', '', true);
+select set_config('request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-0000000000a3","role":"authenticated","app_metadata":{"role":"device","device_id":"00000000-0000-4000-8000-0000000000d2","facility_id":"00000000-0000-4000-8000-0000000000f2"}}',
+  true);
 set local role authenticated;
 insert into public.t_seen select 'f2_sees_f1', count(*)::int from public.open_sessions
   where facility_id = '00000000-0000-4000-8000-0000000000f1';
@@ -144,10 +151,7 @@ insert into public.t_seen select 'f2_sees_f2', count(*)::int from public.open_se
 reset role;
 select is((select n from public.t_seen where label = 'f2_sees_f1'), 0,
   'a device of facility 2 sees none of facility 1''s open sessions');
-select todo_start('blocked: CLD-03 policies. A device must see ITS OWN facility''s sessions (remove this wrapper in the CLD-03 PR)');
 select cmp_ok((select n from public.t_seen where label = 'f2_sees_f2'), '>', 0,
   'a device of facility 2 sees its own open sessions');
-select todo_end();
-
 select * from finish();
 rollback;
