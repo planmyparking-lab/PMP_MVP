@@ -5,7 +5,7 @@
 -- NOT covered (blocked): job_runs, audit_log, enroll_device, and the IC-09 contract test against Afzal's sender.
 -- Principals are simulated with request.jwt.claims plus SET ROLE; fixtures are inserted as the superuser.
 begin;
-select plan(111);
+select plan(114);
 
 -- Helper that runs one DML statement as the current role and returns the affected row count. Errors propagate.
 create function public.t_count(stmt text) returns bigint language plpgsql as $$
@@ -145,6 +145,10 @@ select is(public.t_count($$update public.devices set name = 'D1 gate' where id =
 -- Regression (review of #34): managers never read or write PIN material.
 select throws_ok($$select pin_hash from public.staff$$, '42501', null, 'manager cannot read staff.pin_hash');
 select throws_ok($$select pin_salt from public.staff$$, '42501', null, 'manager cannot read staff.pin_salt');
+select throws_ok($$select * from public.staff$$, '42501', null, 'manager cannot SELECT * from staff (it would include the PIN columns)');
+select throws_ok($$select s.* from public.staff s$$, '42501', null, 'manager cannot SELECT s.* from staff');
+select throws_ok($$select public.t_count($x$update public.staff set active = true where id = '00000000-0000-0000-0000-000000000c02' returning pin_hash$x$)$$,
+  '42501', null, 'manager cannot read PIN material through UPDATE ... RETURNING');
 select is((select count(*) from (select id, facility_id, name, phone, active, created_at from public.staff) s), 2::bigint,
   'manager reads the non-secret staff columns the Console uses');
 select throws_ok(
