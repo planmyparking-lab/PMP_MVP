@@ -1,6 +1,7 @@
 import "server-only";
 import { buildShiftRows, SHIFT_EVENT_LIMIT } from "../shifts";
 import type { ShiftBuild, ShiftEventRow } from "../shifts";
+import { probeLimit, referenceProblems, takeLimited } from "../readLimits";
 import { createSupabaseServerClient } from "../supabase/server";
 import { getConsoleSession } from "./session";
 import { probeResult } from "./probe";
@@ -15,8 +16,10 @@ export interface ShiftsLive {
   shifts: Loaded<ShiftBuild>;
   /** id -> name, for display only. */
   staffNames: Record<string, string>;
-  /** True when the read hit SHIFT_EVENT_LIMIT, so older shifts in the window may be missing. */
+  /** True when more than SHIFT_EVENT_LIMIT shift events matched, so older shifts in the window are missing. */
   truncated: boolean;
+  /** Failed name lookups (staff, phones); the page warns instead of showing "Unknown" silently. */
+  referenceErrors: string[];
   deviceNames: Record<string, string>;
   /** `shift_reviews` rows, newest first; `absent` until #31 is merged (sign-off stays disabled then). */
   reviews: Probe<ShiftReviewLive[]>;
@@ -54,7 +57,7 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
       .in("type", ["SHIFT_OPEN", "SHIFT_CLOSE"])
       .gte("device_time", since)
       .order("device_time", { ascending: false })
-      .limit(SHIFT_EVENT_LIMIT),
+      .limit(probeLimit(SHIFT_EVENT_LIMIT)),
     supabase.from("staff").select("id, name").eq("facility_id", facility.id),
     supabase.from("devices").select("id, name").eq("facility_id", facility.id),
     supabase
@@ -65,12 +68,13 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
       .limit(SHIFT_EVENT_LIMIT),
   ]);
 
+  const limited = takeLimited(eventsRes.data, SHIFT_EVENT_LIMIT);
   const shifts: Loaded<ShiftBuild> = eventsRes.error
     ? { ok: false, error: `events: ${eventsRes.error.message}` }
     : {
         ok: true,
         data: buildShiftRows(
-          (eventsRes.data ?? []).map((e): ShiftEventRow => ({
+          limited.rows.map((e): ShiftEventRow => ({
             type: e.type === "SHIFT_OPEN" ? "SHIFT_OPEN" : "SHIFT_CLOSE",
             device_time: String(e.device_time),
             device_id: String(e.device_id),
@@ -87,7 +91,11 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
     facilityName: facility.name,
     asOf,
     shifts,
-    truncated: (eventsRes.data?.length ?? 0) >= SHIFT_EVENT_LIMIT,
+    truncated: limited.truncated,
+    referenceErrors: referenceProblems([
+      ["guard names", staffRes.error],
+      ["phone names", devicesRes.error],
+    ]),
     staffNames: names(staffRes.data),
     deviceNames: names(devicesRes.data),
     reviews: probeResult("shift_reviews", reviewsRes, (rows) =>

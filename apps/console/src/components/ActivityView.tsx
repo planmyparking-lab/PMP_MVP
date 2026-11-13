@@ -86,10 +86,16 @@ export function ActivityView({
               <Link href="/activity">Show all activity</Link>
             </Banner>
           )}
+          {live.referenceErrors.length > 0 && (
+            <Banner tone="warn" icon="alert" title="Some names could not be read">
+              Events are shown, but {live.referenceErrors.join("; ")}. Rows may say
+              &ldquo;Unknown&rdquo; where a name exists.
+            </Banner>
+          )}
           {live.truncated && (
             <Banner tone="warn" icon="alert" title="Only the most recent events are shown">
-              This page reads at most {ACTIVITY_LIMIT.toLocaleString("en-IN")} events. Use a type
-              filter to see older ones of one kind.
+              More than {ACTIVITY_LIMIT.toLocaleString("en-IN")} events match, so the oldest are
+              left out. Use a type filter to see older ones of one kind.
             </Banner>
           )}
           <Card flush>
