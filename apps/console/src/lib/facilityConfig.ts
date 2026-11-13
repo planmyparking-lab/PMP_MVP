@@ -15,6 +15,8 @@ export type TariffSummary =
     }
   | { ok: false; error: string };
 
+const hhmm = (s: string) => `${s.slice(0, 2)}:${s.slice(2, 4)}`;
+
 const mins = (m: number) =>
   m % 60 === 0 ? `${m / 60} h` : m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
 
@@ -44,9 +46,9 @@ export function describeTariff(ruleJson: unknown): TariffSummary {
       );
     }
   } else if (t.model === "FLAT") {
-    lines.push(`Flat ${formatRupees(t.flatPaise)} per stay`);
+    lines.push(`${formatRupees(t.flatPaise)} for every started 24 h`);
   } else {
-    lines.push(`${formatRupees(t.flatPaise)} per entry`);
+    lines.push(`${formatRupees(t.flatPaise)} once per entry, however long the stay`);
   }
   if (t.graceMinutes > 0) lines.push(`First ${mins(t.graceMinutes)} free`);
   if (t.minimumPaise !== undefined) lines.push(`Minimum ${formatRupees(t.minimumPaise)}`);
@@ -54,9 +56,9 @@ export function describeTariff(ruleJson: unknown): TariffSummary {
   if (t.night) {
     const extra =
       t.night.surchargePaise !== undefined
-        ? `+${formatRupees(t.night.surchargePaise)}`
-        : `${t.night.multiplierPercent}% of the fare`;
-    lines.push(`Night ${t.night.fromHHMM}–${t.night.toHHMM}: ${extra}`);
+        ? `${formatRupees(t.night.surchargePaise)} added`
+        : `${t.night.multiplierPercent}% of the fare added on top`;
+    lines.push(`Stay touching ${hhmm(t.night.fromHHMM)}–${hhmm(t.night.toHHMM)} (night): ${extra}`);
   }
   return {
     ok: true,
@@ -67,11 +69,15 @@ export function describeTariff(ruleJson: unknown): TariffSummary {
   };
 }
 
-/** `MH12AB1234` -> `MH12••••34`: enough for staff to recognise a pass, not enough to read the plate (OQ-26). */
+/**
+ * `MH12AB1234` -> `MH••••••34`: the state code and the last two characters, enough for staff to recognise a pass but
+ * never more than four characters of any plate (OQ-26). Plates shorter than eight characters are hidden completely,
+ * because their first and last two would be most of the plate.
+ */
 export function maskPlate(plate: string): string {
   const p = plate.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
-  if (p.length <= 4) return "••••";
-  return `${p.slice(0, 4)}${"•".repeat(Math.max(p.length - 6, 2))}${p.slice(-2)}`;
+  if (p.length < 8) return "••••";
+  return `${p.slice(0, 2)}${"•".repeat(p.length - 4)}${p.slice(-2)}`;
 }
 
 export type PassState = "active" | "expiring" | "expired";
