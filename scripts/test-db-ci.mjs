@@ -59,6 +59,29 @@ async function main() {
       "applying the Supabase stub",
     );
     await must(db, "create extension pgtap;", "enabling pgTAP (is the pgtap package installed?)");
+    // CI only. On a plain Postgres pgTAP installs its two views (pg_all_foreign_keys, tap_funky) into `public`, and the
+    // stub's default privileges then give anon and authenticated ALL on them, which the catalog assertions in
+    // rls_policies.test.sql rightly reject. On Supabase pgTAP lives in the `extensions` schema, which those assertions
+    // do not scan. Only relations that belong to the pgTAP extension are touched: a table or view created by a
+    // migration keeps whatever its migration grants, so a missing revoke in a migration still fails the assertions.
+    await must(
+      db,
+      `do $$
+       declare r record;
+       begin
+         for r in
+           select c.oid::regclass as rel
+           from pg_depend d
+           join pg_class c on c.oid = d.objid and d.classid = 'pg_class'::regclass
+           join pg_extension e on e.oid = d.refobjid and d.refclassid = 'pg_extension'::regclass
+           where e.extname = 'pgtap' and c.relnamespace = 'public'::regnamespace
+         loop
+           execute format('revoke all on %s from anon, authenticated', r.rel);
+         end loop;
+       end
+       $$;`,
+      "removing default privileges from pgTAP's own relations in public",
+    );
     for (const m of sqlFiles("supabase/migrations", ".sql")) {
       await must(db, m.sql, `migration ${m.name}`);
       console.log(`applied ${m.name}`);
@@ -77,7 +100,7 @@ async function main() {
       for (const reason of reasons) console.log(`  reason: ${reason}`);
       if (status === "FAILED") {
         failed = true;
-        if (t.name === "rls_policies") {
+        if (t.name.startsWith("rls_policies")) {
           console.log("--- Full rls_policies PostgreSQL output ---");
           console.log(r.out);
         }

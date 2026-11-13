@@ -32,7 +32,7 @@ alter table public.device_heartbeats enable row level security;
 
 -- Writes only through heartbeat().
 revoke all on table public.device_heartbeats from anon;
-revoke insert, update, delete, truncate, references, trigger on table public.device_heartbeats from authenticated;
+revoke insert, update, delete, truncate on table public.device_heartbeats from authenticated;
 
 -- Parameter names are the H signature and are what supabase-js rpc() sends. Returns true when the row was written
 -- and false when the call fell inside the 5-minute window (ignored, not an error).
