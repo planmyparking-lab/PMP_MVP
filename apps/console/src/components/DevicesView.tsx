@@ -176,6 +176,7 @@ export function DevicesView({ live }: { live?: ReactNode } = {}) {
             <div className="grid grid-2">
               <Field id="d-queue" label="Queued events" error={queue === null ? bad : undefined}>
                 <input
+                  suppressHydrationWarning
                   id="d-queue"
                   className="input num"
                   inputMode="numeric"
@@ -190,6 +191,7 @@ export function DevicesView({ live }: { live?: ReactNode } = {}) {
                 error={oldest === null ? bad : undefined}
               >
                 <input
+                  suppressHydrationWarning
                   id="d-oldest"
                   className="input num"
                   inputMode="numeric"
@@ -205,6 +207,7 @@ export function DevicesView({ live }: { live?: ReactNode } = {}) {
                 error={!never && hb === null ? bad : undefined}
               >
                 <input
+                  suppressHydrationWarning
                   id="d-hb"
                   className="input num"
                   inputMode="numeric"
@@ -214,7 +217,13 @@ export function DevicesView({ live }: { live?: ReactNode } = {}) {
                 />
               </Field>
               <Field id="d-open" label="Time of day">
-                <select id="d-open" className="select" value={v.open} onChange={set("open")}>
+                <select
+                  suppressHydrationWarning
+                  id="d-open"
+                  className="select"
+                  value={v.open}
+                  onChange={set("open")}
+                >
                   <option value="yes">During opening hours</option>
                   <option value="no">Outside opening hours</option>
                 </select>

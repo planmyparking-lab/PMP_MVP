@@ -105,6 +105,7 @@ export function SetupWizard() {
         {STEPS.map((s, i) => (
           <li key={s.title}>
             <button
+              suppressHydrationWarning
               type="button"
               className="step-btn"
               aria-current={step === i ? "step" : undefined}
@@ -140,6 +141,7 @@ export function SetupWizard() {
                     error={visited.length > 1 ? a.facility.name : undefined}
                   >
                     <input
+                      suppressHydrationWarning
                       id="fac-name"
                       className="input"
                       value={draft.name}
@@ -155,6 +157,7 @@ export function SetupWizard() {
                     error={draft.slotCount ? a.facility.slotCount : undefined}
                   >
                     <input
+                      suppressHydrationWarning
                       id="fac-slots"
                       className="input num"
                       inputMode="numeric"
@@ -191,6 +194,7 @@ export function SetupWizard() {
                           error={z.name || z.capacity ? a.zones[i]?.name : undefined}
                         >
                           <input
+                            suppressHydrationWarning
                             id={`zone-name-${i}`}
                             className="input"
                             value={z.name}
@@ -205,6 +209,7 @@ export function SetupWizard() {
                           error={z.capacity || z.name ? a.zones[i]?.capacity : undefined}
                         >
                           <input
+                            suppressHydrationWarning
                             id={`zone-cap-${i}`}
                             className="input num"
                             inputMode="numeric"
@@ -216,6 +221,7 @@ export function SetupWizard() {
                       <div style={{ flex: "1 1 140px" }}>
                         <Field id={`zone-class-${i}`} label={i === 0 ? "Vehicle class" : "Class"}>
                           <select
+                            suppressHydrationWarning
                             id={`zone-class-${i}`}
                             className="select"
                             value={z.vehicleClass}
@@ -262,6 +268,7 @@ export function SetupWizard() {
                     error={a.grace}
                   >
                     <input
+                      suppressHydrationWarning
                       id="grace"
                       className="input num"
                       inputMode="numeric"
@@ -277,6 +284,7 @@ export function SetupWizard() {
                     error={a.effectiveFrom}
                   >
                     <input
+                      suppressHydrationWarning
                       id="eff"
                       type="date"
                       min={today}
@@ -289,6 +297,7 @@ export function SetupWizard() {
                 </div>
                 <label className="check">
                   <input
+                    suppressHydrationWarning
                     type="checkbox"
                     checked={draft.nightOn}
                     onChange={(e) => patch({ nightOn: e.target.checked })}
@@ -299,6 +308,7 @@ export function SetupWizard() {
                   <div className="grid grid-2">
                     <Field id="n-start" label="Night starts" error={a.night}>
                       <input
+                        suppressHydrationWarning
                         id="n-start"
                         type="time"
                         className="input"
@@ -313,6 +323,7 @@ export function SetupWizard() {
                       hint="May be earlier than the start: the window crosses midnight."
                     >
                       <input
+                        suppressHydrationWarning
                         id="n-end"
                         type="time"
                         className="input"
@@ -326,6 +337,7 @@ export function SetupWizard() {
                   <div className="grid grid-2">
                     <Field id="n-kind" label="Night rate type">
                       <select
+                        suppressHydrationWarning
                         id="n-kind"
                         className="select"
                         value={draft.nightKind}
@@ -347,6 +359,7 @@ export function SetupWizard() {
                       error={a.nightValue}
                     >
                       <input
+                        suppressHydrationWarning
                         id="n-value"
                         className="input num"
                         inputMode="decimal"
@@ -375,6 +388,7 @@ export function SetupWizard() {
                   error={a.overstay}
                 >
                   <input
+                    suppressHydrationWarning
                     id="overstay"
                     className="input num"
                     style={{ maxWidth: 200 }}
@@ -398,6 +412,7 @@ export function SetupWizard() {
                     ok={pinCheck?.ok ? "This PIN meets the policy." : undefined}
                   >
                     <input
+                      suppressHydrationWarning
                       id="pin"
                       className="input num"
                       style={{ maxWidth: 200 }}
@@ -519,6 +534,7 @@ export function SetupWizard() {
             <div className="stack-sm">
               {([1, 2, 3, 4] as const).map((n) => (
                 <button
+                  suppressHydrationWarning
                   key={n}
                   type="button"
                   className="btn btn-ghost"

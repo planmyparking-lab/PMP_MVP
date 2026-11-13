@@ -104,6 +104,7 @@ function FacilitySwitcher({ session }: { session: ConsoleSession }) {
         Facility
       </label>
       <select
+        suppressHydrationWarning
         id="facility"
         name="facility"
         defaultValue={session.facility?.id}
@@ -153,6 +154,7 @@ function UserMenu({ session }: { session: ConsoleSession }) {
   return (
     <div className="user-menu" ref={ref}>
       <button
+        suppressHydrationWarning
         ref={buttonRef}
         type="button"
         className="avatar"
@@ -176,7 +178,7 @@ function UserMenu({ session }: { session: ConsoleSession }) {
             </span>
           </div>
           <form action={signOut}>
-            <button type="submit" className="menu-item" role="menuitem">
+            <button suppressHydrationWarning type="submit" className="menu-item" role="menuitem">
               <Icon name="arrowLeft" size={16} />
               Sign out
             </button>
@@ -244,6 +246,7 @@ export function AppShell({ children, session }: { children: ReactNode; session: 
       <div className="main-col">
         <div className="topbar">
           <button
+            suppressHydrationWarning
             type="button"
             className="btn btn-ghost icon-btn menu-btn"
             aria-label="Open navigation"
