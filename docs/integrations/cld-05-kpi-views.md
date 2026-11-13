@@ -40,7 +40,7 @@ as valid revenue. `upi_paise` includes UPI that is not attested; there is no att
 `declared_total_paise` = the sum of the three. Revenue columns are never null; an active day with no valid payment reads 0.
 Every PAYMENT event of a session counts, each once (events are unique by id), so a session with a fare and a second payment
 reports both. The same payment re-sent by a device under a new event id would be counted twice; whether a session may
-legitimately carry more than one payment is open question OQ-60.
+legitimately carry more than one payment is open question OQ-62.
 
 **Amounts.** Only a JSON number that is a whole number from 0 to the bigint maximum counts. A string, boolean, null,
 fraction, negative, out-of-range number, array, missing key or non-object payload adds 0 and never raises an error (the cast
