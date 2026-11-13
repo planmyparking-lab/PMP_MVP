@@ -7,14 +7,14 @@ vehicle numbers, faces or guard names.
 
 ## Files
 
-| File                      | Purpose                                                                                             |
-| ------------------------- | --------------------------------------------------------------------------------------------------- |
-| `entry-exit-cycles.csv`   | Appendix 1: one row per timed entry or exit                                                         |
-| `shift-closes.csv`        | Appendix 1: one row per timed shift close                                                           |
-| `disputes.csv`            | Appendix 1: one row per timed gate dispute                                                          |
-| `wage-and-volume.md`      | Appendix 2: wage and volume record, one per facility                                                |
-| `roi-statement.md`        | Appendix 3: one-page ROI statement, one per facility                                                |
-| `roi.mjs`, `roi.test.mjs` | Calculator for the formula in D12, and its tests (run with `node --test field/cons12/roi.test.mjs`) |
+| File                      | Purpose                                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `entry-exit-cycles.csv`   | Appendix 1: one row per timed entry or exit                                                                  |
+| `shift-closes.csv`        | Appendix 1: one row per timed shift close                                                                    |
+| `disputes.csv`            | Appendix 1: one row per timed gate dispute                                                                   |
+| `wage-and-volume.md`      | Appendix 2: wage and volume record, one per facility                                                         |
+| `roi-statement.md`        | Appendix 3: one-page ROI statement, one per facility                                                         |
+| `roi.mjs`, `roi.test.mjs` | Calculator for the formula in D12, and its tests (run with `pnpm test:pilot`; CI runs it in the `check` job) |
 
 ## Protocol (from D12)
 
