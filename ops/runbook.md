@@ -66,7 +66,9 @@ uptime monitor is known to exist yet. Record project refs (not keys) in the tabl
     (7 tests, 7 passed) checks the expected event, open-session and conflict counts, that policies survive the restore,
     the corrupted-row MISMATCH path, cleanup, and the refusal cases (missing container, non-`supabase_db_*` name, remote
     Docker env vars). The scratch databases get Supabase's `auth` helper functions copied from the local database,
-    because the `0010` policies reference `auth.uid()` and `auth.jwt()`.
+    because the `0010` policies reference `auth.uid()` and `auth.jwt()`. The drill tests in `pnpm test:restore` need the
+    local Supabase stack and skip without it, and CI has no such stack, so they **never run in CI**: a green CI run says
+    nothing about the restore drill.
   - It refuses to run when `DOCKER_HOST` or `DOCKER_CONTEXT` is set; a remote context set only in Docker's own config
     file is not detected. Cleanup runs on exit but not after `SIGKILL`.
 - **[manual] Production drill (the only valid proof, T-CLD-10-E1):**
@@ -83,10 +85,13 @@ uptime monitor is known to exist yet. Record project refs (not keys) in the tabl
 
 ## Monitoring and on-call (CLD-10)
 
-All **[manual]** and not started: Sentry projects (gate, console, functions) with DSNs in secrets; a Console
-`/api/health` route (Anamika provides it, or Akanksha adds it with her review) that runs `select 1` plus one small
-read and returns 200 or 503 with no data; an uptime monitor hitting it every minute, paging after 2 consecutive
-failures; a named weekly on-call and the escalation order. Alert catalog: [alerts.md](alerts.md).
+The Console `/api/health` route **exists** (`apps/console/app/api/health/route.ts`, PR #40): it sends one zero-row anon
+request to `facilities` and answers 200 or 503 with no data. A permission error (42501) still counts as "database
+reachable", so it keeps working once the `0010` RLS policies are in force. Only a connection failure or a 5xx is 503.
+
+All **[manual]** and not started: Sentry projects (gate, console, functions) with DSNs in secrets; an uptime monitor
+hitting `/api/health` every minute, paging after 2 consecutive failures; a named weekly on-call and the escalation
+order. Alert catalog: [alerts.md](alerts.md).
 Escalation order, on-call roster and the secondary channel are **not decided** (needs the team).
 
 ## Weekly review

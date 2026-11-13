@@ -84,7 +84,7 @@ insert into public.facilities (org_id, name, timezone, slot_count)
 insert into public.zones (facility_id, name, capacity, vehicle_class)
   select f.id, 'Zone ' || g, 10 + g, 'car' from public.facilities f, generate_series(1, 100) g;
 insert into public.passes (facility_id, vehicle_no, valid_to, dues)
-  select f.id, 'MH01' || lpad(g::text, 4, '0'), current_date + g, g * 100 from public.facilities f, generate_series(1, 300) g;
+  select f.id, 'TEST' || lpad(g::text, 4, '0'), current_date + g, g * 100 from public.facilities f, generate_series(1, 300) g;
 insert into public.staff (facility_id, name, pin_hash, pin_salt)
   select f.id, 'Guard ' || g, 'hash', 'salt' from public.facilities f, generate_series(1, 2) g;
 insert into public.devices (facility_id, name) select f.id, 'Gate ' || g from public.facilities f, generate_series(1, 2) g;
@@ -100,7 +100,7 @@ create temp table drill_sessions as
 insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version, payload)
   select gen_random_uuid(), facility_id, device_id, staff_id, 'ENTRY', session_id, now() - interval '3 hours' + n * interval '1 minute', 1,
          jsonb_build_object('vehicle_class', 'car', 'zone_id', zone_id, 'short_code', 'D' || lpad(n::text, 4, '0'),
-                            'vehicle_no', 'KA01DR' || lpad(n::text, 4, '0'))
+                            'vehicle_no', 'TESTDR' || lpad(n::text, 4, '0'))
   from drill_sessions;
 insert into public.events (id, facility_id, device_id, staff_id, type, session_id, device_time, schema_version, payload)
   select gen_random_uuid(), facility_id, device_id, staff_id, 'EXIT', session_id, now() - interval '1 hour' + n * interval '1 minute', 1,
