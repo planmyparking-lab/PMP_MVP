@@ -6,7 +6,7 @@ import type { ActivityLive } from "../src/lib/data/activity";
 import type { FacilityConfigLive } from "../src/lib/data/facilityConfig";
 import { localDate } from "../src/lib/data/localDay";
 import { effectiveDateMismatch, tariffStatuses } from "../src/lib/facilityConfig";
-import { probeLimit, referenceProblems, takeLimited } from "../src/lib/readLimits";
+import { probeLimit, readPaged, referenceProblems, takeLimited } from "../src/lib/readLimits";
 
 // Follow-ups from the PR #41 review (Akanksha): IST effective dates, pass ordering, truncation messages,
 // reference-data errors and tariff version identification.
@@ -28,6 +28,54 @@ describe("truncation is only reported when rows were really cut", () => {
     expect(more.rows).toHaveLength(500);
     expect(more.rows.at(-1)).toBe(499);
     expect(takeLimited(null, 10)).toEqual({ rows: [], truncated: false });
+  });
+});
+
+describe("reads past PostgREST's 1000-row limit (review of #48)", () => {
+  // A fake table of n rows behind a server that never returns more than 1000 per request, like max_rows.
+  const table = (n: number) => {
+    const calls: [number, number][] = [];
+    const page = async (from: number, to: number) => {
+      calls.push([from, to]);
+      const end = Math.min(to + 1, from + 1000, n);
+      return {
+        data: Array.from({ length: Math.max(end - from, 0) }, (_, i) => from + i),
+        error: null,
+      };
+    };
+    return { page, calls };
+  };
+
+  it("collects 2001 rows in three requests, so the truncation check can see the extra row", async () => {
+    const t = table(5000);
+    const r = await readPaged(t.page, probeLimit(2000));
+    expect(r.data).toHaveLength(2001);
+    expect(r.data.at(-1)).toBe(2000);
+    expect(t.calls).toEqual([
+      [0, 999],
+      [1000, 1999],
+      [2000, 2000],
+    ]);
+    expect(takeLimited(r.data, 2000).truncated).toBe(true);
+  });
+
+  it("stops after one short page when the facility has few rows", async () => {
+    const t = table(37);
+    const r = await readPaged(t.page, 2001);
+    expect(r.data).toHaveLength(37);
+    expect(t.calls).toHaveLength(1);
+  });
+
+  it("returns the error with what it read so far", async () => {
+    let n = 0;
+    const r = await readPaged(async (from) => {
+      n++;
+      return n === 1
+        ? { data: Array.from({ length: 1000 }, (_, i) => from + i), error: null }
+        : { data: null, error: { message: "boom", code: "XX000" } };
+    }, 2001);
+    expect(r.error?.message).toBe("boom");
+    expect(r.data).toHaveLength(1000);
   });
 });
 
@@ -55,7 +103,7 @@ describe("tariff versions", () => {
   ];
 
   it("marks per class which version is in force, which starts later and which was replaced", () => {
-    expect(tariffStatuses(rows, now)).toEqual({
+    expect(tariffStatuses(rows, now, "2026-11-13")).toEqual({
       "car-old": "replaced",
       "car-now": "current",
       "car-next": "scheduled",
@@ -65,7 +113,37 @@ describe("tariff versions", () => {
   });
 
   it("a class whose only version starts later has nothing in force", () => {
-    expect(tariffStatuses([rows[2]!], now)).toEqual({ "car-next": "scheduled" });
+    expect(tariffStatuses([rows[2]!], now, "2026-11-13")).toEqual({ "car-next": "scheduled" });
+  });
+
+  it("an ended version is never in force; the newest version still running is (review of #48)", () => {
+    const withEnd = [
+      {
+        id: "car-2025",
+        vehicleClass: "Car",
+        effectiveFrom: "2025-01-01T00:00:00+05:30",
+        effectiveTo: null,
+      },
+      // Newest started version, but its rule ended yesterday: the fare engine answers NO_TARIFF for it.
+      {
+        id: "car-promo",
+        vehicleClass: "Car",
+        effectiveFrom: "2026-11-01T00:00:00+05:30",
+        effectiveTo: "2026-11-12",
+      },
+      // Ends today: still in force for the whole of today (IST calendar day).
+      {
+        id: "bike-last-day",
+        vehicleClass: "Bike",
+        effectiveFrom: "2026-01-01T00:00:00+05:30",
+        effectiveTo: "2026-11-13",
+      },
+    ];
+    expect(tariffStatuses(withEnd, now, "2026-11-13")).toEqual({
+      "car-promo": "ended",
+      "car-2025": "current",
+      "bike-last-day": "current",
+    });
   });
 
   it("reads the start day in the facility's time zone, not from the UTC text", () => {
@@ -148,6 +226,7 @@ describe("Facility page", () => {
     const html = renderToStaticMarkup(<FacilityView live={facilityLive()} />);
     expect(html).toContain("In force");
     expect(html).toContain("Starts later");
+    expect(html).not.toContain(">to ");
     // The random tail, not the timestamp head that two versions created together would share.
     expect(html).toContain("id …0000a001");
     expect(html).toContain("id …0000a002");

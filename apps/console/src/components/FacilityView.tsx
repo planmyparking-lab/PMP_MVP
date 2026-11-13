@@ -8,6 +8,7 @@ const TARIFF_STATUS = {
   current: { tone: "ok", label: "In force" },
   scheduled: { tone: "info", label: "Starts later" },
   replaced: { tone: "off", label: "Replaced" },
+  ended: { tone: "off", label: "Ended" },
   unknown: { tone: "bad", label: "Start unreadable" },
 } as const;
 
@@ -161,6 +162,9 @@ export function FacilityView({ live, reason }: { live?: FacilityConfigLive; reas
                       </td>
                       <td className="num">
                         {t.effectiveDate ? safeDate(t.effectiveDate) : "Unreadable"}
+                        {t.summary.ok && t.summary.effectiveTo && (
+                          <div className="small muted">to {safeDate(t.summary.effectiveTo)}</div>
+                        )}
                       </td>
                       <td>
                         <StatusBadge tone={TARIFF_STATUS[t.status].tone}>

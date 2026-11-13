@@ -106,13 +106,17 @@ export async function loadFacilityConfig(): Promise<FacilityConfigLive | null> {
   const passError = validRes.error ?? expiredRes.error;
   const countError = validCountRes.error ?? expiredCountRes.error;
 
-  const tariffRows = (tariffsRes.data ?? []).map((t) => ({
-    id: String(t.id),
-    vehicleClass: String(t.vehicle_class),
-    effectiveFrom: String(t.effective_from),
-    rule: t.rule_json,
-  }));
-  const statuses = tariffStatuses(tariffRows, asOf);
+  const tariffRows = (tariffsRes.data ?? []).map((t) => {
+    const summary = describeTariff(t.rule_json);
+    return {
+      id: String(t.id),
+      vehicleClass: String(t.vehicle_class),
+      effectiveFrom: String(t.effective_from),
+      effectiveTo: summary.ok ? summary.effectiveTo : null,
+      summary,
+    };
+  });
+  const statuses = tariffStatuses(tariffRows, asOf, today);
 
   return {
     facility,
@@ -133,7 +137,7 @@ export async function loadFacilityConfig(): Promise<FacilityConfigLive | null> {
       : {
           ok: true,
           data: tariffRows.map((t) => {
-            const summary = describeTariff(t.rule);
+            const summary = t.summary;
             const effectiveDate = localDate(t.effectiveFrom, facility.timezone);
             return {
               id: t.id,

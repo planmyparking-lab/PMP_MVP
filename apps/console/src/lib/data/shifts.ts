@@ -1,7 +1,7 @@
 import "server-only";
 import { buildShiftRows, SHIFT_EVENT_LIMIT } from "../shifts";
 import type { ShiftBuild, ShiftEventRow } from "../shifts";
-import { probeLimit, referenceProblems, takeLimited } from "../readLimits";
+import { probeLimit, readPaged, referenceProblems, takeLimited } from "../readLimits";
 import { createSupabaseServerClient } from "../supabase/server";
 import { getConsoleSession } from "./session";
 import { probeResult } from "./probe";
@@ -50,22 +50,34 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
   const since = new Date(Date.parse(asOf) - SHIFT_WINDOW_DAYS * 86_400_000).toISOString();
 
   const [eventsRes, staffRes, devicesRes, reviewsRes] = await Promise.all([
-    supabase
-      .from("events")
-      .select("type, device_time, device_id, staff_id, payload")
-      .eq("facility_id", facility.id)
-      .in("type", ["SHIFT_OPEN", "SHIFT_CLOSE"])
-      .gte("device_time", since)
-      .order("device_time", { ascending: false })
-      .limit(probeLimit(SHIFT_EVENT_LIMIT)),
+    // More than PostgREST's 1000 rows per request, so read in pages; the id breaks device_time ties so pages never
+    // overlap or skip a row.
+    readPaged(
+      (from, to) =>
+        supabase
+          .from("events")
+          .select("type, device_time, device_id, staff_id, payload")
+          .eq("facility_id", facility.id)
+          .in("type", ["SHIFT_OPEN", "SHIFT_CLOSE"])
+          .gte("device_time", since)
+          .order("device_time", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to),
+      probeLimit(SHIFT_EVENT_LIMIT),
+    ),
     supabase.from("staff").select("id, name").eq("facility_id", facility.id),
     supabase.from("devices").select("id, name").eq("facility_id", facility.id),
-    supabase
-      .from("shift_reviews")
-      .select("shift_id, reviewed_by, reviewed_at, status, note")
-      .eq("facility_id", facility.id)
-      .order("reviewed_at", { ascending: false })
-      .limit(SHIFT_EVENT_LIMIT),
+    readPaged(
+      (from, to) =>
+        supabase
+          .from("shift_reviews")
+          .select("shift_id, reviewed_by, reviewed_at, status, note")
+          .eq("facility_id", facility.id)
+          .order("reviewed_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to),
+      SHIFT_EVENT_LIMIT,
+    ),
   ]);
 
   const limited = takeLimited(eventsRes.data, SHIFT_EVENT_LIMIT);

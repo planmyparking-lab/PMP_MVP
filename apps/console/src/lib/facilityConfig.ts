@@ -99,15 +99,25 @@ export function passState(validTo: string, today: string): PassState {
  * `current`, versions starting later are `scheduled`, and older ones are `replaced`. A row whose start cannot be read is
  * `unknown`, never guessed into place.
  */
-export type TariffStatus = "current" | "scheduled" | "replaced" | "unknown";
+export type TariffStatus = "current" | "scheduled" | "replaced" | "ended" | "unknown";
 
+/**
+ * `effectiveTo` is the rule's last IST calendar day (IC-04); after it the fare engine answers NO_TARIFF, so such a
+ * version is `ended` and can never be the one in force. `today` is the facility's local date (yyyy-mm-dd).
+ */
 export function tariffStatuses(
-  rows: ReadonlyArray<{ id: string; vehicleClass: string; effectiveFrom: string }>,
+  rows: ReadonlyArray<{
+    id: string;
+    vehicleClass: string;
+    effectiveFrom: string;
+    effectiveTo?: string | null;
+  }>,
   nowIso: string,
+  today: string,
 ): Record<string, TariffStatus> {
   const now = Date.parse(nowIso);
   const out: Record<string, TariffStatus> = {};
-  const byClass = new Map<string, { id: string; start: number }[]>();
+  const byClass = new Map<string, { id: string; start: number; end: string | null }[]>();
   for (const r of rows) {
     const start = Date.parse(r.effectiveFrom);
     if (!Number.isFinite(start)) {
@@ -115,7 +125,7 @@ export function tariffStatuses(
       continue;
     }
     const list = byClass.get(r.vehicleClass) ?? [];
-    list.push({ id: r.id, start });
+    list.push({ id: r.id, start, end: r.effectiveTo ?? null });
     byClass.set(r.vehicleClass, list);
   }
   for (const list of byClass.values()) {
@@ -123,6 +133,7 @@ export function tariffStatuses(
     let currentFound = false;
     for (const t of list) {
       if (t.start > now) out[t.id] = "scheduled";
+      else if (t.end !== null && t.end < today) out[t.id] = "ended";
       else if (!currentFound) {
         out[t.id] = "current";
         currentFound = true;
