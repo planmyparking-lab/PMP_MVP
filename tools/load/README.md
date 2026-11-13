@@ -36,10 +36,20 @@ the HTTP call fails, any event is rejected, or accepted plus duplicates differs 
 ## Run
 
 ```text
-k6 run -e SUPABASE_URL=<staging url> -e SUPABASE_ANON_KEY=<staging anon key> \
-       -e DEVICES_FILE=<path to devices.json> -e MANAGER_TOKEN=<owner or manager jwt> \
+k6 run -e TARGET=staging -e SUPABASE_URL=<staging url> -e SUPABASE_ANON_KEY=<staging anon key> \
+       -e DEVICES_FILE=<absolute path to devices.json> -e MANAGER_TOKEN=<owner or manager jwt> \
        tools/load/ingest.k6.js
 ```
+
+`TARGET=staging` and `DEVICES_FILE` are both required; the script stops at start-up without them. `DEVICES_FILE` has no
+default on purpose (a default path inside the repository could be committed by accident), and `tools/load/devices*.json`
+is gitignored as a second line of defence. Keep the file outside the repository anyway. `TARGET=staging` is a
+confirmation, not a check: the script cannot tell which project the URL points at.
+
+What the numbers mean: an EXIT comes 5 seconds after its ENTRY with a random fare of 1 to 40 rupees and vehicle class
+`CAR`, so the run measures ingest timing, not realistic revenue (a real grace period would make such a stay free, and
+tariffs name the class `Car`). Do not read KPI values from this data as a result. Events still buffered when the run
+ends are not sent, so the row count will be slightly under 14,400.
 
 Set `DURATION=5m` for a short rehearsal and `SKIP_VIEW_CHECK=true` to leave out the view check. Without `MANAGER_TOKEN`
 and without `SKIP_VIEW_CHECK=true` the run stops in `setup`, on purpose: an empty view measurement would pass its
@@ -54,7 +64,8 @@ node --test tools/load/events.test.mjs
 They check, without k6 or a database: UUIDv7 ids with the right timestamp; UTC times with a literal `Z`; the 5 character
 short code rule; the ENTRY, EXIT, PAYMENT cycle and one session per cycle; that the envelope and payload keys equal the
 contract fixtures in `packages/contracts/fixtures/events/valid` exactly; no duplicate id in 14,400 events; that
-outages last 60 to 120 steps and lose no event; and that `ingest.k6.js` parses. This file is not in `pnpm test:scripts`
+outages last 60 to 120 steps and lose no event; that `ingest.k6.js` parses; and that it has no default device file, requires
+`TARGET=staging`, and that `.gitignore` covers `tools/load/devices.json`. This file is not in `pnpm test:scripts`
 yet (that list is in `package.json` and is also edited by other work).
 
 ## One-off check against the real database (12 Nov 2026, not repeatable from the repository)

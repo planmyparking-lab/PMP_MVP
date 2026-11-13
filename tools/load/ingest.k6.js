@@ -16,9 +16,21 @@ const STEP_SECONDS = 5;
 const DURATION = __ENV.DURATION || "1h";
 const BASE = (__ENV.SUPABASE_URL || "").replace(/\/+$/, "");
 const ANON_KEY = __ENV.SUPABASE_ANON_KEY || "";
+// The run writes about 14,400 events, so it must be asked for staging explicitly (README, "Run").
+if (__ENV.TARGET !== "staging") {
+  throw new Error(
+    "set -e TARGET=staging to confirm this is a staging project; never run this against production",
+  );
+}
 // A JSON file outside the repository: [{ "token", "device_id", "facility_id", "staff_id", "zone_id" }, ...], one entry
-// per enrolled staging device. Device tokens are secrets and are never committed.
-const DEVICES = JSON.parse(open(__ENV.DEVICES_FILE || "devices.json"));
+// per enrolled staging device. Device tokens are secrets and are never committed, so there is deliberately NO default
+// path: a default inside the repository (tools/load/devices.json) could be committed by a stray `git add .`.
+if (!__ENV.DEVICES_FILE) {
+  throw new Error(
+    "set -e DEVICES_FILE=<absolute path to a device token file kept outside the repository>",
+  );
+}
+const DEVICES = JSON.parse(open(__ENV.DEVICES_FILE));
 
 const failedBatches = new Counter("ingest_failed_batches");
 const sentEvents = new Counter("ingest_events_sent");

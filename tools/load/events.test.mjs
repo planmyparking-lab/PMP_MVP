@@ -185,3 +185,27 @@ test("the k6 script is syntactically valid", () => {
   });
   assert.equal(result.status, 0, result.stderr);
 });
+
+// Regression (review of #44): the device token file defaulted to tools/load/devices.json, inside the repository and not
+// ignored, so a stray `git add .` after a run could commit device JWTs. k6 cannot run here, so these read the source.
+const k6Source = readFileSync(here("./ingest.k6.js"), "utf8");
+
+test("the k6 script has no default device file and requires DEVICES_FILE", () => {
+  assert.doesNotMatch(k6Source, /DEVICES_FILE\s*\|\|/);
+  assert.doesNotMatch(k6Source, /["']devices\.json["']/);
+  assert.match(k6Source, /if \(!__ENV\.DEVICES_FILE\)\s*\{\s*throw new Error/);
+});
+
+test("the k6 script refuses to start without TARGET=staging", () => {
+  assert.match(k6Source, /if \(__ENV\.TARGET !== "staging"\)\s*\{\s*throw new Error/);
+});
+
+test(".gitignore covers the device token file the script used to default to", () => {
+  const patterns = readFileSync(here("../../.gitignore"), "utf8")
+    .split(/\r?\n/)
+    .map((l) => l.trim());
+  assert.ok(
+    patterns.includes("tools/load/devices*.json"),
+    "tools/load/devices*.json must be gitignored",
+  );
+});
