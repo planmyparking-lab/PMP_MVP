@@ -75,7 +75,13 @@ async function main() {
       for (const line of [...tap.failed, ...tap.errors, ...tap.skipped, ...tap.todoPassed])
         console.log(`  ${line}`);
       for (const reason of reasons) console.log(`  reason: ${reason}`);
-      if (status === "FAILED") failed = true;
+      if (status === "FAILED") {
+        failed = true;
+        if (t.name === "rls_policies") {
+          console.log("--- Full rls_policies PostgreSQL output ---");
+          console.log(r.out);
+        }
+      }
     }
 
     const conc = await new Promise((resolve) => {
