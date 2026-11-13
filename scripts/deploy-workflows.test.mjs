@@ -95,6 +95,11 @@ test("production deploys only for v* tags, after verification, through the produ
     "the release gate requires both CI jobs",
   );
   assert.match(production, /set -o pipefail/, "a failed API call must not pass the gate");
+  assert.match(
+    production,
+    /--jq '\.check_runs\[\] \| select\(\.app\.slug == "github-actions"\)'/,
+    "a check run posted under the same name by another app must not satisfy the gate",
+  );
   assert.match(production, /check-runs\?filter=latest/, "only the latest run of each job counts");
   assert.match(production, /needs: verify/);
   assert.doesNotMatch(

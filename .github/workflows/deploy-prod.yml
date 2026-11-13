@@ -40,8 +40,10 @@ jobs:
           set -o pipefail
           # Latest run of every CI job for this commit, one JSON object per line. The script fails unless BOTH required jobs
           # succeeded: a failed, skipped, cancelled, unfinished or missing job (or an empty answer from the API) blocks.
+          # Only runs created by GitHub Actions count: a check run posted under the same name by another app must not
+          # satisfy the gate (select on app.slug). If the slug ever differs the filter yields nothing and the gate fails closed.
           gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?filter=latest&per_page=100" \
-            --jq '.check_runs[]' | node scripts/verify-ci-checks.mjs --require check --require db-tests
+            --jq '.check_runs[] | select(.app.slug == "github-actions")' | node scripts/verify-ci-checks.mjs --require check --require db-tests
 
   deploy:
     name: deploy-production

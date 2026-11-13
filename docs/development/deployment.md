@@ -29,6 +29,14 @@ Safety rules built in (and asserted by `scripts/deploy-workflows.test.mjs`, whic
 - One deploy per environment at a time; a queued deploy waits instead of cancelling one in progress.
 - Migrations are previewed (`--dry-run`) before they are applied. Migrations are forward-only, so a database rollback
   is a new corrective migration, not a revert.
+- The release gate counts only check runs created by GitHub Actions (`app.slug == "github-actions"`), so another app
+  cannot satisfy it by posting a check run named `check` or `db-tests`.
+- CI cancels a run in progress when a newer push arrives. With two quick merges to `main` the first commit's CI can be
+  cancelled, and that commit can then never be released (the gate sees a cancelled run). This is safe. Tag the latest
+  commit on `main`, or re-run CI on the older one.
+- Tagging an older commit does **not** roll production back: `supabase db push` refuses when the remote database has
+  migrations the checkout does not. That fits forward-only migrations: to undo a change, merge a corrective change and
+  tag the new commit. Whoever is on call should not try a rollback by re-tagging.
 
 ## Not implemented, and why
 
