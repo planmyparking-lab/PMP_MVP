@@ -68,7 +68,14 @@ describe("offlineReason", () => {
       "No membership.",
     );
     expect(
-      offlineReason({ kind: "ok", email: "a@b.in", role: "owner", facilities: [], facility: null }),
+      offlineReason({
+        kind: "ok",
+        userId: "00000000-0000-4000-8000-0000000000a1",
+        email: "a@b.in",
+        role: "owner",
+        facilities: [],
+        facility: null,
+      }),
     ).toMatch(/CLD-03/);
   });
 });

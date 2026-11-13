@@ -38,6 +38,9 @@ an orphans column). Drop `pass_count` if Anamika does not want it; the revenue c
 `PASS`. `WAIVED` is excluded from every total. Any other mode (unknown, lower case, missing) is excluded too, never counted
 as valid revenue. `upi_paise` includes UPI that is not attested; there is no attested column (OQ-45: no derived columns).
 `declared_total_paise` = the sum of the three. Revenue columns are never null; an active day with no valid payment reads 0.
+Every PAYMENT event of a session counts, each once (events are unique by id), so a session with a fare and a second payment
+reports both. The same payment re-sent by a device under a new event id would be counted twice; whether a session may
+legitimately carry more than one payment is open question OQ-62.
 
 **Amounts.** Only a JSON number that is a whole number from 0 to the bigint maximum counts. A string, boolean, null,
 fraction, negative, out-of-range number, array, missing key or non-object payload adds 0 and never raises an error (the cast
@@ -55,14 +58,22 @@ It is computed as the mean of the stays in seconds, divided by 60 once, then rou
 an exact 104.855 into 104.85 (found by the oracle test, section 8). When the exact mean lies on a rounding boundary, the mean
 in seconds has at most two decimals and the division by 60 terminates, so the result is exact there.
 
-**Time.** Everything is in `facilities.timezone` (IANA, must be valid; an invalid name makes the query fail, and the column has
-no check constraint today), converted from `device_time`.
+**Time.** Everything is in `facilities.timezone` (IANA, must be valid), converted from `device_time`. An invalid name makes
+any query that reaches that facility's rows fail, including an unfiltered query over every facility. The column has no check
+constraint: adding one changes `facilities` (`0001`), so it belongs in its own migration, not in this views migration. Until
+then the Console setup wizard validates the name (Anamika, PR #33 review).
 
 **Midnight convention.** A session spanning midnight is split by event: `vehicles`, `pass_count` and `v_hourly.entries` use the
 ENTRY's date and hour; exits, orphans, stay and `v_hourly.exits` use the EXIT's; revenue uses the date of the session's first
 EXIT (sheet: "attribute revenue to exit date"), or the payment's own date when the session has no EXIT; overrides use the
 OVERRIDE event's date. A day can therefore show exits or revenue without entries, and `overrides_per_100` is null when
 `vehicles` is 0.
+
+**Late exits move revenue.** Because of that rule, a payment recorded while its session has no EXIT yet counts on the
+payment's own date; when the session's first EXIT syncs later, the same payment moves to the EXIT's date. The total never
+changes, but a figure produced for the payment's date before the exit arrived (for example a daily report already emailed)
+can differ from what the views show afterwards. Consumers that freeze a day's numbers should record what they sent rather
+than expect the views to reproduce it. Tested in `kpi_views.test.sql` (facility F6).
 
 **Empty periods.** A facility or day with no events produces no row (the sheet allows "zero rows or zero values"); days
 between two active days are not generated. Revenue is never null on a row that exists.
@@ -130,7 +141,9 @@ query on the new views stays near 0.3 to 0.4 s in this setup with a few runs eac
 a 0.3 s query into several seconds. 0009 cannot fix the last item. Recommended order (OQ-56): (a) evaluate membership once per
 query in the 0010 events and facilities policies, then re-measure on staging data; (b) only if X1 still fails, a
 facility-and-date-bounded function, or (c) a rollup table with a documented refresh. (b) and (c) add API or maintenance
-that no specification defines, so none was built. The Console must always filter by `facility_id`.
+that no specification defines, so none was built. The Console must always filter by `facility_id`. Even a "today only"
+query aggregates the facility's whole history (the local date cannot be pushed into the events scan), and the Console
+dashboard refreshes every 10 seconds, so each refresh repeats that cost; this is part of OQ-56.
 
 ## 6. RLS and dependency on 0010
 

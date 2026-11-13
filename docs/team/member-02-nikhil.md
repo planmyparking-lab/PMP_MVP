@@ -752,7 +752,7 @@ Contract IDs follow README. Contract details live in `packages/contracts`. Nikhi
 | IC-06 Tariff schema | Consumes | Anamika, Akanksha | Fare engine input shape. Any new model type needs a schema change first. | `T-IC06-GATE-1` |
 | IC-09 Fare function | Provides | Anamika | Pure function exported from `packages/domain`. | `T-IC09-GATE-1` |
 
-Dependencies without a code contract: printer vendor protocol (OQ item), Expo native modules (`expo-camera`, `expo-secure-store`, MMKV; `expo-battery` and `expo-file-system` are not approved yet), and EAS build access.
+Dependencies without a code contract: printer vendor protocol (OQ item), Expo native modules (`expo-camera`, `expo-secure-store`, MMKV; `expo-battery` and `expo-file-system` are not approved yet; `expo-sqlite` was added on `feature/gate-sqlite-sync` for the SQLite OutboxStore and is PROPOSED, not yet approved — see OQ-59), and EAS build access.
 
 Blocking order for Nikhil: SYNC-01 types, then CLD-02 schema, then SYNC-02 and SYNC-03 before GATE-01 can sync end to end. GATE-03 can start now because it needs only the tariff schema.
 

@@ -27,7 +27,7 @@
 -- or wrongly allows. Passing this file after 0010 lands is therefore NOT evidence that 0010's RLS is correct. That needs a
 -- separate 0010-specific RLS test that uses the real policies with no stand-in policy created.
 begin;
-select plan(37);
+select plan(40);
 
 insert into public.organizations (id, name) values
   ('00000000-0000-0000-0000-00000000aa00', 'Org A'), ('00000000-0000-0000-0000-00000000ab00', 'Org B');
@@ -319,6 +319,34 @@ set local role anon;
 select throws_ok($$select count(*) from public.v_daily_kpis$$, '42501', null, 'anon cannot read v_daily_kpis');
 select throws_ok($$select count(*) from public.v_hourly$$, '42501', null, 'anon cannot read v_hourly');
 reset role;
+
+-- ---- Late exit (PR #33 review): revenue moves from the payment's date to the exit's date ----
+-- F6, Asia/Kolkata. Session 601 enters 20 March 22:00 IST (16:30Z) and pays CASH 1500 at 22:10 IST (16:40Z). While the
+-- session has no EXIT the payment is dated by itself (20 March). When the EXIT at 21 March 00:30 IST (19:00Z) arrives, the
+-- revenue moves to the exit date and 20 March keeps only the entry. The total never changes. A report produced for
+-- 20 March before the exit synced would therefore differ from the views afterwards (documented in cld-05-kpi-views.md).
+insert into public.facilities (id, org_id, name, timezone, slot_count) values
+  ('00000000-0000-0000-0000-00000000aa06', '00000000-0000-0000-0000-00000000aa00', 'F6 late exit', 'Asia/Kolkata', 10);
+insert into public.devices (id, facility_id, name) values
+  ('00000000-0000-0000-0000-00000000dd06', '00000000-0000-0000-0000-00000000aa06', 'D6');
+insert into public.staff (id, facility_id, name, pin_hash, pin_salt) values
+  ('00000000-0000-0000-0000-00000000cc06', '00000000-0000-0000-0000-00000000aa06', 'S6', 'h', 's');
+select pg_temp.entry(6, pg_temp.sid(601), '2026-03-20 16:30:00+00');
+select pg_temp.pay(6, pg_temp.sid(601), '2026-03-20 16:40:00+00', 'CASH', '1500');
+select results_eq(
+  $$select local_date, vehicles, cash_paise, declared_total_paise from public.v_daily_kpis
+    where facility_id = '00000000-0000-0000-0000-00000000aa06' order by local_date$$,
+  $$values ('2026-03-20'::date, 1, 1500::bigint, 1500::bigint)$$,
+  'before its exit syncs, a session''s payment is dated by the payment (20 March)');
+select pg_temp.ev(6, 'EXIT', pg_temp.sid(601), '2026-03-20 19:00:00+00', '{"fare_paise":1500,"exit_method":"SCAN"}');
+select results_eq(
+  $$select local_date, vehicles, cash_paise, declared_total_paise from public.v_daily_kpis
+    where facility_id = '00000000-0000-0000-0000-00000000aa06' order by local_date$$,
+  $$values ('2026-03-20'::date, 1, 0::bigint, 0::bigint), ('2026-03-21'::date, 0, 1500::bigint, 1500::bigint)$$,
+  'once the exit syncs, the same payment moves to the exit date (21 March); 20 March keeps the entry');
+select is((select sum(declared_total_paise)::bigint from public.v_daily_kpis
+  where facility_id = '00000000-0000-0000-0000-00000000aa06'), 1500::bigint,
+  'moving the payment to the exit date never changes the facility''s total');
 
 -- ---- Invariants over every row ----
 select is((select count(*) from public.v_daily_kpis where avg_stay_minutes is not null and avg_stay_minutes < 0), 0::bigint,
