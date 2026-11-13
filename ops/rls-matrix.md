@@ -3,12 +3,11 @@
 Owner: Akanksha (Member 04). Evidence document for `CLD-03` (`docs/team/member-04-akanksha.md`, section C, step 16: "matrix
 table committed in `ops/rls-matrix.md`").
 
-**Status: describes migration `0010_rls.sql` as proposed in pull request #34 at commit `4cf4a44`. That pull request is
-under review and not merged, so none of this is in force on `main` yet.** `4cf4a44` is the commit that adds the column
-grants on `staff` and `devices` that the reviews of #34 required. When this file was written, #34's published head on
-GitHub was still `678bd1d`, which does **not** have them, so this file is accurate only once `4cf4a44` is on #34 (pull
-request #34 first, then this one, then check that the SHA here is the head of #34). If #34 changes before it merges, this file must
-change with it. The matrix follows section D.3 of the member sheet, with deliberate narrowings of three sheet cells (section 5). Where the
+**Status: describes migration `0010_rls.sql` as proposed in pull request #34, checked against its head `173f56e`. That
+pull request is under review and not merged, so none of this is in force on `main` yet.** The column grants on `staff` and
+`devices` that the reviews of #34 required are in commits `1073188` and `4cf4a44`, both pushed and part of that head. Between
+`4cf4a44` and `173f56e`, `0010_rls.sql` and both RLS test files are unchanged: the later commits only change the CI runner
+and merge `main` (which also brought the `0008` battery fix). If #34 changes before it merges, this file must change with it. The matrix follows section D.3 of the member sheet, with deliberate narrowings of three sheet cells (section 5). Where the
 sheet is silent or ambiguous the choice is fail-closed and recorded as OQ-58
 (`docs/team/open-questions-and-assumptions.md`; the row is added by PR #34 and does not exist on `main` yet).
 
@@ -16,7 +15,8 @@ sheet is silent or ambiguous the choice is fail-closed and recorded as OQ-58
 
 - **Source**: read from the migration SQL (cited as `file:line`, `0010_rls.sql` being the version in #34).
 - **Tested**: asserted by a committed pgTAP test in `rls_policies.test.sql` (114 assertions) or `rls_sync_tables.test.sql`
-  (40 assertions), both run on a local Supabase stack on 12 Nov 2026 (not CI).
+  (40 assertions), both run on a local Supabase stack on 12 Nov 2026, and in the `db-tests` CI job of #34 at `173f56e`
+  (green; CI uses a plain Postgres with a stub for the Supabase roles, `scripts/ci-supabase-stub.sql`, not a full Supabase).
 - **Probed**: observed once on 12 Nov 2026 on a local database with #34's migrations applied inside a transaction that was
   rolled back. No committed test repeats it, so it is weaker than "Tested".
 
@@ -45,7 +45,7 @@ third (derived from the SQL, not tested).
 | Path                                                       | `auth_user_id` = caller | Not revoked | `role = 'device'` claim | `device_id` claim = row | `facility_id` claim = row | Source                             |
 | ---------------------------------------------------------- | ----------------------- | ----------- | ----------------------- | ----------------------- | ------------------------- | ---------------------------------- |
 | `device_facility()` (every RLS read by a device, the view) | yes                     | yes         | yes                     | yes                     | yes                       | `0010_rls.sql:45-54`               |
-| `heartbeat()`                                              | yes                     | yes         | yes                     | yes (and the argument)  | no                        | `0008_device_heartbeats.sql:61-70` |
+| `heartbeat()`                                              | yes                     | yes         | yes                     | yes (and the argument)  | no                        | `0008_device_heartbeats.sql:69-78` |
 | `ingest_events()`                                          | yes                     | yes         | no                      | no                      | no                        | `0004_ingest_events.sql:48-55`     |
 
 `ingest_events` additionally requires every event to carry the device's own `facility_id` and `device_id`
@@ -105,7 +105,7 @@ committed test checks the rest** (section 6).
 | `is_org_member(uuid, text[])`                                                                       | SECURITY DEFINER, `search_path = ''`                       | `authenticated`; revoked from PUBLIC and `anon` (`0010_rls.sql:56-59`)                     | Counts organization-wide memberships only.                                                    |
 | `device_facility()`                                                                                 | SECURITY DEFINER, `search_path = ''`                       | `authenticated`; revoked from PUBLIC and `anon` (`0010_rls.sql:56-59`)                     | Device rule in section 1.                                                                     |
 | `ingest_events(jsonb)` (0004)                                                                       | SECURITY DEFINER                                           | `authenticated`; revoked from PUBLIC and `anon` (`0004_ingest_events.sql:195-196`)         | Device rule in section 1: `auth_user_id` only. Does **not** check the JWT claims (section 5). |
-| `heartbeat(...)` (0008)                                                                             | SECURITY DEFINER                                           | `authenticated`; revoked from PUBLIC and `anon` (`0008_device_heartbeats.sql:90-91`)       | Device rule in section 1; one generic `42501` for every failure.                              |
+| `heartbeat(...)` (0008)                                                                             | SECURITY DEFINER                                           | `authenticated`; revoked from PUBLIC and `anon` (`0008_device_heartbeats.sql:98-99`)       | Device rule in section 1; one generic `42501` for every failure.                              |
 | `apply_open_sessions()` (0005)                                                                      | SECURITY DEFINER, trigger function                         | Nobody: revoked from PUBLIC, `anon` and `authenticated` (`0005_open_sessions.sql:98`)      | Runs only as a trigger.                                                                       |
 | `detect_conflicts()` (0006)                                                                         | SECURITY DEFINER, trigger function                         | Nobody: revoked from PUBLIC, `anon` and `authenticated` (`0006_conflict_detector.sql:131`) | Runs only as a trigger.                                                                       |
 | `lock_session(uuid, uuid)` (0005)                                                                   | Ordinary function (not SECURITY DEFINER)                   | Nobody: revoked from PUBLIC, `anon` and `authenticated` (`0005_open_sessions.sql:52`)      | Internal helper.                                                                              |
@@ -131,7 +131,7 @@ RLS does not govern `TRUNCATE`, `REFERENCES`, `TRIGGER` or column-level access, 
   facility into another organization (tested, `rls_sync_tables.test.sql:159-180`).
 - **Deleting staff and devices:** `events` references `staff` and `devices` with `on delete restrict`
   (`0003_events.sql:47,49`), so a staff or device row that has events cannot be deleted by anyone, owner included. A
-  device's `device_heartbeats` row is deleted with it (`on delete cascade`, `0008_device_heartbeats.sql:18`). Probed: an
+  device's `device_heartbeats` row is deleted with it (`on delete cascade`, `0008_device_heartbeats.sql:26`). Probed: an
   owner and a manager could delete a staff row that had no events.
 - **Manager visibility of `devices.auth_user_id`:** owners and managers can select every column of `devices`, including
   `auth_user_id` (the Supabase user id of the phone). Read from the column grants and confirmed by a catalog probe.
