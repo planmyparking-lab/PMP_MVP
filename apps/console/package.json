@@ -12,6 +12,7 @@
   "dependencies": {
     "@pmp/contracts": "workspace:*",
     "@pmp/domain": "workspace:*",
+    "@pmp/sync-rules": "workspace:*",
     "@sparticuz/chromium": "152.0.0",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.118.0",

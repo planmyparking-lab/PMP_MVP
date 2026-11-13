@@ -41,6 +41,9 @@ importers:
       '@pmp/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@pmp/sync-rules':
+        specifier: workspace:*
+        version: link:../../packages/sync-rules
       '@sparticuz/chromium':
         specifier: 152.0.0
         version: 152.0.0

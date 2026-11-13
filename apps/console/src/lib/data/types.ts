@@ -3,6 +3,7 @@
  * components can import them. Every field that could not be read is a `Loaded` error, never a made-up value.
  */
 import type { SyncConflictRow } from "../conflicts";
+import type { ZoneCheck } from "../zoneDrift";
 import type { Probe } from "./probe";
 
 export type Loaded<T> = { ok: true; data: T } | { ok: false; error: string };
@@ -105,6 +106,8 @@ export interface FacilityLive {
   today: Loaded<{ entries: number; exits: number; overrides: number; entriesByHour: number[] }>;
   /** Today from the KPI views; `absent` until #33 is merged. */
   kpis: Probe<KpiToday>;
-  /** Device health; `absent` until #31 is merged. */
+  /** Device health from `device_heartbeats` (0008). */
   heartbeats: Probe<HeartbeatLive[]>;
+  /** Latest physical count per zone id, null when the zone has never been counted (SYNC-04 drift rule, #28). */
+  zoneChecks: Loaded<Record<string, ZoneCheck | null>>;
 }

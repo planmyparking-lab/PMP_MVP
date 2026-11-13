@@ -3,6 +3,7 @@ import { cache } from "react";
 import { parseSyncConflictRows } from "../conflicts";
 import { OpenSessionRowSchema } from "../openSessions";
 import { createSupabaseServerClient } from "../supabase/server";
+import { zoneChecks, zoneCountRecords } from "../zoneDrift";
 import { mapHeartbeats, mapKpiToday } from "./backendMaps";
 import { countByIstHour, istDayStart } from "./istDay";
 import { localDate } from "./localDay";
@@ -24,10 +25,12 @@ const ROW_LIMIT = 2000;
  * its own, so one missing grant or policy shows as one "unavailable" card, not a broken page.
  * Sources (all implemented in supabase/migrations): zones (0001), devices and staff (0002), events (0003),
  * open_sessions (0005) and sync_conflicts (0006).
- * Progressive (still in open PRs, see probe.ts): the KPI views `v_daily_kpis` and `v_hourly` (#33) and
- * `device_heartbeats` (#31). While they are absent the screens fall back to the reads above; once merged they are
- * used with no Console change.
+ * Also used: the KPI views `v_daily_kpis` and `v_hourly` (0009), `device_heartbeats` (0008), read through probes so a
+ * database without them still renders, and the latest ZONE_COUNT per zone, checked with SYNC-04's drift rule (#28).
+ * Row-level security (0010) limits every read to the facilities the user is an owner or manager of.
  */
+/** ZONE_COUNT events read to find the latest physical count of each zone. */
+const ZONE_COUNT_LIMIT = 200;
 export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => {
   const session = await getConsoleSession();
   if (session.kind !== "ok" || !session.facility) return null;
@@ -49,6 +52,7 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
     dailyRes,
     hourlyRes,
     heartbeatsRes,
+    zoneCountsRes,
   ] = await Promise.all([
     supabase
       .from("zones")
@@ -103,6 +107,13 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
         "device_id, received_at, queue_depth, oldest_unsynced_age_s, app_version, schema_version, battery_pct",
       )
       .eq("facility_id", facility.id),
+    supabase
+      .from("events")
+      .select("id, device_time, payload")
+      .eq("facility_id", facility.id)
+      .eq("type", "ZONE_COUNT")
+      .order("device_time", { ascending: false })
+      .limit(ZONE_COUNT_LIMIT),
   ]);
 
   const zoneNames = new Map<string, string>(
@@ -230,10 +241,22 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
     mapHeartbeats(rows as unknown[]),
   );
 
+  const physical: FacilityLive["zoneChecks"] = zoneCountsRes.error
+    ? fail("zone counts", zoneCountsRes.error.message)
+    : {
+        ok: true,
+        data: zoneChecks(
+          zoneCountRecords(zoneCountsRes.data ?? []),
+          (zonesRes.data ?? []).map((z) => String(z.id)),
+          asOf,
+        ),
+      };
+
   return {
     facility,
     asOf,
     zones,
+    zoneChecks: physical,
     inside,
     conflicts,
     devices,
