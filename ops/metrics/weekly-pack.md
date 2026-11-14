@@ -22,7 +22,7 @@ TODO: adherence percentage and bypass reasons. Source: `adherence-sheet.csv` (ME
 
 ## 4. Sync health
 
-TODO: queue depth, oldest unsynced age, sync latency p95, quarantined events, devices on an old schema. Source: `device_heartbeats` and the health page (CON-10).
+TODO: queue depth, oldest unsynced age, sync latency p95, quarantined events, devices on an old schema. Source: `weekly.sql` section 4 (latency from `events`; latest heartbeat per phone from `device_heartbeats`, a snapshot, not a weekly history) and the health page (CON-10). Quarantined events have no server-side source yet: they are counted only in each phone's outbox (`quarantinedCount`, SYNC-06).
 
 ## 5. Conflicts
 
