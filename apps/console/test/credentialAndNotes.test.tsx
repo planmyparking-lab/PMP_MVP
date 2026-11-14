@@ -9,6 +9,9 @@ import { ConflictsView, notesUnavailableReason } from "../src/components/Conflic
 import { LiveDevices } from "../src/components/LiveDevices";
 import { checkConflictNote, groupConflictNotes, noteInsertError } from "../src/lib/conflictNotes";
 import {
+  facilityQueue,
+  guardQueueWarning,
+  phoneQueueWarning,
   credentialUpdateError,
   DeviceTarget,
   GuardTarget,
@@ -118,6 +121,42 @@ describe("Conflicts page", () => {
     );
     expect(html).toContain("Live and read-only");
     expect(html).toContain("cannot read notes yet");
+  });
+});
+
+describe("events still waiting to sync (review of #51)", () => {
+  const devices = [
+    { id: "d1", revokedAt: null },
+    { id: "d2", revokedAt: null },
+    { id: "d3", revokedAt: null },
+    { id: "old", revokedAt: "2026-11-01T00:00:00Z" },
+  ];
+
+  it("adds up the active phones' queues and counts phones with no heartbeat", () => {
+    const q = facilityQueue(devices, [
+      { deviceId: "d1", queueDepth: 150 },
+      { deviceId: "d2", queueDepth: 0 },
+      { deviceId: "old", queueDepth: 99 },
+    ]);
+    expect(q).toEqual({ events: 150, phonesWithQueue: 1, phonesUnknown: 1 });
+    expect(guardQueueWarning(q)).toBe(
+      "150 events are still waiting to sync on 1 phone. Any of them recorded by this guard will be refused. 1 phone has sent no heartbeat, so its queue is unknown. Ask the phones to sync first if you can.",
+    );
+  });
+
+  it("says so plainly when nothing is waiting, and when heartbeats cannot be read", () => {
+    expect(guardQueueWarning({ events: 0, phonesWithQueue: 0, phonesUnknown: 0 })).toContain(
+      "nothing recorded by this guard is lost",
+    );
+    expect(facilityQueue(devices, null)).toBeNull();
+    expect(guardQueueWarning(null)).toContain("Queue sizes are unknown");
+  });
+
+  it("warns per phone before a revoke", () => {
+    expect(phoneQueueWarning(3)).toContain("3 events still waiting to sync. They will be refused.");
+    expect(phoneQueueWarning(0)).toContain("no events waiting");
+    expect(phoneQueueWarning(null)).toContain("sent no heartbeat");
+    expect(phoneQueueWarning("unavailable")).toContain("Queue sizes are unknown");
   });
 });
 
