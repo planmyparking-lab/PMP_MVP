@@ -96,7 +96,7 @@ export const FEATURES: FeatureStatus[] = [
     state: "partial",
     works: "Reads sync_conflicts for the selected facility, grouped by type with age and status.",
     needs: [
-      "conflict_resolutions and resolve_conflict for actions (Afzal, Akanksha)",
+      "The resolve_conflict function for actions; the conflict_resolutions table exists (Afzal, Akanksha)",
       "Row-level security policies (CLD-03)",
     ],
   },

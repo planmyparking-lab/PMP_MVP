@@ -47,7 +47,7 @@ const SEVERITY = [
 ] as const;
 
 const RESOLUTION_UNAVAILABLE =
-  "Resolving needs conflict_resolutions, the atomic resolve_conflict function, sign-in and row-level security.";
+  "Resolving needs the atomic resolve_conflict function and row-level security. The conflict_resolutions table exists (0007).";
 
 function ageLabel(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
@@ -105,8 +105,8 @@ export function ConflictsView({
         ) : (
           <Banner tone="info" icon="info" title="Live and read-only">
             {`${rows.filter((r) => r.status === "OPEN").length} open of ${rows.length} recorded. `}
-            Resolving needs the conflict_resolutions table and the resolve_conflict function, which
-            are not built yet, so actions stay disabled.
+            Resolving needs the resolve_conflict function, which is not built yet, so actions stay
+            disabled. The table that records resolutions already exists.
           </Banner>
         )
       ) : (
@@ -210,7 +210,7 @@ export function ConflictsView({
                   ? [
                       "Console sign-in and facility-scoped RLS",
                       "A server query that selects sync_conflicts rows",
-                      "conflict_resolutions and resolve_conflict for actions",
+                      "The resolve_conflict function for actions",
                     ]
                   : undefined
               }

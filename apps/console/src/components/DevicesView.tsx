@@ -62,7 +62,7 @@ export function DevicesView({ live }: { live?: ReactNode } = {}) {
         title="Devices"
         description={
           live
-            ? "Enrolled gate phones and guards for this facility. Health signals arrive once the heartbeat table exists."
+            ? "Enrolled gate phones and guards for this facility, with each phone's latest heartbeat."
             : "Know which phones are online, in sync and healthy before an operator calls you. Live monitoring needs the heartbeat table."
         }
         actions={
