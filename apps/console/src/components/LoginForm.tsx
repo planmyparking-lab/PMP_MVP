@@ -40,9 +40,12 @@ export function LoginForm({ next, configured }: { next: string; configured: bool
     );
   }
 
+  // Form-filler browser extensions add attributes such as fdprocessedid to inputs and buttons before React hydrates.
+  // suppressHydrationWarning ignores attribute differences on that one element only (not its children), so the
+  // extension no longer raises a hydration error and nothing else is hidden.
   return (
     <form action={action} className="auth-form" noValidate>
-      <input type="hidden" name="next" value={next} />
+      <input type="hidden" name="next" value={next} suppressHydrationWarning />
       <div className="field">
         <label htmlFor="email">Work email</label>
         <div className="input-icon">
@@ -55,6 +58,7 @@ export function LoginForm({ next, configured }: { next: string; configured: bool
             className="input"
             required
             placeholder="you@company.in"
+            suppressHydrationWarning
           />
         </div>
       </div>
@@ -70,6 +74,7 @@ export function LoginForm({ next, configured }: { next: string; configured: bool
             className="input"
             required
             placeholder="Your password"
+            suppressHydrationWarning
           />
           <button
             type="button"
@@ -77,6 +82,7 @@ export function LoginForm({ next, configured }: { next: string; configured: bool
             onClick={() => setShow((s) => !s)}
             aria-pressed={show}
             aria-label={show ? "Hide password" : "Show password"}
+            suppressHydrationWarning
           >
             <Icon name={show ? "eyeOff" : "eye"} size={17} />
           </button>
@@ -88,7 +94,12 @@ export function LoginForm({ next, configured }: { next: string; configured: bool
           <div>{state.error}</div>
         </div>
       )}
-      <button type="submit" className="btn btn-primary btn-lg" disabled={pending}>
+      <button
+        type="submit"
+        className="btn btn-primary btn-lg"
+        disabled={pending}
+        suppressHydrationWarning
+      >
         {pending ? <span className="spinner" aria-hidden="true" /> : null}
         {pending ? "Signing in…" : "Sign in"}
         {!pending && <Icon name="arrowRight" size={17} />}

@@ -11,8 +11,9 @@
 --     -v week_end='2026-11-09 00:00:00+05:30' \
 --     -f ops/metrics/weekly.sql
 --
--- STATUS: written against migrations 0003 and 0006; NOT RUN. It is read-only and must never be pointed at a
--- real project as part of development verification. MET-01 and MET-02 remain sourced from their CSV sheets.
+-- STATUS: written against migrations 0003, 0006 and 0008. Run on the local stack with the CON-11 demo seed (see
+-- ops/metrics/README.md); never run against a real project as part of development verification. It is read-only.
+-- MET-01 and MET-02 remain sourced from their CSV sheets.
 
 -- Section 5: conflicts created during the week, by the four IC-10 types.
 with params as (
@@ -115,11 +116,57 @@ cross join entry_total
 left join override_counts using (reason_code)
 order by reason_codes.reason_code;
 
+-- Section 4: sync latency of the week. LIVE events only: a paper backfill is keyed in late on purpose.
+-- Latency is received_at minus device_time; a negative value (device clock ahead) is kept, not hidden.
+with params as (
+  select
+    :'facility_id'::uuid as facility_id,
+    :'week_start'::timestamptz as week_start,
+    :'week_end'::timestamptz as week_end
+),
+latency as (
+  select extract(epoch from (event.received_at - event.device_time)) as seconds
+  from public.events as event
+  cross join params
+  where event.facility_id = params.facility_id
+    and event.source = 'LIVE'
+    and event.device_time >= params.week_start
+    and event.device_time < params.week_end
+)
+select
+  count(*)::bigint as live_events,
+  round((percentile_cont(0.5) within group (order by seconds))::numeric, 1) as latency_p50_seconds,
+  round((percentile_cont(0.95) within group (order by seconds))::numeric, 1) as latency_p95_seconds,
+  round(max(seconds)::numeric, 1) as latency_max_seconds
+from latency;
+
+-- Section 4: each phone's LATEST heartbeat (0008 keeps one row per device, so this is a snapshot at the time the
+-- query runs, not a weekly history). Revoked phones are left out. A phone that never sent one shows nulls.
+with params as (
+  select :'facility_id'::uuid as facility_id
+)
+select
+  device.name as device,
+  heartbeat.received_at as last_heartbeat,
+  heartbeat.queue_depth,
+  heartbeat.oldest_unsynced_age_s,
+  heartbeat.app_version,
+  heartbeat.schema_version,
+  heartbeat.schema_version < public.max_supported_schema_version() as older_schema
+from public.devices as device
+cross join params
+left join public.device_heartbeats as heartbeat on heartbeat.device_id = device.id
+where device.facility_id = params.facility_id
+  and device.revoked_at is null
+order by device.name;
+
 -- Sections whose database sources do not exist yet. Keep these explicit in the pack instead of leaving blanks.
+-- Quarantined events stay in the phone outbox (SYNC-06) and device_heartbeats (0008) has no column for them.
 select *
 from (
   values
-    ('4. Sync health', 'missing: public.device_heartbeats'),
+    ('4. Sync health: quarantined events', 'missing: no server-side source'),
+    ('4. Sync health: weekly heartbeat history', 'missing: device_heartbeats keeps the latest row only'),
     ('7. Reports', 'missing: public.job_runs')
 ) as missing_sources(section, status)
 order by section;

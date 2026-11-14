@@ -1,0 +1,285 @@
+/* Sign-in page (app/login/page.tsx). One centred card on a dark field; the card's height follows the window. */
+
+.lg {
+  position: relative;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 28px 24px 20px;
+  background: #050605;
+  overflow: hidden;
+}
+.lg-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(700px 480px at 18% 20%, rgba(198, 246, 26, 0.13), transparent 70%),
+    radial-gradient(620px 460px at 88% 92%, rgba(143, 207, 10, 0.1), transparent 70%);
+}
+.lg-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(198, 246, 26, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(198, 246, 26, 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 75% 70% at 50% 50%, #000 30%, transparent 80%);
+}
+.lg-mobile-brand {
+  display: none;
+}
+
+/* ---------- the card ---------- */
+.lg-shell {
+  --lg-h: clamp(560px, calc(100vh - 92px), 760px);
+  position: relative;
+  z-index: 1;
+  width: min(1160px, 100%);
+  height: var(--lg-h);
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(400px, 0.9fr);
+  border-radius: 32px;
+  overflow: hidden;
+  border: 1px solid rgba(198, 246, 26, 0.16);
+  box-shadow:
+    0 40px 120px -40px rgba(0, 0, 0, 0.9),
+    0 0 90px -30px rgba(198, 246, 26, 0.28);
+  animation: rise 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/* ---------- left: the story ---------- */
+.lg-story {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 38px 44px 34px;
+  color: #b9c2b0;
+  background:
+    radial-gradient(520px 360px at 30% 0%, rgba(198, 246, 26, 0.12), transparent 70%),
+    linear-gradient(165deg, #12160e 0%, #080a07 55%, #050605 100%);
+  border-right: 1px solid rgba(198, 246, 26, 0.1);
+}
+.lg-kicker {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--lime);
+}
+.lg-copy h2 {
+  margin-top: 10px;
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  font-size: clamp(26px, 2.5vw, 36px);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+  color: #fff;
+}
+.lg-copy h2 em {
+  font-style: normal;
+  color: var(--lime);
+  text-shadow: 0 0 24px rgba(198, 246, 26, 0.35);
+}
+.lg-copy p {
+  margin-top: 10px;
+  max-width: 46ch;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: #9aa591;
+}
+/* Left-aligned with the text above it, so the whole story shares one edge. */
+.lg-scene {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 14px 18px 14px 0;
+}
+.lg-scene-frame {
+  position: relative;
+  /* The art is 640 x 420: its width follows the space the card leaves for it, so it never pushes past the card. */
+  width: min(100%, 540px, calc((var(--lg-h) - 400px) * 1.52));
+  border-radius: 22px;
+  box-shadow:
+    0 0 0 1px rgba(198, 246, 26, 0.14),
+    0 26px 70px -24px rgba(0, 0, 0, 0.85),
+    0 0 50px -20px rgba(198, 246, 26, 0.3);
+}
+.lg-points {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+}
+.lg-points li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #dfe6d6;
+  background: rgba(198, 246, 26, 0.06);
+  border: 1px solid rgba(198, 246, 26, 0.16);
+}
+.lg-points svg {
+  color: var(--lime);
+}
+
+/* ---------- right: the form ---------- */
+.lg-formside {
+  position: relative;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 48px;
+  background:
+    radial-gradient(420px 280px at 100% 0%, rgba(198, 246, 26, 0.16), transparent 70%),
+    radial-gradient(360px 260px at 0% 100%, rgba(143, 207, 10, 0.08), transparent 70%), #fff;
+  overflow-y: auto;
+}
+.lg-form {
+  width: min(380px, 100%);
+}
+.lg-form-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 26px;
+}
+.lg-form-mark {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: radial-gradient(circle at 30% 25%, #1f251b, #050605 70%);
+  box-shadow:
+    inset 0 0 0 1px rgba(198, 246, 26, 0.25),
+    0 10px 22px -10px rgba(143, 207, 10, 0.75);
+}
+.lg-form-mark img {
+  filter: drop-shadow(0 0 7px rgba(198, 246, 26, 0.6));
+}
+.lg-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal-600);
+  background: var(--teal-50);
+  border: 1px solid #d9efa8;
+}
+.lg-form h1 {
+  font-family: var(--font-display), var(--font-sans), system-ui, sans-serif;
+  font-size: 30px;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.lg-lead {
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.lg-form .auth-form {
+  margin-top: 26px;
+}
+.lg-guard {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line-strong);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.lg-guard b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.lg-guard-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: var(--teal-600);
+  background: var(--teal-50);
+  border: 1px solid #d9efa8;
+}
+.lg-foot {
+  position: relative;
+  z-index: 1;
+  font-size: 12.5px;
+  color: #7d8975;
+}
+
+/* ---------- short windows: drop the least important parts first ---------- */
+@media (max-height: 760px) {
+  .lg-points {
+    display: none;
+  }
+  .lg-scene-frame {
+    width: min(100%, 540px, calc((var(--lg-h) - 340px) * 1.52));
+  }
+}
+@media (max-height: 640px) {
+  .lg-copy p {
+    display: none;
+  }
+}
+
+/* ---------- narrow windows: the form alone ---------- */
+@media (max-width: 960px) {
+  .lg {
+    padding: 28px 16px 20px;
+  }
+  .lg-mobile-brand {
+    display: block;
+    position: relative;
+    z-index: 1;
+    margin: 8px 0 4px;
+  }
+  .lg-shell {
+    height: auto;
+    grid-template-columns: 1fr;
+    width: min(460px, 100%);
+    border-radius: 26px;
+  }
+  .lg-story {
+    display: none;
+  }
+  .lg-formside {
+    padding: 32px 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lg-shell {
+    animation: none;
+  }
+}
