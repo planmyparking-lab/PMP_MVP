@@ -1,4 +1,9 @@
-import { REACTIVATE_UNAVAILABLE } from "../lib/credentialActions";
+import {
+  facilityQueue,
+  guardQueueWarning,
+  phoneQueueWarning,
+  REACTIVATE_UNAVAILABLE,
+} from "../lib/credentialActions";
 import type { FacilityLive } from "../lib/data/types";
 import { formatIstDateTime } from "../lib/format";
 import { deviceHealthFromHeartbeat } from "../lib/heartbeatHealth";
@@ -35,6 +40,7 @@ export function LiveDevices({ live }: { live: FacilityLive }) {
   const staff = live.staff.ok ? live.staff.data : [];
   const active = devices.filter((d) => d.revokedAt === null).length;
   const guards = staff.filter((s) => s.active).length;
+  const guardNote = guardQueueWarning(facilityQueue(devices, hb.state === "ok" ? hb.data : null));
 
   return (
     <>
@@ -162,7 +168,14 @@ export function LiveDevices({ live }: { live: FacilityLive }) {
                         )}
                         <td className="row-actions">
                           {d.revokedAt ? null : (
-                            <CredentialAction kind="phone" id={d.id} name={d.name} />
+                            <CredentialAction
+                              kind="phone"
+                              id={d.id}
+                              name={d.name}
+                              queueNote={phoneQueueWarning(
+                                hb.state === "ok" ? (beat?.queueDepth ?? null) : "unavailable",
+                              )}
+                            />
                           )}
                         </td>
                       </tr>
@@ -213,7 +226,12 @@ export function LiveDevices({ live }: { live: FacilityLive }) {
                       </td>
                       <td className="row-actions">
                         {s.active ? (
-                          <CredentialAction kind="guard" id={s.id} name={s.name} />
+                          <CredentialAction
+                            kind="guard"
+                            id={s.id}
+                            name={s.name}
+                            queueNote={guardNote}
+                          />
                         ) : (
                           <UnavailableButton reason={REACTIVATE_UNAVAILABLE}>
                             Reactivate
