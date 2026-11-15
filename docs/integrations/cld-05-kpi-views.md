@@ -157,8 +157,8 @@ allows or denies access, and the deny-by-default assertion passes trivially once
 0010-specific RLS test is required. It must exercise the actual 0010 policies, with no permissive stand-in policy created, and
 read the KPI views through them.
 
-Migration contiguity: 0009 follows 0008 with no gap. The proposals in the refresh workspace continue at 0010, then 0012,
-0013, so 0011 is currently unassigned; this change creates none and does not touch 0010.
+Migration contiguity: 0009 follows 0008 with no gap. 0011 is now `0011_ingest_events_payload_validation.sql` (promoted
+from the proposed 0013, OQ-52); this change creates no new migration and does not touch 0010.
 
 ## 7. Test coverage against T-CLD-05
 

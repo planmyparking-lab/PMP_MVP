@@ -1,7 +1,8 @@
 -- IC-01: complete SQL validation of ingest_events input, matching packages/contracts/src/events.ts (Zod 4.6.7).
 -- Additive follow-up to 0004: migration 0004 is not edited (migrations are forward-only, never edited after merge).
--- The file number 0013 is NOT final: real migrations must stay contiguous, so it is renumbered when it is promoted
--- out of supabase/proposed-migrations (see docs/integrations/ingest-events.md and docs/team/open-questions-and-assumptions.md).
+-- Promoted from supabase/proposed-migrations/0013_ingest_events_payload_validation.sql (OQ-52): staged there as 0013
+-- while real migrations stopped at 0006 and the eventual number was unsettled by other proposed files (0007-0012,
+-- since promoted or still reserved); 0011 was the next free contiguous number once this was promoted.
 --
 -- Contract (decided for IC-01):
 --   * schema_version: contract first. A non-number, fractional, <= 0 or > 32767 value is REJECTED:INVALID_ENVELOPE
