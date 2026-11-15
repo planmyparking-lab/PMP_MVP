@@ -1,7 +1,16 @@
 import { formatRupees } from "@pmp/contracts";
+import { EXPIRED_PASS_LIMIT, PASS_LIMIT } from "../lib/facilityConfig";
 import type { FacilityConfigLive } from "../lib/data/facilityConfig";
 import { formatIstDate } from "../lib/format";
 import { Banner, Card, EmptyState, PageHeader, StatCard, StatusBadge } from "./ui/primitives";
+
+const TARIFF_STATUS = {
+  current: { tone: "ok", label: "In force" },
+  scheduled: { tone: "info", label: "Starts later" },
+  replaced: { tone: "off", label: "Replaced" },
+  ended: { tone: "off", label: "Ended" },
+  unknown: { tone: "bad", label: "Start unreadable" },
+} as const;
 
 const PASS_TONE = { active: "ok", expiring: "warn", expired: "off" } as const;
 const PASS_LABEL = {
@@ -39,8 +48,10 @@ export function FacilityView({ live, reason }: { live?: FacilityConfigLive; reas
   const tariffs = live.tariffs.ok ? live.tariffs.data : [];
   const passes = live.passes.ok ? live.passes.data : [];
   const capacity = zones.reduce((s, z) => s + z.capacity, 0);
-  const activePasses = passes.filter((p) => p.state !== "expired").length;
+  const inForce = tariffs.filter((t) => t.status === "current").length;
+  const counts = live.passCounts.ok ? live.passCounts.data : null;
   const dues = passes.reduce((s, p) => s + p.duesPaise, 0);
+  const allPassesShown = !live.passesTruncated && !live.expiredTruncated;
 
   return (
     <>
@@ -58,20 +69,20 @@ export function FacilityView({ live, reason }: { live?: FacilityConfigLive; reas
         <StatCard
           label="Tariffs"
           icon="file"
-          value={live.tariffs.ok ? String(tariffs.length) : undefined}
-          foot="Including older versions"
+          value={live.tariffs.ok ? String(inForce) : undefined}
+          foot={`In force now; ${tariffs.length - inForce} other version(s)`}
         />
         <StatCard
           label="Monthly passes"
           icon="checkCircle"
-          value={live.passes.ok ? String(activePasses) : undefined}
-          foot={`${passes.length - activePasses} expired`}
+          value={counts ? String(counts.valid) : undefined}
+          foot={counts ? `Valid today; ${counts.expired} expired` : "Counts could not be read"}
         />
         <StatCard
           label="Pass dues"
           icon="alert"
           value={live.passes.ok ? formatRupees(dues) : undefined}
-          foot="Owed on passes"
+          foot={allPassesShown ? "Owed on passes" : "Owed on the passes shown below"}
         />
       </div>
 
@@ -131,6 +142,7 @@ export function FacilityView({ live, reason }: { live?: FacilityConfigLive; reas
                   <tr>
                     <th>Vehicle class</th>
                     <th>From</th>
+                    <th>Status</th>
                     <th>Rule</th>
                   </tr>
                 </thead>
@@ -139,8 +151,26 @@ export function FacilityView({ live, reason }: { live?: FacilityConfigLive; reas
                     <tr key={t.id}>
                       <td>
                         <b>{t.vehicleClass}</b>
+                        <div
+                          className="small muted"
+                          title={`Tariff id ${t.id}, recorded on each exit`}
+                        >
+                          {/* The last 8 characters: the first 8 of a UUIDv7 are its timestamp, so versions
+                              created close together would look the same. */}
+                          id …{t.id.slice(-8)}
+                        </div>
                       </td>
-                      <td className="num">{safeDate(t.effectiveFrom)}</td>
+                      <td className="num">
+                        {t.effectiveDate ? safeDate(t.effectiveDate) : "Unreadable"}
+                        {t.summary.ok && t.summary.effectiveTo && (
+                          <div className="small muted">to {safeDate(t.summary.effectiveTo)}</div>
+                        )}
+                      </td>
+                      <td>
+                        <StatusBadge tone={TARIFF_STATUS[t.status].tone}>
+                          {TARIFF_STATUS[t.status].label}
+                        </StatusBadge>
+                      </td>
                       <td>
                         {t.summary.ok ? (
                           <ul className="rule-lines">
@@ -150,6 +180,11 @@ export function FacilityView({ live, reason }: { live?: FacilityConfigLive; reas
                           </ul>
                         ) : (
                           <StatusBadge tone="bad">{t.summary.error}</StatusBadge>
+                        )}
+                        {t.dateWarning && (
+                          <div className="small" style={{ marginTop: "var(--s-1)" }}>
+                            <StatusBadge tone="warn">{t.dateWarning}</StatusBadge>
+                          </div>
                         )}
                       </td>
                     </tr>
@@ -162,12 +197,20 @@ export function FacilityView({ live, reason }: { live?: FacilityConfigLive; reas
 
         <Card
           title="Monthly passes"
-          subtitle="Number plates are partly hidden. Soonest expiry first."
+          subtitle="Number plates are partly hidden. Valid passes first (soonest expiry first), then the most recently expired."
           flush
         >
-          {live.passesTruncated && (
+          {!allPassesShown && (
             <div style={{ padding: "var(--s-3) var(--s-5)" }}>
-              <Banner tone="warn" icon="alert" title="Only the first 500 passes are shown" />
+              <Banner tone="warn" icon="alert" title="Not every pass is listed">
+                {live.passesTruncated
+                  ? `Only the ${PASS_LIMIT.toLocaleString("en-IN")} valid passes that expire soonest are listed. `
+                  : ""}
+                {live.expiredTruncated
+                  ? `Only the ${EXPIRED_PASS_LIMIT} most recently expired passes are listed. `
+                  : ""}
+                The counts above include every pass.
+              </Banner>
             </div>
           )}
           {!live.passes.ok ? (

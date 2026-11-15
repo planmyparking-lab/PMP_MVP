@@ -47,6 +47,7 @@ jobs:
       - run: pnpm check:repo
       - run: pnpm check:migrations
       - run: pnpm test:scripts
+      - run: pnpm test:pilot # CON-12 ROI calculator and MET-01 to MET-03 metric tests
       - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm typecheck
