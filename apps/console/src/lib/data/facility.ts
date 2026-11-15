@@ -3,6 +3,8 @@ import { cache } from "react";
 import { parseSyncConflictRows } from "../conflicts";
 import { OpenSessionRowSchema } from "../openSessions";
 import { createSupabaseServerClient } from "../supabase/server";
+import { FUTURE_TOLERANCE_MS } from "@pmp/sync-rules";
+import { readPaged } from "../readLimits";
 import { zoneChecks, zoneCountRecords } from "../zoneDrift";
 import { mapHeartbeats, mapKpiToday } from "./backendMaps";
 import { countByIstHour, istDayStart } from "./istDay";
@@ -29,8 +31,12 @@ const ROW_LIMIT = 2000;
  * database without them still renders, and the latest ZONE_COUNT per zone, checked with SYNC-04's drift rule (#28).
  * Row-level security (0010) limits every read to the facilities the user is an owner or manager of.
  */
-/** ZONE_COUNT events read to find the latest physical count of each zone. */
-const ZONE_COUNT_LIMIT = 200;
+/**
+ * ZONE_COUNT events read PER ZONE to find its latest physical count. A few rather than one, so a malformed latest row
+ * (left out by zoneCountRecords) still leaves an older valid count to show. Reading per zone means a zone that was last
+ * counted long ago is never crowded out by busier zones (review of #52).
+ */
+const ZONE_COUNTS_PER_ZONE = 5;
 export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => {
   const session = await getConsoleSession();
   if (session.kind !== "ok" || !session.facility) return null;
@@ -52,19 +58,24 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
     dailyRes,
     hourlyRes,
     heartbeatsRes,
-    zoneCountsRes,
   ] = await Promise.all([
     supabase
       .from("zones")
       .select("id, name, capacity, vehicle_class")
       .eq("facility_id", facility.id)
       .order("name"),
-    supabase
-      .from("open_sessions")
-      .select("*")
-      .eq("facility_id", facility.id)
-      .order("entry_time")
-      .limit(ROW_LIMIT),
+    // PostgREST answers at most 1000 rows per request (max_rows), so the two large reads go through readPaged.
+    readPaged(
+      (from, to) =>
+        supabase
+          .from("open_sessions")
+          .select("*")
+          .eq("facility_id", facility.id)
+          .order("entry_time")
+          .order("session_id")
+          .range(from, to),
+      ROW_LIMIT,
+    ),
     supabase
       .from("sync_conflicts")
       .select("*")
@@ -82,13 +93,19 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
       .select("id, name, active, created_at")
       .eq("facility_id", facility.id)
       .order("name"),
-    supabase
-      .from("events")
-      .select("type, device_time")
-      .eq("facility_id", facility.id)
-      .in("type", ["ENTRY", "EXIT", "OVERRIDE"])
-      .gte("device_time", dayStart)
-      .limit(ROW_LIMIT * 5),
+    readPaged(
+      (from, to) =>
+        supabase
+          .from("events")
+          .select("type, device_time")
+          .eq("facility_id", facility.id)
+          .in("type", ["ENTRY", "EXIT", "OVERRIDE"])
+          .gte("device_time", dayStart)
+          .order("device_time")
+          .order("id")
+          .range(from, to),
+      ROW_LIMIT * 5,
+    ),
     supabase
       .from("v_daily_kpis")
       .select(
@@ -107,14 +124,27 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
         "device_id, received_at, queue_depth, oldest_unsynced_age_s, app_version, schema_version, battery_pct",
       )
       .eq("facility_id", facility.id),
-    supabase
-      .from("events")
-      .select("id, device_time, payload")
-      .eq("facility_id", facility.id)
-      .eq("type", "ZONE_COUNT")
-      .order("device_time", { ascending: false })
-      .limit(ZONE_COUNT_LIMIT),
   ]);
+
+  // Latest physical counts, one small read per zone (zones are few, and the reads run in parallel). Counts dated more
+  // than the SYNC-04 tolerance ahead of now are excluded here, as drift() would ignore them.
+  const zoneIds = (zonesRes.data ?? []).map((z) => String(z.id));
+  const countCutoff = new Date(Date.parse(asOf) + FUTURE_TOLERANCE_MS).toISOString();
+  const zoneCountsRes = await Promise.all(
+    zoneIds.map((zoneId) =>
+      supabase
+        .from("events")
+        .select("id, device_time, payload")
+        .eq("facility_id", facility.id)
+        .eq("type", "ZONE_COUNT")
+        .eq("payload->>zone_id", zoneId)
+        .lte("device_time", countCutoff)
+        .order("device_time", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(ZONE_COUNTS_PER_ZONE),
+    ),
+  );
+  const zoneCountError = zoneCountsRes.find((r) => r.error)?.error ?? null;
 
   const zoneNames = new Map<string, string>(
     (zonesRes.data ?? []).map((z) => [String(z.id), String(z.name)]),
@@ -241,13 +271,13 @@ export const loadFacilityLive = cache(async (): Promise<FacilityLive | null> => 
     mapHeartbeats(rows as unknown[]),
   );
 
-  const physical: FacilityLive["zoneChecks"] = zoneCountsRes.error
-    ? fail("zone counts", zoneCountsRes.error.message)
+  const physical: FacilityLive["zoneChecks"] = zoneCountError
+    ? fail("zone counts", zoneCountError.message)
     : {
         ok: true,
         data: zoneChecks(
-          zoneCountRecords(zoneCountsRes.data ?? []),
-          (zonesRes.data ?? []).map((z) => String(z.id)),
+          zoneCountRecords(zoneCountsRes.flatMap((r) => r.data ?? [])),
+          zoneIds,
           asOf,
         ),
       };
