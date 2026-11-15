@@ -12,7 +12,7 @@ const COPY = {
   guard: {
     button: "Deactivate",
     title: (name: string) => `Deactivate ${name}?`,
-    body: "The cloud refuses this guard's new events from now on, and the gate phones drop their PIN at the next sync. Past events stay as they are.",
+    body: "From now on the cloud refuses every event signed by this guard, including events recorded earlier that are still waiting on a phone to sync. Events already in the cloud stay as they are. The phones drop the PIN at their next sync.",
     warning:
       "Reactivating later needs a new PIN, which the Console cannot set yet (set_staff_pin is not built).",
     submit: "Deactivate guard",
@@ -21,7 +21,7 @@ const COPY = {
   phone: {
     button: "Revoke",
     title: (name: string) => `Revoke ${name}?`,
-    body: "The phone's next sync is refused and it can no longer read this facility. Events it already sent stay as they are.",
+    body: "The phone's next sync is refused, including events still waiting on it, and it can no longer read this facility. Events already in the cloud stay as they are.",
     warning:
       "This cannot be undone from the Console. Using the phone again needs a new enrolment (enroll_device is not built yet).",
     submit: "Revoke phone",
@@ -37,10 +37,13 @@ export function CredentialAction({
   kind,
   id,
   name,
+  queueNote,
 }: {
   kind: "guard" | "phone";
   id: string;
   name: string;
+  /** What happens to events still waiting to sync, built from the heartbeats (see credentialActions.ts). */
+  queueNote: string;
 }) {
   const [open, setOpen] = useState(false);
   const copy = COPY[kind];
@@ -55,7 +58,9 @@ export function CredentialAction({
         {copy.button}
       </Button>
       <Modal open={open} onClose={() => setOpen(false)} title={copy.title(name)}>
-        {open && <ConfirmForm kind={kind} id={id} onDone={() => setOpen(false)} />}
+        {open && (
+          <ConfirmForm kind={kind} id={id} queueNote={queueNote} onDone={() => setOpen(false)} />
+        )}
       </Modal>
     </>
   );
@@ -64,10 +69,12 @@ export function CredentialAction({
 function ConfirmForm({
   kind,
   id,
+  queueNote,
   onDone,
 }: {
   kind: "guard" | "phone";
   id: string;
+  queueNote: string;
   onDone: () => void;
 }) {
   const copy = COPY[kind];
@@ -87,6 +94,11 @@ function ConfirmForm({
     <form action={action} className="stack">
       <input suppressHydrationWarning type="hidden" name={copy.field} value={id} />
       <p>{copy.body}</p>
+      <div className="issue tone-info">
+        <div>
+          <b>Waiting to sync:</b> {queueNote}
+        </div>
+      </div>
       <div className="issue tone-warn">
         <div>{copy.warning}</div>
       </div>
