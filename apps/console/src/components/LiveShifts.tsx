@@ -107,11 +107,17 @@ export function LiveShifts({ live, liveStatus }: { live: ShiftsLive; liveStatus?
             : ""}
         </Banner>
       )}
+      {live.referenceErrors.length > 0 && (
+        <Banner tone="warn" icon="alert" title="Some names could not be read">
+          Shifts are shown, but {live.referenceErrors.join("; ")}. Rows may say
+          &ldquo;Unknown&rdquo; where a name exists.
+        </Banner>
+      )}
       {live.truncated && (
         <Banner tone="warn" icon="alert" title="Only the most recent shift events are shown">
-          This page reads at most the latest {SHIFT_EVENT_LIMIT.toLocaleString("en-IN")} shift
-          events. The limit was reached, so older shifts from the last 30 days may be missing, and
-          the oldest shift shown may be missing its open or close.
+          More than {SHIFT_EVENT_LIMIT.toLocaleString("en-IN")} shift events from the last 30 days
+          match, so the oldest are left out, and the oldest shift shown may be missing its open or
+          close.
         </Banner>
       )}
 
