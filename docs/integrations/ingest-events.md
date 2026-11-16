@@ -1,8 +1,8 @@
 # ingest_events (SYNC-02)
 
 `public.ingest_events(events jsonb) returns jsonb`, migration `0004_ingest_events.sql`. The complete envelope and payload validation described
-below is added by an additive forward migration (proposed as `supabase/proposed-migrations/0013_ingest_events_payload_validation.sql`; the number is
-not final because real migrations must stay contiguous, and `0004` itself is not edited).
+below is added by an additive forward migration, `0011_ingest_events_payload_validation.sql` (`0004` itself is not edited). Promoted from
+`supabase/proposed-migrations/0013_ingest_events_payload_validation.sql` once the number was settled (OQ-52).
 
 ## Security model
 
@@ -107,10 +107,9 @@ sign convention of the shift-close variances is an open specification item, so n
 
 ## Tests
 
-`supabase/tests/ingest_events.test.sql` (protocol, authorization and result shape; it passes with and without `--proposed`, so it asserts nothing that only
-the proposed validation migration provides), `supabase/tests/event_parity.test.sql` (generated from the shared fixtures) and
-`supabase/proposed-tests/event_payload_validation.test.sql` (value rules: numbers, UUIDs, trim, `recorded_at`, the `schema_version` range, detail paths).
-Counts are in the files' `plan(...)` lines.
+`supabase/tests/ingest_events.test.sql` (protocol, authorization and result shape), `supabase/tests/event_parity.test.sql` (generated from the
+shared fixtures, runs every fixture through `ingest_events` and checks it agrees with zod) and `supabase/tests/event_payload_validation.test.sql`
+(value rules: numbers, UUIDs, trim, `recorded_at`, the `schema_version` range, detail paths). Counts are in the files' `plan(...)` lines.
 
 ## open_sessions (0005)
 
