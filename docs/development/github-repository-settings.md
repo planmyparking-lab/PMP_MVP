@@ -6,6 +6,58 @@ GitHub. Until they are applied and verified, none of them is in force. Nothing i
 
 Status of each item must be recorded by the administrator in the "Applied (date / who)" column.
 
+## Native enforcement is currently unavailable (OQ-65)
+
+Confirmed 16 Nov 2026 (Afzal): **neither mechanism in this table can be applied on this repository
+today**, for a plan reason, not a permissions or syntax one.
+
+- `Settings > Rules > Rulesets` (the newer mechanism, what the table above was originally written
+  against): `gh api repos/planmyparking-lab/PMP_MVP/rulesets` → `403`, `"Upgrade to GitHub Pro or
+make this repository public to enable this feature."`
+- Classic `Settings > Branches` protection (`PUT .../branches/main/protection`), tried as a fallback:
+  first attempt returned `404` under afzl-raza's account, which looked like a permissions issue
+  (`afzl-raza`, like every other team member, holds `write`, not `admin`, on this repo — only the
+  `planmyparking-lab` account itself is `admin`). Re-run logged in as `planmyparking-lab`
+  (confirmed `admin: true`), with both the full payload and a minimal one (status checks only,
+  every other field `null`): same result both times, `403`, same "Upgrade to GitHub Pro or make
+  this repository public" message. So it is not a permissions gap either — GitHub Free does not
+  offer branch protection on a **private** repository at all, regardless of who asks.
+
+Until one of the conditions below changes, treat every row in the table as **not enforceable** and
+use the team-discipline substitute instead.
+
+### What would unblock it
+
+1. `planmyparking-lab` (or whichever account ends up owning the repo) gets GitHub Pro/Team/Enterprise
+   — for example via GitHub Education (Student Developer Pack / Global Campus), which several of us
+   may be eligible for through our `@sitare.org` addresses. This is the most likely explanation for
+   why some other campus project's private repo already has working branch protection: that repo's
+   owner already has the paid tier, typically through an education benefit, not a different API call.
+2. The repository is made public (branch protection and Rulesets are free on Free for public repos).
+   Not recommended while there's anything in here not meant for public release.
+3. We decide to pay for the plan upgrade ourselves.
+
+### Team-discipline substitute (in force now, no GitHub setting behind it)
+
+Nothing below is enforced by GitHub. Every one of these is a norm the four of us agree to follow
+by hand; a slip is a process failure to flag in standup, not something CI or the merge button will
+catch for us.
+
+- **Never push directly to `main`.** Always branch, always open a PR, even for a one-line doc fix.
+- **Never merge your own PR until `gh pr checks <N>` (or the PR page) shows every required job green**
+  — `check`, `branch-name`, `secret-scan`, `db-tests`. A red or still-running check means wait, not
+  "merge now and fix forward."
+- **Get the second workstream-owner review `CLAUDE.md` already asks for** on any shared-package path,
+  before merging — nothing blocks a merge without it, so this is on the reviewer and the author both.
+- **Never force-push `main`**, and avoid force-pushing any shared branch another PR is stacked on.
+- **Don't delete a branch until its PR is merged** (or explicitly abandoned and said so).
+- **Resolve PR conversations before merging**, don't leave open threads behind.
+- Re-run this checklist's verification steps below by hand on the next PR as a spot-check, since
+  nothing will do it automatically.
+
+Revisit this section (and re-attempt the table above) the moment any of the three unblock conditions
+changes.
+
 | #   | Setting (Settings > Rules > Rulesets, target: default branch `main`) | Recommended value                                                                                                                                                   | Applied (date / who) |
 | --- | -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- |
 | 1   | Ruleset enforcement                                                  | Active                                                                                                                                                              | TBD                  |
