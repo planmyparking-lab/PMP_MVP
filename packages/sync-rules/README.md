@@ -75,7 +75,14 @@ app_version, schema_version, battery)` through an injected `HeartbeatTransport`,
   `oldestUnsyncedAgeMs / 1000` at the call site. Battery is `null`, never `0`, when unavailable (OQ-29). A failed send
   (network error, or the server's own 5-minute window declining it) never throws and never advances the rate limit,
   so the next natural trigger retries — `maybeSend` is meant to be called from a timer or a reconnect event, not
-  awaited from an entry/exit flow (SYNC-06: "never blocking entry and exit").
+  awaited from an entry/exit flow (SYNC-06: "never blocking entry and exit"). **Known limitation** (Akanksha's PR #57
+  review, 16 Nov 2026): the client's own throttle sends immediately on reconnect (`shouldSendHeartbeat`), but
+  `heartbeat()` (`0008_device_heartbeats.sql`) applies its own, independent 5-minute window keyed off the device's
+  last _accepted_ row, not off this client-side state — a reconnect after a short outage (under 5 minutes since the
+  last accepted heartbeat) is silently no-opped server-side (`accepted: false`), so the Console's queue-depth and
+  oldest-unsynced-age figures for that device can stay stale for the rest of that window even though the device is
+  back online. Nothing here retries faster to compensate (that would just race the server's own window); the next
+  natural tick after it clears carries the real figures.
 - `HealthSnapshot` is the canonical type (`queueDepth`, `oldestUnsyncedAgeMs`, `lastSyncAt`, `online`,
   `quarantinedCount`, `syncBlocked`) — `apps/gate/src/data/ic02.ts` currently has its own copy of this shape, written
   before this package exported one (its own comment says so); switching that import is a follow-up, not required for
