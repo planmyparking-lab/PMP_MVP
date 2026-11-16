@@ -8,7 +8,7 @@ restricts who may create a release tag, item D6).
 
 A release tag is `vMAJOR.MINOR.PATCH` with an optional pre-release suffix, for example `v1.2.3` or `v0.0.0-test`.
 This is enforced, not just documented: `scripts/deploy-preflight.mjs`'s `isReleaseTag()` rejects anything else
-(`vNext`, `v1`, a branch name) before `deploy-prod.yml` does anything with it, and `scripts/deploy-workflows.test.mjs`
+(`vNext`, `v1`, a branch name) before `deploy-prod.yml` does anything with it, and `scripts/deploy-preflight.test.mjs`
 asserts this in CI.
 
 - **MAJOR**: a breaking change to the event envelope or a payload shape that existing clients cannot read or write
@@ -35,15 +35,22 @@ To ship a breaking envelope or payload change:
 1. Bump `SCHEMA_VERSION` in `packages/contracts/src/version.ts`. Update `MAX_SCHEMA_VERSION` only if the new version
    would exceed it (it is a sanity ceiling, not a target — raise it only when actually needed).
 2. Update `packages/contracts/src/events.ts` (and any payload schema) for the new shape, so the envelope accepts the
-   new version's events going forward. `ingest_events` (`0004`) and the proposed validation migration (`0013`,
-   `supabase/proposed-migrations/`) must agree with the Zod schema — `event_parity.test.sql` enforces this.
-3. Decide whether to raise `min_supported_schema_version()`. Raising it immediately cuts off any client still on the
+   new version's events going forward. `ingest_events` (`0004`) and the payload validation migration (`0011`,
+   promoted from `supabase/proposed-migrations/0013_ingest_events_payload_validation.sql`, OQ-52) must agree with the
+   Zod schema — `event_parity.test.sql` enforces this.
+3. Write a new migration that raises `max_supported_schema_version()` to (at least) the new `SCHEMA_VERSION`. This is
+   a separate SQL ceiling from the contracts package's `MAX_SCHEMA_VERSION` (step 1) — `isSupported()` never looks at
+   the SQL function, only `ingest_events` does. Skipping this step is silent until the gate build in step 4 actually
+   ships: every event from a client on the new `SCHEMA_VERSION` is then rejected with `SCHEMA_VERSION_TOO_NEW` and
+   can end up quarantined on the device. Ship this migration **before or in the same release as** that gate build,
+   never after.
+4. Decide whether to raise `min_supported_schema_version()`. Raising it immediately cuts off any client still on the
    old version; a grace period means writing a new migration that keeps the old floor for a time (a hard date or a
    manually-triggered follow-up migration — there is no auto-expiring floor today) before a later migration raises
    it. Document the choice in the migration's own header, the way `0004`'s header documents the current floor.
-4. Ship the gate build with the new `SCHEMA_VERSION` **before or in the same release as** the migration that raises
+5. Ship the gate build with the new `SCHEMA_VERSION` **before or in the same release as** the migration that raises
    the floor, never after — a build still on the old version syncing against a raised floor is exactly `syncBlocked`.
-5. Record the change here, in a line added to "History" below, once it ships.
+6. Record the change here, in a line added to "History" below, once it ships.
 
 ## Rollback
 
