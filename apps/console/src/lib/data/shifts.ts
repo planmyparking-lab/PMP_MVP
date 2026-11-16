@@ -1,6 +1,7 @@
 import "server-only";
 import { buildShiftRows, SHIFT_EVENT_LIMIT } from "../shifts";
 import type { ShiftBuild, ShiftEventRow } from "../shifts";
+import { probeLimit, readPaged, referenceProblems, takeLimited } from "../readLimits";
 import { createSupabaseServerClient } from "../supabase/server";
 import { getConsoleSession } from "./session";
 import { probeResult } from "./probe";
@@ -15,8 +16,10 @@ export interface ShiftsLive {
   shifts: Loaded<ShiftBuild>;
   /** id -> name, for display only. */
   staffNames: Record<string, string>;
-  /** True when the read hit SHIFT_EVENT_LIMIT, so older shifts in the window may be missing. */
+  /** True when more than SHIFT_EVENT_LIMIT shift events matched, so older shifts in the window are missing. */
   truncated: boolean;
+  /** Failed name lookups (staff, phones); the page warns instead of showing "Unknown" silently. */
+  referenceErrors: string[];
   deviceNames: Record<string, string>;
   /** `shift_reviews` rows, newest first; `absent` until #31 is merged (sign-off stays disabled then). */
   reviews: Probe<ShiftReviewLive[]>;
@@ -47,30 +50,43 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
   const since = new Date(Date.parse(asOf) - SHIFT_WINDOW_DAYS * 86_400_000).toISOString();
 
   const [eventsRes, staffRes, devicesRes, reviewsRes] = await Promise.all([
-    supabase
-      .from("events")
-      .select("type, device_time, device_id, staff_id, payload")
-      .eq("facility_id", facility.id)
-      .in("type", ["SHIFT_OPEN", "SHIFT_CLOSE"])
-      .gte("device_time", since)
-      .order("device_time", { ascending: false })
-      .limit(SHIFT_EVENT_LIMIT),
+    // More than PostgREST's 1000 rows per request, so read in pages; the id breaks device_time ties so pages never
+    // overlap or skip a row.
+    readPaged(
+      (from, to) =>
+        supabase
+          .from("events")
+          .select("type, device_time, device_id, staff_id, payload")
+          .eq("facility_id", facility.id)
+          .in("type", ["SHIFT_OPEN", "SHIFT_CLOSE"])
+          .gte("device_time", since)
+          .order("device_time", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to),
+      probeLimit(SHIFT_EVENT_LIMIT),
+    ),
     supabase.from("staff").select("id, name").eq("facility_id", facility.id),
     supabase.from("devices").select("id, name").eq("facility_id", facility.id),
-    supabase
-      .from("shift_reviews")
-      .select("shift_id, reviewed_by, reviewed_at, status, note")
-      .eq("facility_id", facility.id)
-      .order("reviewed_at", { ascending: false })
-      .limit(SHIFT_EVENT_LIMIT),
+    readPaged(
+      (from, to) =>
+        supabase
+          .from("shift_reviews")
+          .select("shift_id, reviewed_by, reviewed_at, status, note")
+          .eq("facility_id", facility.id)
+          .order("reviewed_at", { ascending: false })
+          .order("id", { ascending: false })
+          .range(from, to),
+      SHIFT_EVENT_LIMIT,
+    ),
   ]);
 
+  const limited = takeLimited(eventsRes.data, SHIFT_EVENT_LIMIT);
   const shifts: Loaded<ShiftBuild> = eventsRes.error
     ? { ok: false, error: `events: ${eventsRes.error.message}` }
     : {
         ok: true,
         data: buildShiftRows(
-          (eventsRes.data ?? []).map((e): ShiftEventRow => ({
+          limited.rows.map((e): ShiftEventRow => ({
             type: e.type === "SHIFT_OPEN" ? "SHIFT_OPEN" : "SHIFT_CLOSE",
             device_time: String(e.device_time),
             device_id: String(e.device_id),
@@ -87,7 +103,11 @@ export async function loadShiftsLive(): Promise<ShiftsLive | null> {
     facilityName: facility.name,
     asOf,
     shifts,
-    truncated: (eventsRes.data?.length ?? 0) >= SHIFT_EVENT_LIMIT,
+    truncated: limited.truncated,
+    referenceErrors: referenceProblems([
+      ["guard names", staffRes.error],
+      ["phone names", devicesRes.error],
+    ]),
     staffNames: names(staffRes.data),
     deviceNames: names(devicesRes.data),
     reviews: probeResult("shift_reviews", reviewsRes, (rows) =>
