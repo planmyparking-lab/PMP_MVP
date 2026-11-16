@@ -1,7 +1,8 @@
 # Feature Traceability Matrix
 
 Prepared 24 Oct 2026. **Updated 12 Nov 2026 by Akanksha (Member 04)** against `main` at `2faf3ec` (merge of PR #29) and
-the open pull requests as they stood that day. Companion to [README.md](README.md). Chain: product requirement → feature
+the open pull requests as they stood that day. **Rows CLD-01 to CLD-05 and CLD-07 to CLD-10 were refreshed on 16 Nov 2026
+against `main` at `e62aaa4`; every other row is as of 12 Nov and was not re-checked.** Companion to [README.md](README.md). Chain: product requirement → feature
 ID → owner → implementation location → acceptance criteria → test cases → verification status.
 
 ## 0. How to read this matrix
@@ -26,9 +27,10 @@ are still those in the owner's sheet (sections B and E); a specified test is not
 **Verification** (what evidence exists, never more):
 
 - **CI**: covered by tests that GitHub Actions ran and passed on `main` at `2faf3ec` (`check` runs every package's
-  unit tests and the Console build; `android-bundle` resolves the gate app bundle). CI runs **no SQL tests** on `main`.
+  unit tests and the Console build; `android-bundle` resolves the gate app bundle). On 12 Nov CI ran **no SQL tests** on `main`;
+  since PR #27 the `db-tests` job does.
 - **Local SQL**: pgTAP suites run with `pnpm test:db` against the local Supabase stack (Docker) on 12 Nov 2026, in a
-  rolled-back transaction. Not repeatable from CI until PR #27 merges.
+  rolled-back transaction. Not repeatable from CI until PR #27 merges (it merged on 12 Nov; the refreshed CLD rows cite `db-tests`).
 - **Not verified**: no test evidence, or the evidence covers only part of the acceptance criteria. No row is verified
   against a hosted environment, a real device or real pilot data: none of those exists yet.
 
@@ -74,26 +76,26 @@ Local SQL on `main` (12 Nov 2026): `base_schema` 53/53, `events_schema` 71/71, `
 | Handbook; PRD FR-50 (partial) | CON-10 | Pilot health page | Anamika | Merged (partial) | Health rules in `apps/console/src/lib/deviceHealth.ts`; no heartbeat data on `main` | `device_heartbeats` in #31 | `apps/console/test/lib.test.ts` | CI (unit) |
 | Handbook; Phase 2 plan clickable prototype | CON-11 | Seed data and demo | Anamika | Merged (partial) | Labelled demo report data `apps/console/src/lib/reports/demoData.ts`. No `supabase/seed.sql` | — | `apps/console/test/demoReport.test.ts` | CI (unit, demo report only) |
 | Phase 2 plan E1, E2 | CON-12 | Baseline study and ROI | Anamika | Templates only | `field/cons12/` (sheets, `roi.mjs`, `roi-statement.md`); no fieldwork done | — | `field/cons12/roi.test.mjs`, run in CI by `pnpm test:pilot` (`check` job) | Not verified |
-| Handbook; PRD 9.9 | CLD-01 | Environments and secrets | Akanksha | Merged (partial) | `ops/secrets-inventory.md`, `secret-scan` (gitleaks) job in `.github/workflows/ci.yml`, `.env.example` (PR #9). No Supabase projects or GitHub environments exist | #32 (service-role key kept out of client bundles, T-CLD-01-N1) | `secret-scan` CI job; #32 adds `scripts/check-client-bundles.test.mjs` | CI (secret scan). T-CLD-01-I1, X1 blocked on hosted projects |
-| Handbook; PRD ch.8 data needs | CLD-02 | Schema migrations | Akanksha | Merged (partial) | `supabase/migrations/0001..0003` (PR #5); test runner and forward rehearsal `scripts/{test-db,rehearse-forward,check-migrations}.mjs` (PR #5, #19). No generated types package | `0007`, `0008` in #31; `0009` in #33; `0010` in #34 | `base_schema.test.sql`, `events_schema.test.sql`; `scripts/*.test.mjs` (87 tests in `pnpm test:scripts`) | CI (script tests, migration lint); Local SQL |
-| P0-11; PRD FR-48, 9.3 security, 9.4 multi-tenant | CLD-03 | RLS, device auth, enroll_device | Akanksha | Open PR | RLS is enabled on every table with no policy, so every non-superuser role is denied | #34 (`0010_rls.sql`, policies for every table; fail-closed choices recorded as assumption OQ-58 in #34). `enroll_device` not written (IC-05 not agreed) | `rls_policies.test.sql`, `rls_sync_tables.test.sql` in #34 | Not verified on `main`. Local SQL on the integrated branch only |
-| Handbook; PRD FR-42, FR-50 (partial) | CLD-04 | Heartbeat | Akanksha | Open PR | — | #31 (`0008_device_heartbeats.sql`) | `device_heartbeats.test.sql` in #31 | Not verified on `main`. Reviewer ran it locally (48/48) |
-| P0-8; PRD FR-24, FR-25 | CLD-05 | KPI views | Akanksha | Open PR | — | #33 (`0009_views_kpis.sql`: `v_daily_kpis`, `v_hourly`; WAIVED excluded from every revenue total). `v_zone_now` not written (waits on SYNC-04, #28) | `kpi_views.test.sql`, `kpi_oracle.test.sql`, `kpi_golden_day.test.sql` in #33 | Not verified on `main`. Performance target open (OQ-56 in #33) |
+| Handbook; PRD 9.9 | CLD-01 | Environments and secrets | Akanksha | Merged (partial) | `ops/secrets-inventory.md`, `secret-scan` (gitleaks) job in `.github/workflows/ci.yml`, `.env.example` (PR #9); `scripts/check-client-bundles.mjs` keeps the service-role key out of client bundles (PR #32, T-CLD-01-N1). No Supabase projects or GitHub environments exist | — | `secret-scan` CI job; `scripts/check-client-bundles.test.mjs` | CI (secret scan, client-bundle check). T-CLD-01-U1 not run; T-CLD-01-I1 and X1 blocked on hosted projects |
+| Handbook; PRD ch.8 data needs | CLD-02 | Schema migrations | Akanksha | Merged (partial) | `supabase/migrations/0001` to `0010` (PR #5, #31, #33, #34); `0011` is the IC-01 payload validation (PR #56, Afzal). Test runner and forward rehearsal `scripts/{test-db,rehearse-forward,check-migrations}.mjs` (PR #5, #19). No generated types package | — | `supabase/tests/*.test.sql`; `scripts/*.test.mjs` (`pnpm test:scripts`) | CI (script tests, migration lint, `db-tests`: PostgreSQL 16 and pgTAP with a Supabase stub, not a real Supabase stack) |
+| P0-11; PRD FR-48, 9.3 security, 9.4 multi-tenant | CLD-03 | RLS, device auth, enroll_device | Akanksha | Merged (partial) | `supabase/migrations/0010_rls.sql`: RLS policies for every table (PR #34; fail-closed choices are OQ-58). `enroll_device` is not written (IC-05 not agreed) | — | `rls_policies.test.sql`, `rls_sync_tables.test.sql` | CI (`db-tests`), using simulated JWT claims, not tokens from a real Supabase Auth flow |
+| Handbook; PRD FR-42, FR-50 (partial) | CLD-04 | Heartbeat | Akanksha | Merged | `supabase/migrations/0008_device_heartbeats.sql` (PR #31) | — | `device_heartbeats.test.sql` | CI (`db-tests`) |
+| P0-8; PRD FR-24, FR-25 | CLD-05 | KPI views | Akanksha | Merged (partial) | `supabase/migrations/0009_views_kpis.sql`: `v_daily_kpis`, `v_hourly`; WAIVED excluded from every revenue total (PR #33). `v_zone_now` is not written: it must equal SYNC-04's `occupancy.ts` and that definition is not yet agreed in writing (T-CLD-05-U2) | — | `kpi_views.test.sql`, `kpi_oracle.test.sql`, `kpi_golden_day.test.sql` | CI (`db-tests`). The 500 ms performance target is not met locally (OQ-56) |
 | P0-9; PRD FR-28 | CLD-06 | Report scheduler and email | Anamika | Not implemented | No `pg_cron` job, storage bucket or Resend integration. The render route it would call is CON-08 | — | — | Not verified |
-| P0-10; PRD FR-29 (partial), FR-42 (partial) | CLD-07 | Overstay and stale-device alerts | Akanksha | Blocked | — | — | — | Blocked: default threshold (OQ-46), opening hours (OQ-47), delivery contract (OQ-48), migration number |
-| PRD FR-56, 15.1 legal risk | CLD-08 | Retention, export, delete | Akanksha | Blocked | — | — | — | Blocked: legal review of retention (OQ-12) |
-| Handbook; PRD 11.2 DevOps (simplified) | CLD-09 | CI/CD | Akanksha | Merged (partial) | `.github/workflows/ci.yml`: `secret-scan`, `check`, `android-bundle`, `branch-name`, `audit` (PR #1, #9). No SQL job, no deploy workflows | #27 (SQL tests in CI, `db-tests`) | CI runs on every PR and push to `main` | CI. Staging and production deploys not implemented (no hosted projects, CLD-01) |
-| PRD 9.2, 9.7 | CLD-10 | Monitoring, backups, restore drill | Akanksha | Open PR | — | #35 (local restore drill `tools/restore/*`, `ops/runbook.md`, `ops/alerts.md`, `ops/restore-log.md`) | `tools/restore/restore_drill.test.mjs` (`pnpm test:restore`) in #35 | Not verified on `main`. Sentry, uptime, backups and the production drill need accounts (OQ-07) |
+| P0-10; PRD FR-29 (partial), FR-42 (partial) | CLD-07 | Overstay and stale-device alerts | Akanksha | Blocked | — | — | — | Blocked: default threshold (OQ-46), opening hours (OQ-47), delivery contract (OQ-48), migration number (OQ-64, proposed in open PR #58) |
+| PRD FR-56, 15.1 legal risk | CLD-08 | Retention, export, delete | Akanksha | Blocked | `ops/dpdp.md` is a draft procedure (PR #45); none of its mechanisms is implemented | — | — | Blocked: legal review of retention (OQ-12) |
+| Handbook; PRD 11.2 DevOps (simplified) | CLD-09 | CI/CD | Akanksha | Merged (partial) | `.github/workflows/ci.yml`: `secret-scan`, `check`, `db-tests` (PR #27), `android-bundle`, `branch-name`, `audit`. `deploy-staging.yml`, `deploy-prod.yml`, `scripts/deploy-preflight.mjs` and `scripts/verify-ci-checks.mjs` (PR #42), switched off until `DEPLOY_ENABLED` is set | — | `scripts/deploy-preflight.test.mjs`, `scripts/deploy-workflows.test.mjs`, `scripts/verify-ci-checks.test.mjs` (`pnpm test:scripts`) | CI. The deploy workflows have never run: no hosted projects or GitHub environments exist (CLD-01) |
+| PRD 9.2, 9.7 | CLD-10 | Monitoring, backups, restore drill | Akanksha | Merged (partial) | `tools/load/ingest.k6.js` (PR #44; never run). The Console health route `apps/console/app/api/health/route.ts` (PR #40, Anamika). The local restore drill, `ops/runbook.md`, `ops/alerts.md` and `ops/restore-log.md` are **not** on `main`: PR #35 merged into another PR's branch after that PR's base had already landed | PR #61 re-lands the restore drill, runbook and alert catalog (approved, not merged on 16 Nov) | `tools/load/events.test.mjs`; `tools/restore/restore_drill.test.mjs` (`pnpm test:restore`) only in PR #61 | Not verified. Sentry, uptime, backups and the production drill need accounts (OQ-07) |
 | Phase 2 plan E3 | MET-01 | Physical occupancy audits | Anamika | Templates only | `ops/metrics/audit-sheet.csv`, `ops/metrics/pilot-metrics.mjs` | — | `ops/metrics/pilot-metrics.test.mjs`, run in CI by `pnpm test:pilot` (`check` job) | Not verified (no pilot) |
 | Phase 2 plan E4 | MET-02 | Adherence checks | Anamika | Templates only | `ops/metrics/adherence-sheet.csv`, `ops/metrics/adherence.sql` | — | As MET-01 | Not verified (no pilot) |
 | Phase 2 plan metrics section | MET-03 | Weekly metrics pack | Anamika | Templates only | `ops/metrics/weekly-pack.md`, `ops/metrics/weekly.sql` | — | As MET-01 | Not verified (no pilot) |
 
 Total specified test cases (owner sheets): **422**. Features: **46**.
 
-Status count (46): Merged 4 (SYNC-01, SYNC-05, GATE-03, CON-03); Merged (partial) 16; Partial (dev runtime) 11 (GATE-01,
-GATE-02, GATE-04 to GATE-12); Open PR 5 (SYNC-04, CLD-03, CLD-04, CLD-05, CLD-10); Templates only 4 (CON-12, MET-01 to
+Status count (46): Merged 5 (SYNC-01, SYNC-05, GATE-03, CON-03, CLD-04); Merged (partial) 19; Partial (dev runtime) 11 (GATE-01,
+GATE-02, GATE-04 to GATE-12); Open PR 1 (SYNC-04); Templates only 4 (CON-12, MET-01 to
 MET-03); Not implemented 3 (SYNC-03, SYNC-07, CLD-06); Blocked 2 (CLD-07, CLD-08); Outside the repository 1 (PRT-01).
-OQ-52 to OQ-58 cited in this matrix are proposed in open PRs; on `main` the register ends at OQ-51.
+On `main` the register holds OQ-01 to OQ-62 and OQ-65 (16 Nov 2026); OQ-63 and OQ-64 are proposed in open PRs.
 
 ## 2. Gap and conflict analysis
 
