@@ -13,7 +13,7 @@ today**, for a plan reason, not a permissions or syntax one.
 
 - `Settings > Rules > Rulesets` (the newer mechanism, what the table above was originally written
   against): `gh api repos/planmyparking-lab/PMP_MVP/rulesets` → `403`, `"Upgrade to GitHub Pro or
-  make this repository public to enable this feature."`
+make this repository public to enable this feature."`
 - Classic `Settings > Branches` protection (`PUT .../branches/main/protection`), tried as a fallback:
   first attempt returned `404` under afzl-raza's account, which looked like a permissions issue
   (`afzl-raza`, like every other team member, holds `write`, not `admin`, on this repo — only the
