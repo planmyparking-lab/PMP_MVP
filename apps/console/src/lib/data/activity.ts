@@ -1,6 +1,7 @@
 import "server-only";
 import { ACTIVITY_LIMIT, ACTIVITY_WINDOW_DAYS, summarizeEvent } from "../activity";
 import type { ActivityFilter, ActivityLine } from "../activity";
+import { probeLimit, referenceProblems, takeLimited } from "../readLimits";
 import { createSupabaseServerClient } from "../supabase/server";
 import { getConsoleSession } from "./session";
 import type { Loaded } from "./types";
@@ -10,6 +11,8 @@ export interface ActivityLive {
   asOf: string;
   lines: Loaded<ActivityLine[]>;
   truncated: boolean;
+  /** Failed name lookups (staff, phones, zones); the page warns instead of showing "Unknown" silently. */
+  referenceErrors: string[];
   staffNames: Record<string, string>;
   deviceNames: Record<string, string>;
   filter: ActivityFilter;
@@ -35,7 +38,7 @@ export async function loadActivity(filter: ActivityFilter): Promise<ActivityLive
     .select("id, type, device_time, received_at, source, staff_id, device_id, session_id, payload")
     .eq("facility_id", facility.id)
     .order("received_at", { ascending: false })
-    .limit(ACTIVITY_LIMIT);
+    .limit(probeLimit(ACTIVITY_LIMIT));
   if (filter.type) query = query.eq("type", filter.type);
   if (filter.sessionId) query = query.eq("session_id", filter.sessionId);
   if (filter.eventIds.length > 0) query = query.in("id", filter.eventIds);
@@ -54,12 +57,13 @@ export async function loadActivity(filter: ActivityFilter): Promise<ActivityLive
   const names = (rows: { id: unknown; name: unknown }[] | null) =>
     Object.fromEntries((rows ?? []).map((r) => [String(r.id), String(r.name)]));
   const zones = names(zonesRes.data);
+  const limited = takeLimited(eventsRes.data, ACTIVITY_LIMIT);
 
   const lines: Loaded<ActivityLine[]> = eventsRes.error
     ? { ok: false, error: `events: ${eventsRes.error.message}` }
     : {
         ok: true,
-        data: (eventsRes.data ?? []).map((e) =>
+        data: limited.rows.map((e) =>
           summarizeEvent(
             {
               id: String(e.id),
@@ -81,7 +85,12 @@ export async function loadActivity(filter: ActivityFilter): Promise<ActivityLive
     facilityName: facility.name,
     asOf,
     lines,
-    truncated: (eventsRes.data?.length ?? 0) >= ACTIVITY_LIMIT,
+    truncated: limited.truncated,
+    referenceErrors: referenceProblems([
+      ["guard names", staffRes.error],
+      ["phone names", devicesRes.error],
+      ["zone names", zonesRes.error],
+    ]),
     staffNames: names(staffRes.data),
     deviceNames: names(devicesRes.data),
     filter,

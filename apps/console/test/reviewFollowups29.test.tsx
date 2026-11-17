@@ -46,11 +46,12 @@ describe("LiveShifts: event limit notice (PR #29 review)", () => {
     staffNames: {},
     deviceNames: {},
     truncated,
+    referenceErrors: [],
     reviews: { state: "absent" },
     userId: "00000000-0000-4000-8000-0000000000a1",
   });
 
-  it("says when only the most recent 2,000 events were read", () => {
+  it("says when more than 2,000 events matched", () => {
     const html = renderToStaticMarkup(<LiveShifts live={live(true)} />);
     expect(html).toContain("Only the most recent shift events are shown");
     expect(html).toContain("2,000");
