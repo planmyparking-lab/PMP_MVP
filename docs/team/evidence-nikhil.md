@@ -581,3 +581,49 @@ round is the OQ register update and this log entry only.
 | `prettier --check` (both changed `.md` files) | **VERIFIED** — exit 0, clean |
 | `pnpm --filter @pmp/gate test` | **VERIFIED** — 298/298 passed, unchanged (docs-only round) |
 | root `pnpm check` | **VERIFIED** — exit 0 |
+
+## Eighth round (18 Nov 2026, later same day): PR #64 hardening, OQ-59 environment check
+
+**PR #64 (`feature/gate-oq66-quarantined`, open, not merged, 0 reviews — Afzal's review request
+is still outstanding; nothing to verify or address there beyond code inspection, since no review
+or comment exists on it yet).** `quarantined()`'s `JSON.parse(row.event_json)` ran unguarded
+inside its `.map()`: one corrupted row would throw and take down the entire listing, hiding every
+other already-quarantined row with it. Fixed with a per-row `quarantinedRowType()` helper that
+never throws — a row whose JSON cannot be parsed, or parses without a string `type`, is labelled
+`UNPARSEABLE_EVENT` and kept, not dropped (`id`/`attempts`/`code`/`createdAt` come from separate
+SQL columns, unaffected by the JSON's health). Two new tests. `pending()`/`listEvents()` have the
+identical unguarded pattern but are deliberately untouched — out of scope for this fix (not what
+was asked, and both are already on `main`, so changing them is a separate change with its own
+review, not something to fold in silently here).
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @pmp/gate typecheck` | **VERIFIED** — exit 0 |
+| `pnpm --filter @pmp/gate test` | **VERIFIED** — 301/301 (299 baseline on that branch + 2 new) |
+| `eslint` (2 changed files) | **VERIFIED** — exit 0 |
+| `prettier --check` (2 changed files) | **VERIFIED** — exit 0 (after one `--write` pass) |
+| root `pnpm check` on that branch | **VERIFIED** — exit 0 |
+| GitHub CI on PR #64 after push | **VERIFIED** — all 6 checks pass |
+
+**OQ-59 — environment check for native SQLite evidence.** Checked this session's environment
+directly rather than assuming: no Android SDK, no `adb`, no `emulator`/`avdmanager`/`sdkmanager`
+binary, no `ANDROID_HOME`/`ANDROID_SDK_ROOT`, no `~/.android`. `/dev/kvm` exists and the host has
+12 CPUs, but only ~1.5 GiB free RAM at check time. **Conclusion: no Android emulator or physical
+device is available in this environment; none of the OQ-59 checklist's restart-recovery,
+concurrent-write or foreign-key items were run.** Provisioning an emulator from scratch (SDK +
+system image download, likely several GB, plus emulator RAM headroom this host does not currently
+have free) was not attempted without being asked — that is a separate, resource-heavy decision,
+not a side effect of this task. OQ-59 stays **Open**, not claimed as resolved or partially
+resolved by anything in this round.
+
+**Message drafted for Afzal** (not yet posted anywhere — flagged back to the user to decide where/
+whether to send it, since it is addressed to a teammate):
+
+> OQ-59: I don't have an Android emulator or device available in my current working environment —
+> no SDK, no `adb`, nothing to run the restart-recovery/concurrent-write/foreign-key checklist
+> against a real `expo-sqlite` binding. The checklist itself is written and precise (evidence-
+> nikhil.md, Sixth round) so whoever does have a device/emulator can run it directly. If you or
+> Akanksha have access to one, that's the fastest path; otherwise let me know what testing setup
+> the team actually has for Android native-module verification and I'll run the checklist there.
+> Keeping OQ-59 Open either way until that evidence exists — not claiming it from the `node:sqlite`
+> double alone.
