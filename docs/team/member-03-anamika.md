@@ -320,7 +320,7 @@ The four features below were reassigned from Akanksha to Anamika by the reposito
 
 1. **Problem.** Owners should receive proof of performance without logging in. Reports render in the Console (Node runtime); delivery and scheduling belong to the database scheduler (H decision 5).
 2. **Expected behaviour.** Jobs `daily_report` (06:30 IST daily), `weekly_report` (Monday 07:00 IST), `monthly_report` (1st, 07:00 IST) (H). For each active facility the job calls the Console route, stores the PDF and Excel in the private `reports` bucket (H), creates signed links valid 7 days (H), and emails them via Resend (H) to the facility's configured recipients.
-3. **Preconditions.** `CON-08` route live in staging with a shared secret; Resend domain verified; recipients configured per facility (R table `report_recipients(facility_id, email, cadence)`; add to `0011` or a later migration).
+3. **Preconditions.** `CON-08` route live in staging with a shared secret; Resend domain verified; recipients configured per facility (R table `report_recipients(facility_id, email, cadence)`; add in whichever migration is next-free at promotion, OQ-64 — `0011` is already taken).
 4. **Implementation sequence.**
    1. Enable `pg_cron` and `pg_net` extensions (H).
    2. Create a SQL function `run_report_job(cadence text)` (R) that loops facilities, calls the route via `net.http_get` with the secret header, polls or receives the file location, writes to Storage, and sends email. Because Edge Functions stay small (H), the sending step may be a short Edge Function `send_report_email` (R) that takes `{facility_id, cadence, file_urls}` and calls Resend.
