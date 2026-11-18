@@ -87,7 +87,13 @@ jobs:
           # so pg_ctlcluster has nothing to start. Create it explicitly rather than relying on the postinst hook.
           if ! pg_lsclusters | grep -q '^16 *main'; then sudo pg_createcluster 16 main; fi
           sudo pg_ctlcluster 16 main start
-          sudo -u postgres createuser --superuser "$USER"
+          # postgresql-common picks the next free port when 5432 is already taken on the runner image (observed:
+          # it lands on 5433), so read back whatever port this cluster actually got rather than assuming 5432, and
+          # export it for every later step (createuser here, then scripts/test-db-ci.mjs) through the standard
+          # libpq PGPORT variable both already honour.
+          echo "PGPORT=$(pg_lsclusters | awk '$1 == "16" && $2 == "main" { print $3 }')" >> "$GITHUB_ENV"
+          source "$GITHUB_ENV"
+          sudo -u postgres createuser --superuser "$USER" -p "$PGPORT"
       - name: Apply migrations and run the SQL tests
         run: node scripts/test-db-ci.mjs # CI and GITHUB_ACTIONS are both set true by the runner; the script refuses to run without both
 
