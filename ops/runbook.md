@@ -61,9 +61,10 @@ uptime monitor is known to exist yet. Record project refs (not keys) in the tabl
     TRUNCATE revoke and still report MATCH), policy predicates (`USING` / `WITH CHECK`), function bodies, view
     definitions, indexes and constraints, the RLS-enabled flag, triggers, sequences, extensions, storage objects,
     and any schema other than `public` plus `auth.users`.
-  - **[run locally]** `bash tools/restore/restore_drill.sh --synthetic` on 18 Nov 2026 (run by Anamika, with
-    `main` including `0011`): migrations `0001`-`0011`, 19 tables, 2988 synthetic rows, 38 policies, 20 functions,
-    3 views, MATCH (see [restore-log.md](restore-log.md)). The 12 Nov run with `0001`-`0010` reported 40 policies; the
+  - **[run locally]** `bash tools/restore/restore_drill.sh --synthetic` on 18 Nov 2026 with `main` including
+    `0011`: migrations `0001`-`0011`, 19 tables, 2986 synthetic rows, 38 policies, 20 functions, 3 views, MATCH, no
+    scratch database left behind (see [restore-log.md](restore-log.md); Anamika's independent run the same day also
+    matched, with 2988 rows). The 12 Nov run with `0001`-`0010` reported 40 policies; the
     two fewer are intended: the review fix `1073188` (before PR #34 merged) removed `devices_insert` and
     `staff_insert` from `0010_rls.sql` and replaced them with column grants, and `0011` adds no policy.
     `pnpm test:restore` (7 tests, 7 passed, 0 skipped with the stack up) checks the expected event, open-session and conflict counts, that policies survive the restore,
