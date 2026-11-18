@@ -12,7 +12,7 @@ const COPY = {
   guard: {
     button: "Deactivate",
     title: (name: string) => `Deactivate ${name}?`,
-    body: "From now on the cloud refuses every event signed by this guard, including events recorded earlier that are still waiting on a phone to sync. Events already in the cloud stay as they are. The phones drop the PIN at their next sync.",
+    body: "From now on the cloud refuses every event signed by this guard, including events recorded earlier that are still waiting on a phone to sync. Events already in the cloud stay as they are. The phones may still accept this guard's PIN until the gate app supports removing it, but anything recorded with it will not reach the cloud.",
     warning:
       "Reactivating later needs a new PIN, which the Console cannot set yet (set_staff_pin is not built).",
     submit: "Deactivate guard",

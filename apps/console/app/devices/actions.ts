@@ -51,7 +51,7 @@ export async function deactivateGuard(_prev: ActionState, form: FormData): Promi
   return {
     ok: true,
     message:
-      "Guard deactivated. The cloud refuses their new events now; phones drop the PIN at their next sync.",
+      "Guard deactivated. The cloud now refuses events signed by this guard. Phones may still accept their PIN until the gate app supports removing it.",
   };
 }
 
