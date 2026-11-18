@@ -776,6 +776,123 @@ describe("SqliteOutboxStore.queueHealth (IC-02 HealthSnapshot: queueDepth/oldest
   });
 });
 
+describe("SqliteOutboxStore.quarantined (SYNC-06, OQ-66)", () => {
+  it("an empty database returns an empty list", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+
+    expect(await store.quarantined(10)).toEqual([]);
+  });
+
+  it("a PENDING row is never returned, even though an event exists", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    await store.writeEventAndEnqueue(makeEntry("2026-10-29T10:00:00.000Z"));
+
+    expect(await store.quarantined(10)).toEqual([]);
+  });
+
+  it("one quarantined row: id, type, attempts, code and createdAt (the event's own device_time)", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    const entry = makeEntry("2026-10-29T10:00:00.000Z");
+    await store.writeEventAndEnqueue(entry);
+    await store.apply([
+      { id: entry.id, state: "QUARANTINED", attempts: 5, code: "CLAIM_MISMATCH" },
+    ]);
+
+    expect(await store.quarantined(10)).toEqual([
+      {
+        id: entry.id,
+        type: "ENTRY",
+        attempts: 5,
+        code: "CLAIM_MISMATCH",
+        createdAt: "2026-10-29T10:00:00.000Z",
+      },
+    ]);
+  });
+
+  it("orders newest device_time first, so a long backlog doesn't bury what just failed", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    const older = makeEntry("2026-10-29T09:00:00.000Z");
+    const newer = makeEntry("2026-10-29T11:00:00.000Z");
+    await store.writeEventAndEnqueue(older);
+    await store.writeEventAndEnqueue(newer);
+    await store.apply([
+      { id: older.id, state: "QUARANTINED", attempts: 5, code: "REJECTED" },
+      { id: newer.id, state: "QUARANTINED", attempts: 5, code: "REJECTED" },
+    ]);
+
+    expect((await store.quarantined(10)).map((r) => r.id)).toEqual([newer.id, older.id]);
+  });
+
+  it("respects the limit", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    const a = makeEntry("2026-10-29T09:00:00.000Z");
+    const b = makeEntry("2026-10-29T10:00:00.000Z");
+    const c = makeEntry("2026-10-29T11:00:00.000Z");
+    for (const e of [a, b, c]) await store.writeEventAndEnqueue(e);
+    await store.apply([
+      { id: a.id, state: "QUARANTINED", attempts: 5, code: "REJECTED" },
+      { id: b.id, state: "QUARANTINED", attempts: 5, code: "REJECTED" },
+      { id: c.id, state: "QUARANTINED", attempts: 5, code: "REJECTED" },
+    ]);
+
+    expect((await store.quarantined(2)).map((r) => r.id)).toEqual([c.id, b.id]);
+  });
+
+  it("PENDING and SENT rows are excluded when QUARANTINED rows also exist", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    const pending = makeEntry("2026-10-29T09:00:00.000Z");
+    const sent = makeEntry("2026-10-29T10:00:00.000Z");
+    const quarantined = makeEntry("2026-10-29T11:00:00.000Z");
+    for (const e of [pending, sent, quarantined]) await store.writeEventAndEnqueue(e);
+    await store.apply([
+      { id: sent.id, state: "SENT", attempts: 0 },
+      { id: quarantined.id, state: "QUARANTINED", attempts: 5, code: "REJECTED" },
+    ]);
+
+    expect((await store.quarantined(10)).map((r) => r.id)).toEqual([quarantined.id]);
+  });
+
+  it("never observes a quarantine from a batch that is still mid-transaction and later rolls back", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    const existing = makeEntry("2026-10-29T09:00:00.000Z");
+    await store.writeEventAndEnqueue(existing);
+    await store.apply([{ id: existing.id, state: "QUARANTINED", attempts: 5, code: "REJECTED" }]);
+
+    const paused = withPauseAfter(db, (sql) => sql.startsWith("UPDATE gate_outbox"));
+    const pausedStore = new SqliteOutboxStore(paused.db);
+    const fresh = makeEntry("2026-10-29T10:00:00.000Z");
+    await pausedStore.writeEventAndEnqueue(fresh);
+    const applyPromise = pausedStore.apply([
+      { id: fresh.id, state: "QUARANTINED", attempts: 5, code: "REJECTED" },
+    ]);
+    await paused.reached;
+
+    const quarantinedPromise = pausedStore.quarantined(10);
+    paused.release();
+    const quarantined = await quarantinedPromise;
+    await applyPromise;
+
+    // The read queued behind the write lock, so it sees the final, committed state either way —
+    // this proves the read never ran concurrently with the still-open update, not just that the
+    // numbers happen to match.
+    expect(quarantined.map((r) => r.id).sort()).toEqual([existing.id, fresh.id].sort());
+  });
+});
+
 describe("SqliteOutboxStore reads never observe an uncommitted write (review finding, PR #39)", () => {
   /** The exact probe from review: an existing event, then a batch `[fresh, colliding]` where
    * `colliding` reuses `existing`'s id with different content. The pause lands right after

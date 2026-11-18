@@ -497,7 +497,6 @@ export default function ExitScreen() {
                   />
                 </View>
               )}
-              <Note>{t("payment.attestedLabel")}</Note>
               {passForExit?.state === "VALID" ? (
                 <BigButton
                   title={`${t("payment.pass")} · ${t("exit.passValidNote")}`}
