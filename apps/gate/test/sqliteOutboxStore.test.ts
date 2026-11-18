@@ -864,6 +864,69 @@ describe("SqliteOutboxStore.quarantined (SYNC-06, OQ-66)", () => {
     expect((await store.quarantined(10)).map((r) => r.id)).toEqual([quarantined.id]);
   });
 
+  it("a row with syntactically invalid event_json is labelled UNPARSEABLE_EVENT, not dropped, and does not break the rest of the list", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    const valid = makeEntry("2026-10-29T10:00:00.000Z");
+    await store.writeEventAndEnqueue(valid);
+    await store.apply([{ id: valid.id, state: "QUARANTINED", attempts: 5, code: "REJECTED" }]);
+    // Bypass the store's own IC-01-validated write path to plant a corrupted row directly, the
+    // same technique used for the device_time_ms tests above — this cannot happen through normal
+    // writes (writeEventsAndEnqueue validates every event before it ever reaches SQLite), but a
+    // read must still survive it rather than throwing out of quarantined() entirely.
+    const corruptId = newId();
+    await db.runAsync(
+      "INSERT INTO gate_events (id, event_json, device_time, device_time_ms, created_at) VALUES (?, ?, ?, ?, ?)",
+      [
+        corruptId,
+        "{not valid json",
+        "2026-10-29T11:00:00.000Z",
+        Date.parse("2026-10-29T11:00:00.000Z"),
+        "2026-10-29T11:00:00.000Z",
+      ],
+    );
+    await db.runAsync(
+      "INSERT INTO gate_outbox (id, state, attempts, code) VALUES (?, 'QUARANTINED', 5, 'REJECTED')",
+      [corruptId],
+    );
+
+    const rows = await store.quarantined(10);
+    expect(rows.map((r) => r.id)).toEqual([corruptId, valid.id]); // newest first; the corrupt row is still listed
+    expect(rows[0]).toMatchObject({ id: corruptId, type: "UNPARSEABLE_EVENT", attempts: 5 });
+    expect(rows[1]).toMatchObject({ id: valid.id, type: "ENTRY" });
+  });
+
+  it("a row whose event_json parses but has no string type field also returns UNPARSEABLE_EVENT", async () => {
+    const db = createNodeSqliteDb();
+    const store = new SqliteOutboxStore(db);
+    await store.init();
+    const id = newId();
+    await db.runAsync(
+      "INSERT INTO gate_events (id, event_json, device_time, device_time_ms, created_at) VALUES (?, '{}', ?, ?, ?)",
+      [
+        id,
+        "2026-10-29T10:00:00.000Z",
+        Date.parse("2026-10-29T10:00:00.000Z"),
+        "2026-10-29T10:00:00.000Z",
+      ],
+    );
+    await db.runAsync(
+      "INSERT INTO gate_outbox (id, state, attempts, code) VALUES (?, 'QUARANTINED', 5, 'REJECTED')",
+      [id],
+    );
+
+    expect(await store.quarantined(10)).toEqual([
+      {
+        id,
+        type: "UNPARSEABLE_EVENT",
+        attempts: 5,
+        code: "REJECTED",
+        createdAt: "2026-10-29T10:00:00.000Z",
+      },
+    ]);
+  });
+
   it("never observes a quarantine from a batch that is still mid-transaction and later rolls back", async () => {
     const db = createNodeSqliteDb();
     const store = new SqliteOutboxStore(db);
