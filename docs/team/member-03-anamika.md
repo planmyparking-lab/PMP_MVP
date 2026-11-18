@@ -328,7 +328,7 @@ The four features below were reassigned from Akanksha to Anamika by the reposito
    4. Write a row in `job_runs` (H) at start and finish with status and detail.
    5. Idempotency key `(job, facility_id, period_start)`; a rerun for the same period replaces the files and does not send a second email unless forced by an operator flag (R).
    6. Resend webhook endpoint (R) records bounce and complaint events into `job_runs` detail or a `email_events` table (R), which feeds the alert in CLD-10.
-5. **Files.** `supabase/migrations/0011_*` (job helpers), `supabase/functions/send_report_email/index.ts` (R), `ops/runbook.md`.
+5. **Files.** `supabase/migrations/<next-free>_*` at promotion (job helpers; no number fixed in advance, OQ-64), `supabase/functions/send_report_email/index.ts` (R), `ops/runbook.md`.
 6. **Contracts.** IC-08: `GET /api/reports/{daily|weekly|monthly}?facility=...` with `REPORT_ROUTE_SECRET`; response: PDF and Excel bytes or a manifest with two URLs (confirm with Anamika; recommended: two requests with `format=pdf|xlsx`).
 7. **Data flow.** `pg_cron` → `run_report_job` → Console route → files → `reports` bucket → signed URLs → Resend → recipients; every step logged in `job_runs`.
 8. **Validation and rules.** Period boundaries computed in facility local time. Recipients validated as emails. Signed URL lifetime exactly 7 days (H).

@@ -163,7 +163,7 @@ Common to every row: **Status = Not implemented**. Dependencies are exactly thos
    6. `0008_device_heartbeats.sql`: see CLD-04.
    7. `0009_views_kpis.sql`: see CLD-05.
    8. `0010_rls.sql`: see CLD-03. (H: policies live here; the "RLS enabled in the creating migration" rule still applies, so enable in each earlier file and define policies here.)
-   9. `<next-free>_retention_and_export.sql` (H name `retention_and_export`; no number fixed in advance — the previous attempt to pin `0011`, then `0012`, both collided with other work landing first, so OQ-64 settled on assigning the real next-free contiguous number only at the moment this migration is actually promoted): facility `retention_days` setting, purge function, export helper; also `job_runs(id, job, facility_id, started_at, finished_at, status, detail)` (H table name; columns (R)).
+   9. `<next-free>_retention_and_export.sql` (H name `retention_and_export`; number assigned at promotion, OQ-64): facility `retention_days` setting, purge function, export helper; also `job_runs(id, job, facility_id, started_at, finished_at, status, detail)` (H table name; columns (R)).
    10. Run `supabase gen types typescript` after every merged migration (H: generated types) and commit to `packages/db-types` (R path).
 5. **Files.** `supabase/migrations/*.sql`, `packages/db-types/index.ts` (R).
 6. **Contracts.** Input: IC-01 enumerations. Output: generated TypeScript types consumed by Console and the sync package; the table names used by IC-07 and IC-10.
@@ -628,7 +628,7 @@ All contract shapes are **(R)** unless stated; IC numbers and parties follow REA
 | RLS policies, helper functions, `enroll_device` | `0010_rls.sql`, `supabase/functions/enroll_device` |
 | Heartbeat table and function | `0008_device_heartbeats.sql` |
 | Views | `0009_views_kpis.sql` |
-| Scheduler jobs, report email function, alert jobs | `<next-free>_*` (CLD-08's own migration, OQ-64), `supabase/functions/send_report_email` |
+| Scheduler jobs, report email function, alert jobs | each feature's own migration, numbered at promotion (OQ-64; alerts are CLD-07, report-email job helpers are CLD-06), `supabase/functions/send_report_email` |
 | Export, purge, delete | `<next-free>_retention_and_export.sql` (OQ-64), `supabase/functions/data_export` |
 | Pipelines | `.github/workflows/` |
 | pgTAP suite, k6 script, restore drill script | `supabase/tests/`, `tools/load/`, `tools/restore/` |
