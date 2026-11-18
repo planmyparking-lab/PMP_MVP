@@ -121,7 +121,7 @@ export class FakeSync implements SyncClient {
     this.lastSyncAt = atIso ?? this.clock().toISOString();
   }
 
-  /** Async IC-02 events-read (OQ-37 feedback: the gate's duplicate guards must not assume a
+  /** Async IC-02 events-read (OQ-37, Resolved: the gate's duplicate guards must not assume a
    * synchronous store, because `SqliteOutboxStore.listEvents()` — the real on-device
    * implementation this fake stands in for — is inherently async). Same Promise-based contract on
    * both, so `WriteDeps.readEvents` binds to either without a call site change

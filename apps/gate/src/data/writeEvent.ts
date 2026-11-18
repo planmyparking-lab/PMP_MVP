@@ -47,8 +47,8 @@ export { SCHEMA_VERSION };
 export type WriteDeps = {
   /** The IC-02 client (FakeSync in tests; Afzal's package in the app shell). */
   client: SyncClient;
-  /** Committed local events, for the exit/payment duplicate guards. Promise-based (OQ-37
-   * feedback) so this binds unchanged to either `FakeSync.listEvents()` or the real on-device
+  /** Committed local events, for the exit/payment duplicate guards. Promise-based (OQ-37,
+   * Resolved) so this binds unchanged to either `FakeSync.listEvents()` or the real on-device
    * `SqliteOutboxStore.listEvents()` (inherently async) once Afzal's facade composes one — see
    * `ic02.ts`'s `SyncClient` doc and `T-IC02-GATE-1`. Delegate to `listEvents()`; do not add a
    * synchronous events read here. */

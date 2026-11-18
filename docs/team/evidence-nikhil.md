@@ -541,3 +541,43 @@ on it has been run; this is the plan, not a result.
 **Sign-off**: OQ-59 moves from PROPOSED to Resolved only on Afzal's review of this evidence (his
 row in OQ-59) once it exists — not on this checklist alone, which is deliberately all "not run" per
 the brief's "do not claim device/emulator testing unless actually performed."
+
+## Seventh round (18 Nov 2026, later same day): OQ-37 resolved — Afzal's PR #67 review
+
+Afzal reviewed PR #67 and submitted a real GitHub review — verified directly against the API, not
+assumed from a chat message: `gh pr view 67 --json reviews,reviewDecision` returns
+`"reviewDecision":"APPROVED"` with one review, author `afzl-raza`, state `APPROVED`, submitted
+`2026-11-18T16:43:32Z`. His review body confirms the implementation is correct as submitted
+("correctly makes readEvents Promise-based, awaits it in writeExit, keeps the UI-only synchronous
+accessor separate, and tests rollback, duplicate-exit, and duplicate-payment behavior against both
+FakeSync and SqliteOutboxStore. All six CI checks pass.") and states the canonical IC-02 contract,
+now recorded as OQ-37's resolution in `docs/team/open-questions-and-assumptions.md`:
+
+- `writeTransaction(events: readonly Event[]): Promise<void>` — non-empty, all-or-nothing local
+  transaction; resolves after the local commit; never waits for network sync.
+- `listEvents(): Promise<readonly Event[]>` — committed local snapshot for the duplicate guards; no
+  network access.
+- `writeEvent(event)` stays the single-event convenience operation.
+- `WriteDeps.readEvents` remains an async injected adapter delegating to `listEvents()`.
+- `PortRuntime.readEvents` stays synchronous and UI-only, outside IC-02.
+
+Afzal's one explicit non-blocking follow-up: `T-IC02-GATE-1` currently covers only the
+write/duplicate-guard subset, not the eventual full `SyncClient` facade (`observeOccupancy`/
+`health` composed with a real transport) — recorded as confirmed future work, not a blocker for
+this PR or for closing OQ-37.
+
+**OQ-37 status: Resolved.** This supersedes the "OPEN — OQ-37" line under "Blockers and OQs" above
+and the Sixth round's "not closed" note — both were accurate at the time they were written, before
+this review landed, and are left as-is rather than rewritten.
+
+No code change this round: PR #67's implementation was already correct per Afzal's review: this
+round is the OQ register update and this log entry only.
+
+**Commands run this round:**
+
+| Command | Result |
+| --- | --- |
+| `gh pr view 67 --json reviews,reviewDecision` | **VERIFIED** — real GitHub `APPROVED` review by `afzl-raza`, not inferred from any chat message |
+| `prettier --check` (both changed `.md` files) | **VERIFIED** — exit 0, clean |
+| `pnpm --filter @pmp/gate test` | **VERIFIED** — 298/298 passed, unchanged (docs-only round) |
+| root `pnpm check` | **VERIFIED** — exit 0 |
