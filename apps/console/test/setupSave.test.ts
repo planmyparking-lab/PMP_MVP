@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildTariffs, exampleDraft } from "../src/lib/setupDraft";
+import { analyse, buildTariffs, exampleDraft } from "../src/lib/setupDraft";
 import {
   DraftPayload,
   describeSaved,
+  facilityDetailsLine,
   istDateOf,
   istMidnight,
   planSave,
@@ -225,5 +226,53 @@ describe("CON-01 draft payload", () => {
     expect(DraftPayload.safeParse({ ...exampleDraft(START), nightKind: "other" }).success).toBe(
       false,
     );
+  });
+});
+
+describe("CON-01 review of #66", () => {
+  it("the draft payload accepts only the gate app's vehicle classes", () => {
+    const d = exampleDraft(START);
+    d.zones[1].vehicleClass = "Two-wheeler";
+    expect(DraftPayload.safeParse(d).success).toBe(false);
+    const t = exampleDraft(START);
+    t.tariffs[0].vehicleClass = "Bus";
+    expect(DraftPayload.safeParse(t).success).toBe(false);
+  });
+
+  it("a manager whose only change is the facility details is told nothing was saved, and why", () => {
+    const r = plan({
+      role: "manager",
+      zones: [
+        { id: "z1", name: "Basement A", capacity: 100, vehicleClass: "Car" },
+        { id: "z2", name: "Two-wheeler bay", capacity: 80, vehicleClass: "Bike" },
+      ],
+    });
+    if (!r.ok) throw new Error("plan failed");
+    const already = { ...r.plan, tariffInserts: [] };
+    expect(describeSaved(already)).toBe(
+      "Nothing was saved: the zones and tariffs are already up to date, and only an owner can change the facility name and slot count.",
+    );
+  });
+
+  it("the confirm line shows old and new facility values, or says they stay", () => {
+    const d = { ...exampleDraft(START), name: "Mall", slotCount: "200" };
+    expect(facilityDetailsLine(d, "Mall", 200, true)).toBe(
+      "The facility name and slot count stay as they are.",
+    );
+    expect(facilityDetailsLine({ ...d, name: "Mal" }, "Mall", 180, true)).toBe(
+      'This changes the facility name "Mall" to "Mal" and slot count 180 to 200.',
+    );
+    expect(facilityDetailsLine({ ...d, name: "Mal" }, "Mall", 200, false)).toBe(
+      'The facility name "Mall" to "Mal" is not changed: only an owner can do that.',
+    );
+  });
+
+  it("numbers above the database integer limit are reported in the wizard, not at save time", () => {
+    const d = exampleDraft(START);
+    d.slotCount = "3000000000";
+    d.zones[0].capacity = "3000000000";
+    const a = analyse(d, START);
+    expect(a.facility.slotCount).toBe("That number is too large.");
+    expect(a.zones[0].capacity).toBe("That number is too large.");
   });
 });

@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { Tariff } from "@pmp/contracts";
 import type { Role } from "./permissions";
+import { VEHICLE_CLASSES } from "./setupDraft";
+import type { SetupDraft } from "./setupDraft";
+
+/** The only classes the gate app records and looks tariffs up with; enforced here too, not only in the form. */
+const VehicleClass = z.enum(VEHICLE_CLASSES);
 
 /**
  * CON-01 "Save to this facility": turns a valid wizard draft into the rows to write, given what the facility already
@@ -30,7 +35,7 @@ export const DraftPayload = z.object({
       z.object({
         name: z.string().max(100),
         capacity: z.string().max(10),
-        vehicleClass: z.string().max(40),
+        vehicleClass: VehicleClass,
       }),
     )
     .min(1)
@@ -38,7 +43,7 @@ export const DraftPayload = z.object({
   tariffs: z
     .array(
       z.object({
-        vehicleClass: z.string().max(40),
+        vehicleClass: VehicleClass,
         model: z.enum(["HOURLY_SLABS", "FLAT", "PER_ENTRY"]),
         slabs: z.array(z.object({ upTo: z.string().max(10), price: z.string().max(20) })).max(24),
         repeatEvery: z.string().max(10),
@@ -245,8 +250,31 @@ export function describeSaved(p: SavePlan): string {
     parts.push(
       `${p.tariffInserts.length} tariff version${p.tariffInserts.length === 1 ? "" : "s"} added`,
     );
+  if (parts.length === 0 && p.facilitySkipped)
+    return "Nothing was saved: the zones and tariffs are already up to date, and only an owner can change the facility name and slot count.";
   const head = parts.length
     ? `Saved: ${parts.join(", ")}.`
     : "Nothing new to save; this facility already has these settings.";
   return [head, p.facilitySkipped].filter(Boolean).join(" ");
+}
+
+/**
+ * What the save does to the facility row, spelled out with the old and new values so a typo in the name or slot
+ * count is visible before it is written (review of #66).
+ */
+export function facilityDetailsLine(
+  draft: SetupDraft,
+  currentName: string,
+  currentSlots: number,
+  isOwner: boolean,
+): string {
+  const changes: string[] = [];
+  if (draft.name.trim() !== currentName)
+    changes.push(`name "${currentName}" to "${draft.name.trim()}"`);
+  if (draft.slotCount.trim() !== String(currentSlots))
+    changes.push(`slot count ${currentSlots} to ${draft.slotCount.trim()}`);
+  if (changes.length === 0) return "The facility name and slot count stay as they are.";
+  return isOwner
+    ? `This changes the facility ${changes.join(" and ")}.`
+    : `The facility ${changes.join(" and ")} is not changed: only an owner can do that.`;
 }

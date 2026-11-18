@@ -60,6 +60,7 @@ beforeEach(() => {
     role: "owner",
     facilities: [],
     facility: { id: FACILITY, orgId: "o1", name: "Demo", timezone: "Asia/Kolkata", slotCount: 10 },
+    facilityRole: "owner",
   };
 });
 
@@ -88,6 +89,7 @@ describe("saveSetup", () => {
       role: "guard",
       facilities: [],
       facility: { id: FACILITY },
+      facilityRole: null,
     };
     expect((await saveSetup(ACTION_IDLE, form(exampleDraft(todayInIst())))).message).toMatch(
       /owner or manager/,
@@ -102,6 +104,27 @@ describe("saveSetup", () => {
     expect((await saveSetup(ACTION_IDLE, form(bad))).message).toMatch(/Fix the problems/);
     const past = { ...exampleDraft("2020-01-01") };
     expect((await saveSetup(ACTION_IDLE, form(past))).message).toMatch(/Fix the problems/);
+    expect(writes()).toEqual([]);
+  });
+
+  it("an owner of another facility who manages this one saves as a manager (review of #66)", async () => {
+    // session.role is "owner" because the user owns some facility; on the selected one they are a manager.
+    state.session = { ...(state.session as object), role: "owner", facilityRole: "manager" };
+    const r = await saveSetup(ACTION_IDLE, form(exampleDraft(todayInIst())));
+    expect(r).toEqual({
+      ok: true,
+      message:
+        "Saved: 2 zones added, 2 tariff versions added. The facility name and slot count were not changed: only an owner can edit them.",
+    });
+    expect(state.calls.filter((c) => c[1] === "facilities")).toEqual([]);
+    expect(writes().map((c) => c[1])).toEqual(["zones", "tariffs"]);
+  });
+
+  it("refuses a vehicle class the gate app does not use, even in a crafted request (review of #66)", async () => {
+    const d = exampleDraft(todayInIst());
+    d.tariffs[1].vehicleClass = "Two-wheeler";
+    d.zones[1].vehicleClass = "Two-wheeler";
+    expect((await saveSetup(ACTION_IDLE, form(d))).message).toMatch(/could not be read/);
     expect(writes()).toEqual([]);
   });
 
@@ -123,5 +146,6 @@ function beforeEachSession() {
     role: "owner",
     facilities: [],
     facility: { id: FACILITY, orgId: "o1", name: "Demo", timezone: "Asia/Kolkata", slotCount: 10 },
+    facilityRole: "owner",
   };
 }
