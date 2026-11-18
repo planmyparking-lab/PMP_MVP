@@ -1,5 +1,13 @@
 import { newId, type Event } from "@pmp/contracts";
-import type { IngestTransport, OutboxRow, OutboxStore, RowUpdate, SyncState } from "../src";
+import type {
+  IngestTransport,
+  OutboxRow,
+  OutboxStore,
+  QuarantinedRow,
+  QueueHealth,
+  RowUpdate,
+  SyncState,
+} from "../src";
 
 const FACILITY = "00000000-0000-4000-8000-0000000000f1";
 const DEVICE = "00000000-0000-4000-8000-0000000000d1";
@@ -31,6 +39,8 @@ export class MemoryStore implements OutboxStore {
   rows = new Map<string, StoredRow>();
   failNextApply = false;
   applyCalls = 0;
+  /** Overridable "now" for queueHealth()'s age calculation; defaults to the real clock. */
+  clockMs: () => number = () => Date.now();
 
   add(event: Event): void {
     this.rows.set(event.id, {
@@ -74,6 +84,31 @@ export class MemoryStore implements OutboxStore {
   }
   count(state: SyncState): number {
     return [...this.rows.values()].filter((r) => r.state === state).length;
+  }
+  async queueHealth(): Promise<QueueHealth> {
+    const pending = [...this.rows.values()].filter((r) => r.state === "PENDING");
+    const oldest =
+      pending.length === 0 ? null : Math.min(...pending.map((r) => Date.parse(r.deviceTime)));
+    return {
+      queueDepth: pending.length,
+      oldestUnsyncedAgeMs: oldest === null ? 0 : Math.max(0, this.clockMs() - oldest),
+      quarantinedCount: this.count("QUARANTINED"),
+    };
+  }
+  async quarantined(limit: number): Promise<QuarantinedRow[]> {
+    return [...this.rows.values()]
+      .filter(
+        (r): r is StoredRow & { code: string } => r.state === "QUARANTINED" && r.code !== undefined,
+      )
+      .sort((a, b) => (a.deviceTime < b.deviceTime ? 1 : -1))
+      .slice(0, limit)
+      .map((r) => ({
+        id: r.id,
+        type: (r.event as { type?: string }).type ?? "UNKNOWN",
+        attempts: r.attempts,
+        code: r.code,
+        createdAt: r.deviceTime,
+      }));
   }
 }
 

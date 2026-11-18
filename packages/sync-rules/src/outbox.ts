@@ -26,11 +26,41 @@ export interface RowUpdate {
   code?: string;
 }
 
+/** `queueHealth()`'s shape (SYNC-06): a count taken mid-write must never include a row from a batch that then
+ * rolls back, and an empty queue must resolve to zeros, never `NaN`. */
+export interface QueueHealth {
+  queueDepth: number;
+  oldestUnsyncedAgeMs: number;
+  quarantinedCount: number;
+}
+
+/** One row of `quarantined()` (SYNC-06): list fields only, never the payload (which may carry a vehicle number) —
+ * a payload is fetched separately, on demand, for one event id. */
+export interface QuarantinedRow {
+  id: string;
+  /** The event's own type (ENTRY, EXIT, ...), for display; never the payload. */
+  type: string;
+  attempts: number;
+  /** The last rejection code (RowUpdate.code) stored for this row: a server reason, LOCAL_INVALID or ID_MISMATCH. */
+  code: string;
+  /** device_time of the stored event, UTC ISO — when it happened, not when it was quarantined. */
+  createdAt: string;
+}
+
 export interface OutboxStore {
   /** Up to `limit` PENDING rows ordered by device_time, then id. */
   pending(limit: number): Promise<OutboxRow[]>;
   /** Apply all updates in ONE local transaction (all or nothing). */
   apply(updates: RowUpdate[]): Promise<void>;
+  /** Pending/quarantined counts and the oldest pending row's age, for the status screen and heartbeat (SYNC-06).
+   * Optional so adding it here is never a breaking change for an existing OutboxStore implementation; a store
+   * that supports it (gate's SqliteOutboxStore does) just declares the method, no import or interface change
+   * needed on its side — see health.ts's readHealth(), which throws a clear error if it's missing rather than
+   * guessing zeros. */
+  queueHealth?(): Promise<QueueHealth>;
+  /** Up to `limit` QUARANTINED rows, newest first (so a long-quarantined backlog doesn't hide what just failed).
+   * Optional for the same reason as queueHealth above. */
+  quarantined?(limit: number): Promise<QuarantinedRow[]>;
 }
 
 /** Sends events to ingest_events. Throws AuthError for 401/403, anything else thrown is treated as a retryable failure. */
