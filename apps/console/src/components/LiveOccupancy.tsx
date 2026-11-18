@@ -46,6 +46,32 @@ function duration(fromIso: string, nowIso: string): string {
   return `${Math.floor(h / 24)} d ${h % 24} h`;
 }
 
+/** CON-04 / MET-01: how the zone's latest physical count compared with the system (SYNC-04 rule, #28). */
+function PhysicalCount({ live, zoneId }: { live: FacilityLive; zoneId: string }) {
+  if (!live.zoneChecks.ok) {
+    return <div className="zone-check small muted">Physical counts could not be read.</div>;
+  }
+  const c = live.zoneChecks.data[zoneId];
+  if (!c) return <div className="zone-check small muted">No physical count recorded yet.</div>;
+  const sign = c.drift > 0 ? "+" : "";
+  return (
+    <div className="zone-check small">
+      <span className="muted">
+        Last physical count {formatIstDateTime(c.countedAt)}: {c.counted} counted, system showed{" "}
+        {c.systemCountAtTime}
+      </span>{" "}
+      {c.flagged ? (
+        <StatusBadge tone="warn">{`Off by ${sign}${c.drift} (over 3%)`}</StatusBadge>
+      ) : (
+        <StatusBadge tone="ok">
+          {c.drift === 0 ? "Matched" : `Within 3% (${sign}${c.drift})`}
+        </StatusBadge>
+      )}
+      {c.stale && <span className="muted"> · over 24 h old</span>}
+    </div>
+  );
+}
+
 export function LiveOccupancy({ live }: { live: FacilityLive }) {
   return (
     <div className="stack">
@@ -98,6 +124,7 @@ export function LiveOccupancy({ live }: { live: FacilityLive }) {
                     </div>
                   </dl>
                 </div>
+                <PhysicalCount live={live} zoneId={z.id} />
               </div>
             );
           })}

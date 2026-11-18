@@ -24,6 +24,9 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   icon?: IconName;
 };
 
+// suppressHydrationWarning on buttons, inputs, selects and textareas across the Console: form-filler browser
+// extensions add attributes such as fdprocessedid to them before React hydrates, which raised a hydration error on
+// every page. The prop ignores attribute differences on that one element only, never on its children.
 export function Button({
   variant = "secondary",
   size = "md",
@@ -34,6 +37,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
+      suppressHydrationWarning
       type="button"
       className={`btn btn-${variant}${size === "sm" ? " btn-sm" : ""}${className ? ` ${className}` : ""}`}
       {...rest}
@@ -238,6 +242,7 @@ export function Segmented<T extends string>({
     <div className="segmented" role="group" aria-label={label}>
       {options.map((o) => (
         <button
+          suppressHydrationWarning
           key={o.value}
           type="button"
           aria-pressed={value === o.value}
@@ -265,6 +270,7 @@ export function Tabs<T extends string>({
     <div className="tabs" role="tablist" aria-label={label}>
       {options.map((o) => (
         <button
+          suppressHydrationWarning
           key={o.value}
           type="button"
           role="tab"

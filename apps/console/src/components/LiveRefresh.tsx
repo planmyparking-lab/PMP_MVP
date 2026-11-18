@@ -23,6 +23,7 @@ export function LiveRefresh({ asOf, seconds = 10 }: { asOf: string; seconds?: nu
 
   return (
     <button
+      suppressHydrationWarning
       type="button"
       className={`live-pill${paused ? " paused" : ""}${pending ? " busy" : ""}`}
       onClick={() => setPaused((p) => !p)}

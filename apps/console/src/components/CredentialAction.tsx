@@ -92,7 +92,7 @@ function ConfirmForm({
 
   return (
     <form action={action} className="stack">
-      <input type="hidden" name={copy.field} value={id} />
+      <input suppressHydrationWarning type="hidden" name={copy.field} value={id} />
       <p>{copy.body}</p>
       <div className="issue tone-info">
         <div>

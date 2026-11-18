@@ -162,6 +162,7 @@ export function ReportsView({
                     error={dateError}
                   >
                     <input
+                      suppressHydrationWarning
                       id="rep-date"
                       type="date"
                       className="input"

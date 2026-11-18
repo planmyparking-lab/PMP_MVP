@@ -54,6 +54,7 @@ export function TariffStep({
               <div className="grid grid-2">
                 <Field id={`t-class-${i}`} label="Vehicle class" error={fe?.vehicleClass}>
                   <select
+                    suppressHydrationWarning
                     id={`t-class-${i}`}
                     className="select"
                     value={t.vehicleClass}
@@ -66,6 +67,7 @@ export function TariffStep({
                 </Field>
                 <Field id={`t-model-${i}`} label="Pricing model">
                   <select
+                    suppressHydrationWarning
                     id={`t-model-${i}`}
                     className="select"
                     value={t.model}
@@ -91,6 +93,7 @@ export function TariffStep({
                       <div style={{ flex: "1 1 140px" }}>
                         <Field id={`s-up-${i}-${j}`} label={j === 0 ? "Up to (minutes)" : "Up to"}>
                           <input
+                            suppressHydrationWarning
                             id={`s-up-${i}-${j}`}
                             className="input num"
                             inputMode="numeric"
@@ -104,6 +107,7 @@ export function TariffStep({
                           <div className="input-group">
                             <span className="prefix">₹</span>
                             <input
+                              suppressHydrationWarning
                               id={`s-price-${i}-${j}`}
                               className="input num has-prefix"
                               inputMode="decimal"
@@ -142,6 +146,7 @@ export function TariffStep({
                       error={fe?.repeatEvery}
                     >
                       <input
+                        suppressHydrationWarning
                         id={`t-every-${i}`}
                         className="input num"
                         inputMode="numeric"
@@ -154,6 +159,7 @@ export function TariffStep({
                       <div className="input-group">
                         <span className="prefix">₹</span>
                         <input
+                          suppressHydrationWarning
                           id={`t-rprice-${i}`}
                           className="input num has-prefix"
                           inputMode="decimal"
@@ -174,6 +180,7 @@ export function TariffStep({
                   <div className="input-group" style={{ maxWidth: 220 }}>
                     <span className="prefix">₹</span>
                     <input
+                      suppressHydrationWarning
                       id={`t-flat-${i}`}
                       className="input num has-prefix"
                       inputMode="decimal"
@@ -196,6 +203,7 @@ export function TariffStep({
                     <div className="input-group">
                       <span className="prefix">₹</span>
                       <input
+                        suppressHydrationWarning
                         id={`t-cap-${i}`}
                         className="input num has-prefix"
                         inputMode="decimal"
@@ -210,6 +218,7 @@ export function TariffStep({
                   <div className="input-group">
                     <span className="prefix">₹</span>
                     <input
+                      suppressHydrationWarning
                       id={`t-min-${i}`}
                       className="input num has-prefix"
                       inputMode="decimal"
@@ -281,6 +290,7 @@ function FareTryIt({ draft, analysis }: { draft: SetupDraft; analysis: Analysis 
           <div className="grid grid-3">
             <Field id="try-class" label="Vehicle class">
               <select
+                suppressHydrationWarning
                 id="try-class"
                 className="select"
                 value={chosen.vehicleClass}
@@ -293,6 +303,7 @@ function FareTryIt({ draft, analysis }: { draft: SetupDraft; analysis: Analysis 
             </Field>
             <Field id="try-in" label="Entry (IST)">
               <input
+                suppressHydrationWarning
                 id="try-in"
                 type="datetime-local"
                 className="input"
@@ -302,6 +313,7 @@ function FareTryIt({ draft, analysis }: { draft: SetupDraft; analysis: Analysis 
             </Field>
             <Field id="try-out" label="Exit (IST)">
               <input
+                suppressHydrationWarning
                 id="try-out"
                 type="datetime-local"
                 className="input"

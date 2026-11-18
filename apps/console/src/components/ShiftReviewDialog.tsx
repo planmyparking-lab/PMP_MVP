@@ -53,14 +53,22 @@ function ReviewForm({ target, onDone }: { target: ReviewTarget; onDone: () => vo
 
   return (
     <form action={action} className="stack">
-      <input type="hidden" name="shift_id" value={target.shiftId} />
+      <input suppressHydrationWarning type="hidden" name="shift_id" value={target.shiftId} />
       <fieldset className="review-choice">
         <legend className="small muted">Decision</legend>
         <label>
-          <input type="radio" name="status" value="approved" defaultChecked /> Approve
+          <input
+            suppressHydrationWarning
+            type="radio"
+            name="status"
+            value="approved"
+            defaultChecked
+          />{" "}
+          Approve
         </label>
         <label>
-          <input type="radio" name="status" value="flagged" /> Flag for follow-up
+          <input suppressHydrationWarning type="radio" name="status" value="flagged" /> Flag for
+          follow-up
         </label>
       </fieldset>
       <div className="field">
@@ -68,6 +76,7 @@ function ReviewForm({ target, onDone }: { target: ReviewTarget; onDone: () => vo
           Note {target.hasVariance ? "(required: this shift has a variance)" : "(required to flag)"}
         </label>
         <textarea
+          suppressHydrationWarning
           id="review-note"
           name="note"
           className="input"

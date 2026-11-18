@@ -1290,3 +1290,11 @@ dialog.modal {
   border: 1px solid var(--line);
   overflow-wrap: anywhere;
 }
+
+/* ---------- physical count check on a zone card (CON-04, MET-01) ---------- */
+.zone-check {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  line-height: 1.6;
+}

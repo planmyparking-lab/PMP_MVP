@@ -117,10 +117,11 @@ function NoteForm({ conflictId, onDone }: { conflictId: string; onDone: () => vo
 
   return (
     <form action={action} className="stack-sm">
-      <input type="hidden" name="conflict_id" value={conflictId} />
+      <input suppressHydrationWarning type="hidden" name="conflict_id" value={conflictId} />
       <div className="field">
         <label htmlFor="conflict-note">Add a note</label>
         <textarea
+          suppressHydrationWarning
           id="conflict-note"
           name="note"
           className="input"

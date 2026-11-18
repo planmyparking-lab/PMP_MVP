@@ -266,6 +266,7 @@ export function OccupancyView({
                   <div className="grid grid-2">
                     <Field id="occ" label="Vehicles in zone" error={occErr}>
                       <input
+                        suppressHydrationWarning
                         id="occ"
                         className="input num"
                         inputMode="numeric"
@@ -277,6 +278,7 @@ export function OccupancyView({
                     </Field>
                     <Field id="cap" label="Zone capacity" error={capErr}>
                       <input
+                        suppressHydrationWarning
                         id="cap"
                         className="input num"
                         inputMode="numeric"
@@ -289,6 +291,7 @@ export function OccupancyView({
                   </div>
                   {capacity !== null && capacity >= 1 && (
                     <input
+                      suppressHydrationWarning
                       type="range"
                       min={0}
                       max={Math.round(capacity * 1.2)}
@@ -326,6 +329,7 @@ export function OccupancyView({
                     error={overrides === null ? "Whole number of 0 or more." : undefined}
                   >
                     <input
+                      suppressHydrationWarning
                       id="ovr"
                       className="input num"
                       inputMode="numeric"
@@ -341,6 +345,7 @@ export function OccupancyView({
                     error={entries === null ? "Whole number of 0 or more." : undefined}
                   >
                     <input
+                      suppressHydrationWarning
                       id="ent"
                       className="input num"
                       inputMode="numeric"
