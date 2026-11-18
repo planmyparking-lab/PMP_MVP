@@ -40,12 +40,19 @@ const CLASSES = VEHICLE_CLASSES;
 /** Where "Save to this facility" writes: the session's selected facility. Null when signed out or offline. */
 export interface SaveTarget {
   facilityName: string;
+  /** The facility's current slot count; with the name it prefills step 1 so a save never changes them by accident. */
+  slotCount: number;
+  /** The role on this facility (owner of the organisation or of this facility; otherwise manager). */
   role: "owner" | "manager";
 }
 
+/** Keeps the target facility's current name and slot count in a draft, so loading or clearing never retypes them. */
+const withFacility = (d: SetupDraft, target: SaveTarget | null): SetupDraft =>
+  target ? { ...d, name: target.facilityName, slotCount: String(target.slotCount) } : d;
+
 export function SetupWizard({ target = null }: { target?: SaveTarget | null }) {
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<SetupDraft>(emptyDraft);
+  const [draft, setDraft] = useState<SetupDraft>(() => withFacility(emptyDraft(), target));
   const [today, setToday] = useState("");
   const [visited, setVisited] = useState<number[]>([0]);
   const [pin, setPin] = useState("");
@@ -97,7 +104,7 @@ export function SetupWizard({ target = null }: { target?: SaveTarget | null }) {
             <Button
               icon="sparkle"
               onClick={() => {
-                setDraft(exampleDraft(today || todayInIst()));
+                setDraft(withFacility(exampleDraft(today || todayInIst()), target));
                 toast("Example values loaded. They are not a real facility.");
               }}
             >
@@ -515,6 +522,7 @@ export function SetupWizard({ target = null }: { target?: SaveTarget | null }) {
                     <SaveSetup
                       draft={draft}
                       facilityName={target.facilityName}
+                      currentSlotCount={target.slotCount}
                       isOwner={target.role === "owner"}
                       disabled={a.stepErrors[1] + a.stepErrors[2] + a.stepErrors[3] > 0}
                     />
@@ -620,7 +628,7 @@ export function SetupWizard({ target = null }: { target?: SaveTarget | null }) {
           label: "Clear all",
           danger: true,
           onConfirm: () => {
-            setDraft(emptyDraft());
+            setDraft(withFacility(emptyDraft(), target));
             setPin("");
             setStep(0);
             setVisited([0]);

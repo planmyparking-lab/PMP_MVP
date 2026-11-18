@@ -5,6 +5,7 @@ import { saveSetup } from "../../app/setup/actions";
 import { ACTION_IDLE } from "../lib/credentialActions";
 import type { ActionState } from "../lib/credentialActions";
 import type { SetupDraft } from "../lib/setupDraft";
+import { facilityDetailsLine } from "../lib/setupSave";
 import { Modal } from "./ui/Modal";
 import { Button } from "./ui/primitives";
 import { useToast } from "./ui/Toast";
@@ -13,11 +14,13 @@ import { useToast } from "./ui/Toast";
 export function SaveSetup({
   draft,
   facilityName,
+  currentSlotCount,
   isOwner,
   disabled,
 }: {
   draft: SetupDraft;
   facilityName: string;
+  currentSlotCount: number;
   isOwner: boolean;
   disabled: boolean;
 }) {
@@ -28,7 +31,13 @@ export function SaveSetup({
         Save to this facility
       </Button>
       <Modal open={open} onClose={() => setOpen(false)} title={`Save to ${facilityName}?`}>
-        {open && <ConfirmSave draft={draft} isOwner={isOwner} onDone={() => setOpen(false)} />}
+        {open && (
+          <ConfirmSave
+            draft={draft}
+            details={facilityDetailsLine(draft, facilityName, currentSlotCount, isOwner)}
+            onDone={() => setOpen(false)}
+          />
+        )}
       </Modal>
     </>
   );
@@ -36,11 +45,11 @@ export function SaveSetup({
 
 function ConfirmSave({
   draft,
-  isOwner,
+  details,
   onDone,
 }: {
   draft: SetupDraft;
-  isOwner: boolean;
+  details: string;
   onDone: () => void;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(saveSetup, ACTION_IDLE);
@@ -65,11 +74,7 @@ function ConfirmSave({
           {draft.effectiveFrom || "on the chosen date"}. Earlier versions stay as they are, so past
           fares never change.
         </li>
-        <li>
-          {isOwner
-            ? "The facility name and slot count are updated."
-            : "The facility name and slot count stay as they are: only an owner can change them."}
-        </li>
+        <li>{details}</li>
       </ul>
       <div className="issue tone-info">
         <div>
