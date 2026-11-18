@@ -320,7 +320,7 @@ The four features below were reassigned from Akanksha to Anamika by the reposito
 
 1. **Problem.** Owners should receive proof of performance without logging in. Reports render in the Console (Node runtime); delivery and scheduling belong to the database scheduler (H decision 5).
 2. **Expected behaviour.** Jobs `daily_report` (06:30 IST daily), `weekly_report` (Monday 07:00 IST), `monthly_report` (1st, 07:00 IST) (H). For each active facility the job calls the Console route, stores the PDF and Excel in the private `reports` bucket (H), creates signed links valid 7 days (H), and emails them via Resend (H) to the facility's configured recipients.
-3. **Preconditions.** `CON-08` route live in staging with a shared secret; Resend domain verified; recipients configured per facility (R table `report_recipients(facility_id, email, cadence)`; add to `0011` or a later migration).
+3. **Preconditions.** `CON-08` route live in staging with a shared secret; Resend domain verified; recipients configured per facility (R table `report_recipients(facility_id, email, cadence)`; add in whichever migration is next-free at promotion, OQ-64 — `0011` is already taken).
 4. **Implementation sequence.**
    1. Enable `pg_cron` and `pg_net` extensions (H).
    2. Create a SQL function `run_report_job(cadence text)` (R) that loops facilities, calls the route via `net.http_get` with the secret header, polls or receives the file location, writes to Storage, and sends email. Because Edge Functions stay small (H), the sending step may be a short Edge Function `send_report_email` (R) that takes `{facility_id, cadence, file_urls}` and calls Resend.
@@ -328,7 +328,7 @@ The four features below were reassigned from Akanksha to Anamika by the reposito
    4. Write a row in `job_runs` (H) at start and finish with status and detail.
    5. Idempotency key `(job, facility_id, period_start)`; a rerun for the same period replaces the files and does not send a second email unless forced by an operator flag (R).
    6. Resend webhook endpoint (R) records bounce and complaint events into `job_runs` detail or a `email_events` table (R), which feeds the alert in CLD-10.
-5. **Files.** `supabase/migrations/0011_*` (job helpers), `supabase/functions/send_report_email/index.ts` (R), `ops/runbook.md`.
+5. **Files.** `supabase/migrations/<next-free>_*` at promotion (job helpers; no number fixed in advance, OQ-64), `supabase/functions/send_report_email/index.ts` (R), `ops/runbook.md`.
 6. **Contracts.** IC-08: `GET /api/reports/{daily|weekly|monthly}?facility=...` with `REPORT_ROUTE_SECRET`; response: PDF and Excel bytes or a manifest with two URLs (confirm with Anamika; recommended: two requests with `format=pdf|xlsx`).
 7. **Data flow.** `pg_cron` → `run_report_job` → Console route → files → `reports` bucket → signed URLs → Resend → recipients; every step logged in `job_runs`.
 8. **Validation and rules.** Period boundaries computed in facility local time. Recipients validated as emails. Signed URL lifetime exactly 7 days (H).
