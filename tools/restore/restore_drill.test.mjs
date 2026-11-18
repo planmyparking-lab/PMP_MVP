@@ -1,11 +1,13 @@
-// Failure-path tests (see ops/runbook.md for exactly what the drill fingerprint does and does not verify)
-// Failure-path tests for tools/restore/restore_drill.sh. Synthetic data only, local Docker only. They need the local
+// Failure-path tests for tools/restore/restore_drill.sh (see ops/runbook.md for exactly what the drill fingerprint
+// does and does not verify). Synthetic data only, local Docker only. They need the local
 // Supabase stack (`npx supabase@2.122.0 start`) and bash, so they are NOT part of `pnpm test:scripts` or CI.
 // Run: pnpm test:restore
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 
+// The container name is `supabase_db_` plus `project_id` from supabase/config.toml (today "pmp-mvp"); the script reads
+// it from there, this test hardcodes it. If the project id ever changes, change it here too.
 const stack = spawnSync("docker", ["inspect", "-f", "{{.State.Running}}", "supabase_db_pmp-mvp"], {
   encoding: "utf8",
 });

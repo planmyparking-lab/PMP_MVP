@@ -23,9 +23,10 @@ uptime monitor is known to exist yet. Record project refs (not keys) in the tabl
   secret between environments.
 - **[manual]** Restrict production project membership to owners only; remove leavers from GitHub and Supabase the same day.
 - **[in repo]** Local stack for development and tests: `npx supabase@2.122.0 start`, then `pnpm test:db`
-  (see [supabase/README.md](../supabase/README.md)). **[run locally]** on 12 Nov 2026 `pnpm test:db` applied `0004`-`0010`
-  on top of the local history (`0001`-`0003`) in a rolled-back transaction; every suite passed except
-  `event_parity.test.sql` (27 of 37), which is the IC-01 `0004` validation gap described in the README.
+  (see [supabase/README.md](../supabase/README.md)). `pnpm test:db` applies every migration on `main`
+  (`0001`-`0011`) in a rolled-back transaction. **[run locally]** on 12 Nov 2026, before `0011` existed, every suite
+  passed except `event_parity.test.sql` (27 of 37), the IC-01 `0004` validation gap. `0011` closed that gap
+  (OQ-52, PR #56): `event_parity.test.sql` now passes 37 of 37 (checked by Anamika on 18 Nov 2026, see the comment on PR #61).
 
 ## Pipelines (CLD-09)
 
@@ -60,9 +61,12 @@ uptime monitor is known to exist yet. Record project refs (not keys) in the tabl
     TRUNCATE revoke and still report MATCH), policy predicates (`USING` / `WITH CHECK`), function bodies, view
     definitions, indexes and constraints, the RLS-enabled flag, triggers, sequences, extensions, storage objects,
     and any schema other than `public` plus `auth.users`.
-  - **[run locally]** `bash tools/restore/restore_drill.sh --synthetic` on 12 Nov 2026 with migrations `0001`-`0010`:
-    19 tables, 2979 synthetic rows, 40 policies, 3 views, MATCH (see [restore-log.md](restore-log.md)). `pnpm test:restore`
-    (7 tests, 7 passed) checks the expected event, open-session and conflict counts, that policies survive the restore,
+  - **[run locally]** `bash tools/restore/restore_drill.sh --synthetic` on 18 Nov 2026 (run by Anamika, with
+    `main` including `0011`): migrations `0001`-`0011`, 19 tables, 2988 synthetic rows, 38 policies, 20 functions,
+    3 views, MATCH (see [restore-log.md](restore-log.md)). The 12 Nov run with `0001`-`0010` reported 40 policies; the
+    two fewer are intended: the review fix `1073188` (before PR #34 merged) removed `devices_insert` and
+    `staff_insert` from `0010_rls.sql` and replaced them with column grants, and `0011` adds no policy.
+    `pnpm test:restore` (7 tests, 7 passed, 0 skipped with the stack up) checks the expected event, open-session and conflict counts, that policies survive the restore,
     the corrupted-row MISMATCH path, cleanup, and the refusal cases (missing container, non-`supabase_db_*` name, remote
     Docker env vars). The scratch databases get Supabase's `auth` helper functions copied from the local database,
     because the `0010` policies reference `auth.uid()` and `auth.jwt()`. The drill tests in `pnpm test:restore` need the
