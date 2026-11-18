@@ -26,6 +26,24 @@ export function resolveSessionContext(rows: readonly MembershipRow[]): SessionCo
 }
 
 /**
+ * The user's role on one facility, mirroring `is_member()` in 0010: a membership counts when it is in the facility's
+ * organisation and is organisation-wide (null facility) or names that facility. Owner wins over manager. Use this,
+ * not `SessionContext.role` (which is "owner" if the user owns anything), for any per-facility permission: an owner of
+ * facility X who manages facility Y is only a manager on Y.
+ */
+export function roleOnFacility(
+  memberships: readonly MembershipRow[],
+  facility: { id: string; orgId: string },
+): "owner" | "manager" | null {
+  const on = memberships.filter(
+    (m) => m.orgId === facility.orgId && (m.facilityId === null || m.facilityId === facility.id),
+  );
+  if (on.some((m) => m.role === "owner")) return "owner";
+  if (on.some((m) => m.role === "manager")) return "manager";
+  return null;
+}
+
+/**
  * Whether the user may open a facility page. A refusal must be shown as 404, never 403, so a foreign id does not
  * reveal that the facility exists. Managers need a membership on that facility; owners need one on its
  * organisation (organisation-wide) or on that facility.

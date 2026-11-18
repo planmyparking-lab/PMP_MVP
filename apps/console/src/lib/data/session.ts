@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { connection } from "next/server";
-import { canOpenFacility, resolveSessionContext } from "../session";
+import { canOpenFacility, resolveSessionContext, roleOnFacility } from "../session";
 import type { MembershipRow } from "../session";
 import { createSupabaseServerClient } from "../supabase/server";
 import type { ConsoleSession, FacilitySummary } from "./types";
@@ -61,5 +61,6 @@ export const getConsoleSession = cache(async (): Promise<ConsoleSession> => {
 
   const chosen = (await cookies()).get(FACILITY_COOKIE)?.value;
   const facility = facilities.find((f) => f.id === chosen) ?? facilities[0] ?? null;
-  return { kind: "ok", userId: user.id, email, role: ctx.role, facilities, facility };
+  const facilityRole = facility ? roleOnFacility(ctx.memberships, facility) : null;
+  return { kind: "ok", userId: user.id, email, role: ctx.role, facilities, facility, facilityRole };
 });

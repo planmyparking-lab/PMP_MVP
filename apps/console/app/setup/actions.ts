@@ -29,7 +29,10 @@ export async function saveSetup(_prev: ActionState, form: FormData): Promise<Act
   const session = await getConsoleSession();
   if (session.kind !== "ok" || !session.facility)
     return { ok: false, message: "Sign in and choose a facility first." };
-  if (session.role !== "owner" && session.role !== "manager")
+  // The role on the selected facility (is_member() in 0010), not "owns any facility": an owner of X who manages Y
+  // must save to Y as a manager, or the facility update is refused and nothing after it is written.
+  const role = session.facilityRole;
+  if (role !== "owner" && role !== "manager")
     return { ok: false, message: "Only an owner or manager can save facility settings." };
   const supabase = await createSupabaseServerClient();
   if (!supabase) return { ok: false, message: "The Console is not connected to a database." };
@@ -82,7 +85,7 @@ export async function saveSetup(_prev: ActionState, form: FormData): Promise<Act
   const result = planSave({
     draft,
     facility: { id: facility.id, name: facility.name, slotCount: facility.slotCount },
-    role: session.role,
+    role,
     zones: (zonesRes.data ?? []).map((z) => ({
       id: String(z.id),
       name: String(z.name),
