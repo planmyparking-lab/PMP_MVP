@@ -140,4 +140,8 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm audit
+      # 1247710 / GHSA-fc5q-39xc-vjpf / CVE-2026-112366: picomatch ReDoS via a single-branch repeated extglob.
+      # No patched version exists on npm as of this ignore (latest published is 4.0.7, still vulnerable); the fix is
+      # merged upstream (micromatch/picomatch#194) but unreleased. Remove this --ignore once a patched version ships
+      # and the dependency is bumped — re-check with `pnpm audit` (no --ignore) first to confirm it's actually fixed.
+      - run: pnpm audit --ignore 1247710
