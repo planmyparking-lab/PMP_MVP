@@ -62,8 +62,7 @@ jobs:
   # Docker) stays the authority for anything needing other Supabase internals (storage, realtime, Edge Functions).
   db-tests:
     name: db-tests
-    # Pinned: ubuntu-latest moved to 26.04, whose archive has no postgresql-16 / postgresql-16-pgtap packages.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -71,11 +70,30 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Install PostgreSQL 16 and pgTAP
+        # Installed from the PGDG apt repo, not the runner image's default Ubuntu repos: Ubuntu's own package set
+        # (and the versions it offers under postgresql-16/postgresql-16-pgtap) depends on the runner image's Ubuntu
+        # release and has silently broken this step before when the image moved to a newer release that dropped
+        # those exact package names. PGDG's repo always carries postgresql-16 regardless of the host OS release.
         run: |
           sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl ca-certificates gnupg
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc >/dev/null
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
           sudo apt-get install -y --no-install-recommends postgresql-16 postgresql-16-pgtap
-          sudo pg_ctlcluster 16 main start || true
-          sudo -u postgres createuser --superuser "$USER"
+          # The package's postinst normally creates and starts the default cluster itself, but on this runner that
+          # step is skipped (deferred service restarts: "No containers need to be restarted" / no systemd session),
+          # so pg_ctlcluster has nothing to start. Create it explicitly rather than relying on the postinst hook.
+          if ! pg_lsclusters | grep -q '^16 *main'; then sudo pg_createcluster 16 main; fi
+          sudo pg_ctlcluster 16 main start
+          # postgresql-common picks the next free port when 5432 is already taken on the runner image (observed:
+          # it lands on 5433), so read back whatever port this cluster actually got rather than assuming 5432, and
+          # export it for every later step (createuser here, then scripts/test-db-ci.mjs) through the standard
+          # libpq PGPORT variable both already honour.
+          echo "PGPORT=$(pg_lsclusters | awk '$1 == "16" && $2 == "main" { print $3 }')" >> "$GITHUB_ENV"
+          source "$GITHUB_ENV"
+          sudo -u postgres createuser --superuser "$USER" -p "$PGPORT"
       - name: Apply migrations and run the SQL tests
         run: node scripts/test-db-ci.mjs # CI and GITHUB_ACTIONS are both set true by the runner; the script refuses to run without both
 
@@ -122,4 +140,6 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # Accepted advisories are in package.json > pnpm.auditConfig.ignoreGhsas, documented in
+      # docs/development/dependency-security.md. Do not add a CLI --ignore here instead: it bypasses that record.
       - run: pnpm audit
