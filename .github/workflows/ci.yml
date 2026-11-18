@@ -62,7 +62,8 @@ jobs:
   # Docker) stays the authority for anything needing other Supabase internals (storage, realtime, Edge Functions).
   db-tests:
     name: db-tests
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, whose archive has no postgresql-16 / postgresql-16-pgtap packages.
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
