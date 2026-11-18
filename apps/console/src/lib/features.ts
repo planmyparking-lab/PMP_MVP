@@ -59,10 +59,10 @@ export const FEATURES: FeatureStatus[] = [
     href: "/devices",
     state: "partial",
     works:
-      "Lists enrolled devices and guards. Shows each phone's health (last heartbeat, queue, battery) as soon as device_heartbeats is deployed.",
+      "Lists enrolled devices and guards with each phone's latest heartbeat (queue, battery). Revokes a lost phone and deactivates a guard (owner or manager).",
     needs: [
-      "device_heartbeats table, enrollment function and PIN function (Akanksha)",
-      "Row-level security policies (CLD-03)",
+      "Row-level security policies so those writes are allowed (CLD-03, #34)",
+      "Enrollment and PIN functions to add phones and guards, and to reactivate a guard (Akanksha)",
     ],
   },
   {
@@ -94,10 +94,11 @@ export const FEATURES: FeatureStatus[] = [
     title: "Conflicts inbox",
     href: "/conflicts",
     state: "partial",
-    works: "Reads sync_conflicts for the selected facility, grouped by type with age and status.",
+    works:
+      "Reads sync_conflicts for the selected facility, grouped by type with age and status. Adds notes to a conflict (conflict_resolutions, ADD_NOTE) without closing it.",
     needs: [
-      "The resolve_conflict function for actions; the conflict_resolutions table exists (Afzal, Akanksha)",
-      "Row-level security policies (CLD-03)",
+      "Row-level security policies so notes can be read and written (CLD-03, #34)",
+      "The resolve_conflict function for Keep first, Keep second and Mark as test, and the OQ-49 decision (Afzal, Akanksha)",
     ],
   },
 ];

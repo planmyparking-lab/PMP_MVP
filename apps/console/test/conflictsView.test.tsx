@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// ConflictsView opens a dialog that imports a server action; it is not called when rendering.
+vi.mock("../app/conflicts/actions", () => ({ addConflictNote: vi.fn() }));
 import { ConflictsView } from "../src/components/ConflictsView";
 import { parseSyncConflictRow } from "../src/lib/conflicts";
 

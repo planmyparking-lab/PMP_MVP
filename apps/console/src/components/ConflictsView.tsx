@@ -10,8 +10,13 @@ import {
   isUnresolvedOver24Hours,
 } from "../lib/conflicts";
 import type { ConflictType, SyncConflictRow } from "../lib/conflicts";
+import type { ConflictNote } from "../lib/conflictNotes";
+import type { Probe } from "../lib/data/probe";
+import { ConflictReviewDialog, DECIDE_UNAVAILABLE } from "./ConflictReviewDialog";
+import type { ConflictReviewTarget } from "./ConflictReviewDialog";
 import {
   Banner,
+  Button,
   Card,
   EmptyState,
   Issue,
@@ -47,7 +52,7 @@ const SEVERITY = [
 ] as const;
 
 const RESOLUTION_UNAVAILABLE =
-  "Resolving needs the atomic resolve_conflict function and row-level security. The conflict_resolutions table exists (0007).";
+  "Notes need sign-in and row-level security on conflict_resolutions (0007, policies in #34).";
 
 function ageLabel(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
@@ -72,6 +77,27 @@ export interface ConflictsViewProps {
   reason?: string;
   /** Shown instead of the facility id when the rows belong to one known facility. */
   facilityName?: string;
+  /** Notes and resolutions per conflict id (0007), when the session can read them. */
+  notes?: Probe<Record<string, ConflictNote[]>>;
+  /** The signed-in user, to show "You" on their own notes. */
+  userId?: string;
+}
+
+/** Why notes cannot be added, or null when they can. */
+export function notesUnavailableReason(
+  notes: Probe<Record<string, ConflictNote[]>> | undefined,
+): string | null {
+  if (!notes) return "Sign in to read and add notes.";
+  switch (notes.state) {
+    case "ok":
+      return null;
+    case "absent":
+      return "Notes need the conflict_resolutions table, which is not deployed in this database.";
+    case "denied":
+      return "Your account cannot read notes yet (row-level security is not deployed).";
+    default:
+      return `Notes could not be read: ${notes.error}`;
+  }
 }
 
 export function ConflictsView({
@@ -81,8 +107,13 @@ export function ConflictsView({
   error,
   reason,
   facilityName,
+  notes,
+  userId,
 }: ConflictsViewProps) {
   const [type, setType] = useState<ConflictType>(() => rows[0]?.type ?? "DUPLICATE_EXIT");
+  const [target, setTarget] = useState<ConflictReviewTarget | null>(null);
+  const notesById = notes?.state === "ok" ? notes.data : {};
+  const notesReason = notesUnavailableReason(notes);
   const current = TYPE_DETAILS[type];
   const visibleRows = rows
     .filter((row) => row.type === type)
@@ -103,10 +134,17 @@ export function ConflictsView({
             {error}
           </Banner>
         ) : (
-          <Banner tone="info" icon="info" title="Live and read-only">
+          <Banner
+            tone="info"
+            icon="info"
+            title={notesReason ? "Live and read-only" : "Live: notes can be added"}
+          >
             {`${rows.filter((r) => r.status === "OPEN").length} open of ${rows.length} recorded. `}
-            Resolving needs the resolve_conflict function, which is not built yet, so actions stay
-            disabled. The table that records resolutions already exists.
+            {notesReason
+              ? notesReason
+              : "Open Review on a conflict to read and add notes. A note never closes a conflict."}{" "}
+            Keep first, Keep second and Mark as test need the resolve_conflict function, which is
+            not built yet (OQ-49).
           </Banner>
         )
       ) : (
@@ -190,9 +228,25 @@ export function ConflictsView({
                           </StatusBadge>
                         </td>
                         <td>
-                          <UnavailableButton reason={RESOLUTION_UNAVAILABLE}>
+                          <Button
+                            size="sm"
+                            icon="list"
+                            disabled={!connected}
+                            onClick={() =>
+                              setTarget({
+                                id: row.id,
+                                type: row.type,
+                                typeLabel: TYPE_DETAILS[row.type].label,
+                                typeText: TYPE_DETAILS[row.type].text,
+                                eventCount: row.event_ids.length,
+                              })
+                            }
+                          >
                             Review
-                          </UnavailableButton>
+                            {(notesById[row.id]?.length ?? 0) > 0
+                              ? ` (${notesById[row.id]?.length} note${notesById[row.id]?.length === 1 ? "" : "s"})`
+                              : ""}
+                          </Button>
                         </td>
                       </tr>
                     );
@@ -231,11 +285,20 @@ export function ConflictsView({
               Allowed actions for this type
             </div>
             <div className="row">
-              {allowedConflictActions(type).map((action) => (
-                <UnavailableButton key={action} reason={RESOLUTION_UNAVAILABLE}>
-                  {CONFLICT_ACTION_LABELS[action]}
-                </UnavailableButton>
-              ))}
+              {allowedConflictActions(type).map((action) =>
+                action === "ADD_NOTE" && connected && !notesReason ? (
+                  <StatusBadge key={action} tone="ok">
+                    Add note: open Review
+                  </StatusBadge>
+                ) : (
+                  <UnavailableButton
+                    key={action}
+                    reason={action === "ADD_NOTE" ? RESOLUTION_UNAVAILABLE : DECIDE_UNAVAILABLE}
+                  >
+                    {CONFLICT_ACTION_LABELS[action]}
+                  </UnavailableButton>
+                ),
+              )}
             </div>
             {type === "CLOCK_SKEW" && (
               <div style={{ marginTop: 12 }}>
@@ -258,6 +321,13 @@ export function ConflictsView({
           </Card>
         </div>
       </div>
+      <ConflictReviewDialog
+        target={target}
+        notes={target ? (notesById[target.id] ?? []) : []}
+        notesUnavailable={notesReason}
+        userId={userId ?? null}
+        onClose={() => setTarget(null)}
+      />
     </>
   );
 }
