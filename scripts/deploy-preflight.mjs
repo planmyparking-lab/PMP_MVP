@@ -18,7 +18,7 @@ export const ENVIRONMENTS = ["staging", "production"];
 
 // vMAJOR.MINOR.PATCH with an optional pre-release suffix (the CLD-09 sandbox test uses v0.0.0-test). The trigger in
 // deploy-prod.yml is `v*`; this check rejects tags such as `vNext` or `v1` that the trigger alone would accept.
-// The tagging convention itself belongs to REL-01 (docs/release.md, not written yet).
+// The tagging convention itself belongs to REL-01 (docs/release.md).
 const RELEASE_TAG = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z][0-9A-Za-z.-]*)?$/;
 
 /** Names from `names` whose value in `env` is unset or blank. */

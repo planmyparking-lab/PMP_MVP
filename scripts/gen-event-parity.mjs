@@ -18,26 +18,6 @@ const DEVICE = "5f1d2c3e-0000-4000-8000-000000000002";
 const STAFF = "5f1d2c3e-0000-4000-8000-000000000003";
 const DEVICE_USER = "5f1d2c3e-0000-4000-8000-0000000000a1";
 
-// Fixtures that fail today because the SQL-side payload validators (supabase/proposed-migrations/0013_*) are
-// staged but not yet promoted to a real migration (OQ-52: the migration number is still unsettled). ingest_events
-// only validates the envelope until 0013 is promoted, so these payload-only disagreements are expected.
-// Remove this list (and the `todo_start`/`todo_end` wrapping it drives) once 0013 is promoted and 0004 validates
-// payloads for real.
-const BLOCKED_ON_OQ_52 = new Set([
-  "valid/entry-1.json",
-  "valid/exit-1.json",
-  "valid/override-1.json",
-  "valid/payment-1.json",
-  "valid/zone-count-1.json",
-  "invalid/bad-short-code.json",
-  "invalid/fractional-amount.json",
-  "invalid/fractional-count.json",
-  "invalid/negative-amount.json",
-  "invalid/other-without-note.json",
-]);
-const BLOCKED_REASON =
-  "blocked: OQ-52, the 0013 payload validation migration is staged but not yet promoted (number unsettled)";
-
 const q = (text) => `'${String(text).replaceAll("'", "''")}'`;
 
 function load(dir, pick) {
@@ -72,13 +52,11 @@ export function generate() {
     .join(",\n");
 
   const assertions = all
-    .map((f) => {
-      const assertion = f.valid
+    .map((f) =>
+      f.valid
         ? `select is((select status from public.parity_fixtures where name = ${q(f.name)}), 'ACCEPTED', ${q(`${f.name}: zod accepts it, so ingest_events accepts it`)});`
-        : `select is((select status from public.parity_fixtures where name = ${q(f.name)}), 'REJECTED', ${q(`${f.name}: zod rejects it (${f.path || "envelope"}), so ingest_events rejects it`)});`;
-      if (!BLOCKED_ON_OQ_52.has(f.name)) return assertion;
-      return `select todo_start(${q(BLOCKED_REASON)});\n${assertion}\nselect todo_end();`;
-    })
+        : `select is((select status from public.parity_fixtures where name = ${q(f.name)}), 'REJECTED', ${q(`${f.name}: zod rejects it (${f.path || "envelope"}), so ingest_events rejects it`)});`,
+    )
     .join("\n");
 
   return `-- GENERATED FILE, do not edit. Source: packages/contracts/fixtures/events.

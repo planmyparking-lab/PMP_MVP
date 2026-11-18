@@ -1,4 +1,4 @@
--- Tests for strict event payload validation introduced by migration 0013.
+-- Tests for strict event payload validation introduced by migration 0011 (promoted from proposed 0013, OQ-52).
 begin;
 
 select plan(219);
@@ -2349,7 +2349,7 @@ select is(
 
 -- ---------------------------------------------------------------------------
 -- Strict-validation behaviours previously asserted in supabase/tests/ingest_events.test.sql (moved here from the
--- merged suite, since they require migration 0013): schema_version contract range, envelope/payload detail paths,
+-- merged suite, since they require migration 0011): schema_version contract range, envelope/payload detail paths,
 -- non-object and missing-key events, claim/staff rejections carrying no detail, id echo and TOO_OLD.
 -- ---------------------------------------------------------------------------
 insert into public.staff (id, facility_id, name, pin_hash, pin_salt, active)
