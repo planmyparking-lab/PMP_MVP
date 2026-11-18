@@ -82,7 +82,11 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends postgresql-16 postgresql-16-pgtap
-          sudo pg_ctlcluster 16 main start || true
+          # The package's postinst normally creates and starts the default cluster itself, but on this runner that
+          # step is skipped (deferred service restarts: "No containers need to be restarted" / no systemd session),
+          # so pg_ctlcluster has nothing to start. Create it explicitly rather than relying on the postinst hook.
+          if ! pg_lsclusters | grep -q '^16 *main'; then sudo pg_createcluster 16 main; fi
+          sudo pg_ctlcluster 16 main start
           sudo -u postgres createuser --superuser "$USER"
       - name: Apply migrations and run the SQL tests
         run: node scripts/test-db-ci.mjs # CI and GITHUB_ACTIONS are both set true by the runner; the script refuses to run without both
