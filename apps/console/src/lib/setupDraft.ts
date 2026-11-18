@@ -64,6 +64,13 @@ export interface SetupDraft {
   overstay: string;
 }
 
+/**
+ * Vehicle classes offered by the wizard. They must be the exact strings the gate app records on ENTRY and looks up
+ * tariffs with (`apps/gate/src/data/appConfig.ts`: Car, Bike, Truck), or a saved tariff would never match a vehicle.
+ * The final list per partner is OQ-13.
+ */
+export const VEHICLE_CLASSES = ["Car", "Bike", "Truck"] as const;
+
 export const newTariff = (vehicleClass = "Car"): TariffDraft => ({
   vehicleClass,
   model: "HOURLY_SLABS",
@@ -96,7 +103,7 @@ export const exampleDraft = (today: string): SetupDraft => ({
   slotCount: "180",
   zones: [
     { name: "Basement A", capacity: "100", vehicleClass: "Car" },
-    { name: "Two-wheeler bay", capacity: "80", vehicleClass: "Two-wheeler" },
+    { name: "Two-wheeler bay", capacity: "80", vehicleClass: "Bike" },
   ],
   tariffs: [
     {
@@ -109,7 +116,7 @@ export const exampleDraft = (today: string): SetupDraft => ({
       repeatPrice: "20",
       dayCap: "300",
     },
-    { ...newTariff("Two-wheeler"), model: "FLAT", flat: "20" },
+    { ...newTariff("Bike"), model: "FLAT", flat: "20" },
   ],
   grace: "15",
   nightOn: true,

@@ -2,12 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { tryFare } from "../lib/fareTryIt";
-import { newTariff, TARIFF_MODEL_OPTIONS } from "../lib/setupDraft";
+import { newTariff, TARIFF_MODEL_OPTIONS, VEHICLE_CLASSES as CLASSES } from "../lib/setupDraft";
 import type { Analysis, SetupDraft, TariffDraft } from "../lib/setupDraft";
 import { Icon } from "./ui/Icon";
 import { Button, Card, Field, Issue, StatusBadge } from "./ui/primitives";
-
-const CLASSES = ["Car", "Two-wheeler", "Bus", "Truck"];
 
 /** Wizard step 2: tariffs in the real IC-04 shape, with a "try a fare" panel that runs the shared fare engine. */
 export function TariffStep({
@@ -239,7 +237,7 @@ export function TariffStep({
         );
       })}
       <div>
-        <Button icon="check" onClick={() => onChange([...draft.tariffs, newTariff("Two-wheeler")])}>
+        <Button icon="check" onClick={() => onChange([...draft.tariffs, newTariff("Bike")])}>
           Add another tariff
         </Button>
       </div>
