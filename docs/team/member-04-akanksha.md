@@ -33,7 +33,7 @@ Build and keep running the cloud foundation of ParkOS so that (1) every guard ph
 | Area | What she owns completely |
 | --- | --- |
 | Environments | Three Supabase projects (dev, staging, production) in the Mumbai region (H), secrets, environment variables, access control to the projects |
-| Schema | Migrations `0001`, `0002`, `0003`, `0007`, `0008`, `0009`, `0010`, `0011` (H list). Reviews and deploys `0004`, `0005`, `0006`, which Afzal writes. Generated types |
+| Schema | Migrations `0001`, `0002`, `0003`, `0007`, `0008`, `0009`, `0010`, and CLD-08's own migration (H list; no fixed number — assigned the next free contiguous number at promotion, OQ-64. `0011` went to the IC-01 validation migration instead, PR #56). Reviews and deploys `0004`, `0005`, `0006`, which Afzal writes. Generated types |
 | Security model | Row-level security (RLS) policies, the `is_member(facility_id, roles text[])` helper (H), device auth, `enroll_device` |
 | Heartbeat | `device_heartbeats` table and `heartbeat(...)` function (H) |
 | Reporting data | SQL views `v_daily_kpis`, `v_zone_now`, `v_hourly` (H) |
@@ -62,7 +62,7 @@ Build and keep running the cloud foundation of ParkOS so that (1) every guard ph
 ```text
 supabase/
   config.toml
-  migrations/0001..0011_*.sql          # names (H); see CLD-02
+  migrations/0001..0010_*.sql, plus CLD-08's  # names (H); see CLD-02 step 9 — CLD-08's number is assigned at promotion, not fixed here (OQ-64)
   functions/enroll_device/index.ts     # (H) function name; path (R)
   functions/data_export/index.ts       # (H) function name; path (R)
   tests/*.sql                          # pgTAP
@@ -110,7 +110,7 @@ Common to every row: **Status = Not implemented**. Dependencies are exactly thos
 | ID | Feature | Business purpose | User / system | Required final behaviour | Priority | Dependencies | Acceptance criteria (summary; detail in C and E) | Testing requirements (summary; detail in D) |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | CLD-01 | Supabase environments, secrets, region | Safe separation of dev, staging, production | Team | Three projects in Mumbai; no shared data; secrets only in GitHub environments and Supabase secrets | Critical | none | Three projects exist; production secrets unreadable from dev; secrets inventory present | Config checks, secret-scan CI step, access review |
-| CLD-02 | Schema migrations (non-sync) and generated types | Store facilities, staff, devices, shifts, views support | System | Migrations `0001`, `0002`, `0003`, `0007`, `0008`, `0009`, `0010`, `0011` apply from scratch and forward-only; RLS on every table | Critical | SYNC-01 | Fresh apply succeeds; types generate and compile; every table RLS-enabled | Migration rehearsal, RLS-enabled catalog check, pgTAP schema tests |
+| CLD-02 | Schema migrations (non-sync) and generated types | Store facilities, staff, devices, shifts, views support | System | Migrations `0001`, `0002`, `0003`, `0007`, `0008`, `0009`, `0010`, plus CLD-08's own apply from scratch and forward-only (`0011` is the IC-01 validation migration; CLD-08's number is assigned at promotion, OQ-64); RLS on every table | Critical | SYNC-01 | Fresh apply succeeds; types generate and compile; every table RLS-enabled | Migration rehearsal, RLS-enabled catalog check, pgTAP schema tests |
 | CLD-03 | RLS, device auth, `enroll_device` | Isolate data per org and facility; enroll phones safely | Guard devices, managers, owners | Role matrix enforced in the database; device = auth user with claims; one-time code valid 10 minutes | Critical | CLD-02 | Permission matrix all green; code expires; code single-use | pgTAP matrix, enrollment integration tests, abuse tests |
 | CLD-04 | Heartbeat table and function | Detect stale or unhealthy devices | Gate app (through sync package), Console health page, `stale_devices` job | One row per device upserted at most every 5 minutes | High | CLD-02 | Upsert works; rate limited; readable only by authorized roles | pgTAP, integration, rate-limit test |
 | CLD-05 | KPI SQL views | Dashboard and reports have a single source of truth | Console | `v_daily_kpis`, `v_zone_now`, `v_hourly` correct on seed and under load | High | CLD-02, SYNC-02 | Match independent oracle queries exactly; under 500 ms at end of load test | Oracle comparison, seed tests, k6 |
@@ -163,7 +163,7 @@ Common to every row: **Status = Not implemented**. Dependencies are exactly thos
    6. `0008_device_heartbeats.sql`: see CLD-04.
    7. `0009_views_kpis.sql`: see CLD-05.
    8. `0010_rls.sql`: see CLD-03. (H: policies live here; the "RLS enabled in the creating migration" rule still applies, so enable in each earlier file and define policies here.)
-   9. `0011_retention_and_export.sql`: facility `retention_days` setting, purge function, export helper; also `job_runs(id, job, facility_id, started_at, finished_at, status, detail)` (H table name; columns (R)).
+   9. `<next-free>_retention_and_export.sql` (H name `retention_and_export`; number assigned at promotion, OQ-64): facility `retention_days` setting, purge function, export helper; also `job_runs(id, job, facility_id, started_at, finished_at, status, detail)` (H table name; columns (R)).
    10. Run `supabase gen types typescript` after every merged migration (H: generated types) and commit to `packages/db-types` (R path).
 5. **Files.** `supabase/migrations/*.sql`, `packages/db-types/index.ts` (R).
 6. **Contracts.** Input: IC-01 enumerations. Output: generated TypeScript types consumed by Console and the sync package; the table names used by IC-07 and IC-10.
@@ -269,7 +269,7 @@ Common to every row: **Status = Not implemented**. Dependencies are exactly thos
    3. Function `run_stale_devices()` joins `devices` and `device_heartbeats` against facility opening hours (in local time) and inserts a stale marker per device episode; clear marker when a heartbeat arrives.
    4. Delivery: email through Resend; SMS or WhatsApp (MSG91) is an add-on (H) and not part of the base build.
    5. Schedule both jobs every 10 minutes with `pg_cron`; log into `job_runs`.
-5. **Files.** `supabase/migrations/0011_*` or a later migration (R), `ops/alerts.md`.
+5. **Files.** `supabase/migrations/<next-free>_*` at promotion (R; `0011` is taken by the IC-01 validation migration, PR #56; no number fixed in advance, OQ-64), `ops/alerts.md`.
 6. **Contracts.** Reads `open_sessions` (SYNC-03 contract), `device_heartbeats` (IC-09). Writes `alert_log`. Console `CON-09` reads the same threshold column.
 7. **Data flow.** Jobs → tables → mail; Console health page reads stale markers.
 8. **Validation and rules.** Threshold positive integer; opening hours default to always open if not configured (flag in the setup wizard).
@@ -294,7 +294,7 @@ Common to every row: **Status = Not implemented**. Dependencies are exactly thos
    4. `data_export` Edge Function (H): input facility id; checks the caller is owner of the organization; streams CSVs for `events`, `facilities`, `zones`, `tariffs`, `passes`, `shifts`, `overrides` (R list) as a zip; logs to `audit_log`.
    5. Facility deletion function (R) with a two-step confirmation and a 7-day soft-hold flag (R, optional); then deletes rows in dependency order and storage objects, writes an `audit_log` entry that keeps the facility id and timestamp but no personal data.
    6. Personal data minimum: only vehicle number and optional phone number (H). Data subject request procedure documented in `ops/dpdp.md` (R).
-5. **Files.** `0011_retention_and_export.sql` (H), `supabase/functions/data_export/index.ts` (R path), `ops/dpdp.md`.
+5. **Files.** `<next-free>_retention_and_export.sql` (H name; number assigned at promotion, not fixed here — see CLD-02 step 9, OQ-64), `supabase/functions/data_export/index.ts` (R path), `ops/dpdp.md`.
 6. **Contracts.** Output CSV column names stable and documented in `ops/dpdp.md`.
 7. **Data flow.** Owner request → function → zip; nightly job → purge.
 8. **Validation.** `retention_days` at least a minimum set in OQ-12; export limited to one facility per call.
@@ -518,7 +518,7 @@ Seed fixture: three facilities with known events (Anamika's seed, `CON-11`), plu
 | Feature | Checklist | Evidence required |
 | --- | --- | --- |
 | CLD-01 | [ ] three projects, Mumbai region [ ] secrets inventory [ ] scanner active [ ] production reviewers set [ ] T-CLD-01-* run | Exported settings, CI log, inventory file |
-| CLD-02 | [ ] 0001..0011 applied from scratch [ ] forward rehearsal done [ ] RLS on every table [ ] types generated and compile [ ] T-CLD-02-* run | CI logs, rehearsal log |
+| CLD-02 | [ ] 0001..0010 plus CLD-08's applied from scratch [ ] forward rehearsal done [ ] RLS on every table [ ] types generated and compile [ ] T-CLD-02-* run | CI logs, rehearsal log |
 | CLD-03 | [ ] matrix green [ ] enrollment single-use and expiring [ ] revocation fails closed [ ] no permissive policy [ ] Afzal reviewed permission change [ ] T-CLD-03-* run | pgTAP output, matrix doc, review approval |
 | CLD-04 | [ ] 5-minute window [ ] own-device only [ ] read policy [ ] T-CLD-04-* run | pgTAP, k6 output |
 | CLD-05 | [ ] oracle match [ ] same definition as `occupancy.ts` [ ] RLS through views [ ] p95 under 500 ms [ ] T-CLD-05-* run | pgTAP, diff output, k6 summary |
@@ -623,13 +623,13 @@ All contract shapes are **(R)** unless stated; IC numbers and parties follow REA
 | Deliverable | Where |
 | --- | --- |
 | Three configured environments and secrets inventory | Supabase, GitHub, `ops/secrets-inventory.md` |
-| Migrations `0001`, `0002`, `0003`, `0007` to `0011` and review sign-off of `0004` to `0006` | `supabase/migrations/` |
+| Migrations `0001`, `0002`, `0003`, `0007` to `0010`, plus CLD-08's own (`0011` is the IC-01 validation migration, PR #56; CLD-08's number is assigned at promotion, not fixed here, OQ-64) and review sign-off of `0004` to `0006` | `supabase/migrations/` |
 | Generated types | `packages/db-types` |
 | RLS policies, helper functions, `enroll_device` | `0010_rls.sql`, `supabase/functions/enroll_device` |
 | Heartbeat table and function | `0008_device_heartbeats.sql` |
 | Views | `0009_views_kpis.sql` |
-| Scheduler jobs, report email function, alert jobs | `0011_*`, `supabase/functions/send_report_email` |
-| Export, purge, delete | `0011_retention_and_export.sql`, `supabase/functions/data_export` |
+| Scheduler jobs, report email function, alert jobs | each feature's own migration, numbered at promotion (OQ-64; alerts are CLD-07, report-email job helpers are CLD-06), `supabase/functions/send_report_email` |
+| Export, purge, delete | `<next-free>_retention_and_export.sql` (OQ-64), `supabase/functions/data_export` |
 | Pipelines | `.github/workflows/` |
 | pgTAP suite, k6 script, restore drill script | `supabase/tests/`, `tools/load/`, `tools/restore/` |
 | Runbook, alert catalog, RLS matrix, DPDP procedure | `ops/` |

@@ -438,3 +438,192 @@ need a second workstream owner's review" rule for that package — but `expo-sql
 `apps/gate/package.json`/`app.json` still needs Afzal's sign-off per OQ-59 before this should be
 treated as fully reviewed. Akanksha separately flagged that OQ-59 itself may collide with a
 private, not-yet-pushed follow-up on her side; unresolved as of this round.
+
+## Sixth round (18 Nov 2026): OQ-37 async events-read, plus the OQ-59 device-evidence checklist
+
+Scope: `apps/gate/src/data/fakeSync.ts`, `apps/gate/src/data/writeEvent.ts`,
+`apps/gate/src/ui/port.tsx`, `apps/gate/test/data.test.ts`, and the new
+`apps/gate/test/ic02GateContract.test.ts`. PR #67 (`feature/gate-oq37-async-events` → `main`),
+Afzal's review requested; not merged.
+
+**Change.** `FakeSync.listEvents()` is now `async` (`Promise<readonly Event[]>`), matching
+`SqliteOutboxStore.listEvents()`'s pre-existing contract. `WriteDeps.readEvents` follows suit;
+`writeExit`'s `ALREADY_EXITED`/`SECOND_PAYMENT` guards now `await` it. The dev-shell's render-time
+read (`PortRuntime.readEvents`, used by all nine gate screens) was deliberately left synchronous —
+it is a separate surface from the IC-02 contract, not something this feedback asked to change — and
+now delegates to a new `FakeSync.listEventsSync()` instead.
+
+**New: T-IC02-GATE-1**, the shared contract suite the sheets and `ic02.ts`/`sqliteOutboxStore.ts`
+have described since the first round but never implemented. `describe.each` runs three scenarios
+against both a `FakeSync`-backed and a `SqliteOutboxStore`-backed `WriteDeps`: rolled-back batch,
+already-exited guard, second-payment guard. `SqliteOutboxStore` only implements `OutboxStore`, not
+the full `SyncClient`, so the suite's test-only `clientFor()` adapter implements just
+`writeTransaction` (the one member `writeExit` calls) and throws if anything else is invoked.
+
+**Commands and results (run fresh this round):**
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @pmp/gate typecheck` | **VERIFIED** — exit 0, clean |
+| `pnpm --filter @pmp/gate test` | **VERIFIED** — 298/298 passed (30 files; was 292, +6 new T-IC02-GATE-1 cases) |
+| `eslint` (5 changed/added files) | **VERIFIED** — exit 0, clean |
+| `prettier --check` (5 changed/added files) | **VERIFIED** — exit 0, clean |
+| `pnpm install --frozen-lockfile` then root `pnpm check` | **VERIFIED** — exit 0; fixed a stale `node_modules` in this environment (`zod`/`@supabase/*` were in the lockfile but not installed), no lockfile change |
+
+**Not run, not claimed**: any real-device/emulator test — same standing limitation as every prior
+round's `apps/gate` SQLite work.
+
+**OQ-37 status**: not closed. This round makes the gate's two local implementations
+(`FakeSync`, `SqliteOutboxStore`) consistent with each other under a Promise-based events-read; it
+does not invent new IC-02 surface or substitute for Afzal's confirmation of the canonical
+`writeTransaction`/events-read name and shape.
+
+### OQ-59 evidence checklist: native SQLite on a real device/emulator
+
+OQ-59 is still **PROPOSED (not approved)** — `expo-sqlite` has only ever been exercised against
+`node:sqlite` in this repo. The checklist below is what "approved" should require as evidence,
+scoped exactly to OQ-59's own three named risk areas for `writeEventsAndEnqueue`/`apply`. Nothing
+on it has been run; this is the plan, not a result.
+
+**0. Prerequisites (once, logged in the evidence that cites this checklist)**
+- [ ] Device/emulator model, OS/API level, available storage, and the exact `expo-sqlite` version
+  and Expo SDK version under test (must match `app.json`'s configured plugin version).
+- [ ] Confirm `PRAGMA foreign_keys` reads `1` on a fresh connection from this build (the
+  `node:sqlite` test double defaults it on; plain SQLite — what `expo-sqlite`'s native binding
+  uses — defaults it off, per `sqliteOutboxStore.ts`'s `ENABLE_FOREIGN_KEYS` comment. This is the
+  one assumption in the whole store that `node:sqlite` cannot itself prove, because it does not
+  reproduce SQLite's real default).
+
+**1. Restart recovery**
+- [ ] Write N events via `writeEventAndEnqueue`/`writeEventsAndEnqueue` (mix of single and batch),
+  force-kill the process (not a clean exit) immediately after a logged "local commit" event, before
+  any `apply()` call, and confirm on relaunch that `init()` reports the same N rows via
+  `listEvents()` with no duplicates and no missing rows.
+- [ ] Repeat, force-killing mid-batch (after the first event's `INSERT INTO gate_events` but before
+  the second's, reproducible by pausing in a debug build) — confirm on relaunch that **neither**
+  event of that batch is present (the all-or-nothing guarantee `writeEventsAndEnqueue` exists for,
+  verified so far only via the synchronous `node:sqlite` engine's own `BEGIN`/`COMMIT`/`ROLLBACK`,
+  never against a process that was actually killed mid-write).
+- [ ] Confirm `migrateDeviceTimeMs()`'s idempotent `ALTER TABLE`/backfill path: seed a database file
+  without the `device_time_ms` column (or reuse one from before this column existed), relaunch, and
+  confirm `init()` adds and backfills it without data loss, then confirm a second `init()` call is a
+  silent no-op.
+- [ ] Confirm `apply()`'s outbox-state updates (PENDING → SENT/QUARANTINED) survive the same
+  force-kill-and-relaunch pattern with no event row ever erased (`apply()` must never touch
+  `gate_events`).
+
+**2. Concurrent writes**
+- [ ] Fire two overlapping `writeEventsAndEnqueue` calls (e.g., from two screens or two rapid
+  taps) against the SAME live `expo-sqlite` connection and confirm the in-process `withWriteLock`
+  queue actually serializes them on-device — i.e., confirm `expo-sqlite`'s own documented warning
+  ("`withTransactionAsync` is not exclusive and can be interrupted by other async queries") is in
+  fact what `withWriteLock` is protecting against, not a risk already absent on this binding.
+  Record whether any interleaving was observed with the lock artificially disabled, as a control.
+- [ ] Confirm a `listEvents()`/`pending()`/`queueHealth()` read issued while a write is in flight
+  never observes a row from that write until it commits (the `withWriteLock`-covers-reads behavior,
+  PR #39's review finding) — on the real binding, not just the `node:sqlite` double.
+- [ ] Confirm two near-simultaneous writes sharing an event id (the double-tap / retry case) still
+  resolve per `insertEventRow`'s rule: identical content is a silent no-op, differing content raises
+  `OutboxCollisionError`, on-device.
+
+**3. Foreign-key enforcement**
+- [ ] With `PRAGMA foreign_keys = ON` confirmed per step 0, attempt to insert a `gate_outbox` row
+  whose `id` has no matching `gate_events` row (requires calling the insert path directly, bypassing
+  `writeEventsAndEnqueue`'s normal ordering, to prove the constraint — not just that normal code
+  never triggers it) and confirm the native binding actually rejects it, matching
+  `node:sqlite`'s behavior rather than silently accepting it the way plain SQLite would with the
+  pragma off.
+- [ ] Confirm the reverse is never attempted by this store's own code (every write path inserts
+  `gate_events` before the matching `gate_outbox` row within the same transaction) by code
+  inspection plus a passing run of the restart-recovery cases above, which would surface an orphan
+  otherwise.
+
+**Sign-off**: OQ-59 moves from PROPOSED to Resolved only on Afzal's review of this evidence (his
+row in OQ-59) once it exists — not on this checklist alone, which is deliberately all "not run" per
+the brief's "do not claim device/emulator testing unless actually performed."
+
+## Seventh round (18 Nov 2026, later same day): OQ-37 resolved — Afzal's PR #67 review
+
+Afzal reviewed PR #67 and submitted a real GitHub review — verified directly against the API, not
+assumed from a chat message: `gh pr view 67 --json reviews,reviewDecision` returns
+`"reviewDecision":"APPROVED"` with one review, author `afzl-raza`, state `APPROVED`, submitted
+`2026-11-18T16:43:32Z`. His review body confirms the implementation is correct as submitted
+("correctly makes readEvents Promise-based, awaits it in writeExit, keeps the UI-only synchronous
+accessor separate, and tests rollback, duplicate-exit, and duplicate-payment behavior against both
+FakeSync and SqliteOutboxStore. All six CI checks pass.") and states the canonical IC-02 contract,
+now recorded as OQ-37's resolution in `docs/team/open-questions-and-assumptions.md`:
+
+- `writeTransaction(events: readonly Event[]): Promise<void>` — non-empty, all-or-nothing local
+  transaction; resolves after the local commit; never waits for network sync.
+- `listEvents(): Promise<readonly Event[]>` — committed local snapshot for the duplicate guards; no
+  network access.
+- `writeEvent(event)` stays the single-event convenience operation.
+- `WriteDeps.readEvents` remains an async injected adapter delegating to `listEvents()`.
+- `PortRuntime.readEvents` stays synchronous and UI-only, outside IC-02.
+
+Afzal's one explicit non-blocking follow-up: `T-IC02-GATE-1` currently covers only the
+write/duplicate-guard subset, not the eventual full `SyncClient` facade (`observeOccupancy`/
+`health` composed with a real transport) — recorded as confirmed future work, not a blocker for
+this PR or for closing OQ-37.
+
+**OQ-37 status: Resolved.** This supersedes the "OPEN — OQ-37" line under "Blockers and OQs" above
+and the Sixth round's "not closed" note — both were accurate at the time they were written, before
+this review landed, and are left as-is rather than rewritten.
+
+No code change this round: PR #67's implementation was already correct per Afzal's review: this
+round is the OQ register update and this log entry only.
+
+**Commands run this round:**
+
+| Command | Result |
+| --- | --- |
+| `gh pr view 67 --json reviews,reviewDecision` | **VERIFIED** — real GitHub `APPROVED` review by `afzl-raza`, not inferred from any chat message |
+| `prettier --check` (both changed `.md` files) | **VERIFIED** — exit 0, clean |
+| `pnpm --filter @pmp/gate test` | **VERIFIED** — 298/298 passed, unchanged (docs-only round) |
+| root `pnpm check` | **VERIFIED** — exit 0 |
+
+## Eighth round (18 Nov 2026, later same day): PR #64 hardening, OQ-59 environment check
+
+**PR #64 (`feature/gate-oq66-quarantined`, open, not merged, 0 reviews — Afzal's review request
+is still outstanding; nothing to verify or address there beyond code inspection, since no review
+or comment exists on it yet).** `quarantined()`'s `JSON.parse(row.event_json)` ran unguarded
+inside its `.map()`: one corrupted row would throw and take down the entire listing, hiding every
+other already-quarantined row with it. Fixed with a per-row `quarantinedRowType()` helper that
+never throws — a row whose JSON cannot be parsed, or parses without a string `type`, is labelled
+`UNPARSEABLE_EVENT` and kept, not dropped (`id`/`attempts`/`code`/`createdAt` come from separate
+SQL columns, unaffected by the JSON's health). Two new tests. `pending()`/`listEvents()` have the
+identical unguarded pattern but are deliberately untouched — out of scope for this fix (not what
+was asked, and both are already on `main`, so changing them is a separate change with its own
+review, not something to fold in silently here).
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @pmp/gate typecheck` | **VERIFIED** — exit 0 |
+| `pnpm --filter @pmp/gate test` | **VERIFIED** — 301/301 (299 baseline on that branch + 2 new) |
+| `eslint` (2 changed files) | **VERIFIED** — exit 0 |
+| `prettier --check` (2 changed files) | **VERIFIED** — exit 0 (after one `--write` pass) |
+| root `pnpm check` on that branch | **VERIFIED** — exit 0 |
+| GitHub CI on PR #64 after push | **VERIFIED** — all 6 checks pass |
+
+**OQ-59 — environment check for native SQLite evidence.** Checked this session's environment
+directly rather than assuming: no Android SDK, no `adb`, no `emulator`/`avdmanager`/`sdkmanager`
+binary, no `ANDROID_HOME`/`ANDROID_SDK_ROOT`, no `~/.android`. `/dev/kvm` exists and the host has
+12 CPUs, but only ~1.5 GiB free RAM at check time. **Conclusion: no Android emulator or physical
+device is available in this environment; none of the OQ-59 checklist's restart-recovery,
+concurrent-write or foreign-key items were run.** Provisioning an emulator from scratch (SDK +
+system image download, likely several GB, plus emulator RAM headroom this host does not currently
+have free) was not attempted without being asked — that is a separate, resource-heavy decision,
+not a side effect of this task. OQ-59 stays **Open**, not claimed as resolved or partially
+resolved by anything in this round.
+
+**Message drafted for Afzal** (not yet posted anywhere — flagged back to the user to decide where/
+whether to send it, since it is addressed to a teammate):
+
+> OQ-59: I don't have an Android emulator or device available in my current working environment —
+> no SDK, no `adb`, nothing to run the restart-recovery/concurrent-write/foreign-key checklist
+> against a real `expo-sqlite` binding. The checklist itself is written and precise (evidence-
+> nikhil.md, Sixth round) so whoever does have a device/emulator can run it directly. If you or
+> Akanksha have access to one, that's the fastest path; otherwise let me know what testing setup
+> the team actually has for Android native-module verification and I'll run the checklist there.
+> Keeping OQ-59 Open either way until that evidence exists — not claiming it from the `node:sqlite`
+> double alone.

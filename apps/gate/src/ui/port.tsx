@@ -69,6 +69,9 @@ export type PortRuntime = {
   /** Dev-only affordances (FakeSync cast); on a real client this surface moves into it. */
   devClient: FakeSync;
   writeDeps: WriteDeps;
+  /** Render-time snapshot for screens (`FakeSync.listEventsSync()`) — deliberately NOT the
+   * async IC-02 `listEvents()`/`WriteDeps.readEvents` contract (OQ-37, Resolved: confirmed as
+   * UI-only, outside IC-02); this surface predates and is independent of it. */
   readEvents: () => readonly Event[];
   /** Bumped after every committed write so event-derived views reload. */
   eventsVersion: number;
@@ -246,6 +249,8 @@ export function PortProvider({ children }: PropsWithChildren) {
   const writeDeps = useMemo(
     () => ({
       client: sync as SyncClient,
+      // WriteDeps.readEvents is the async IC-02 contract (OQ-37, Resolved): delegate to
+      // listEvents(), never the render-time listEventsSync() below.
       readEvents: () => sync.listEvents(),
       // unresolved device id → "" fails the IC-01 envelope (writes blocked, fail closed)
       deviceId: deviceIdState.id ?? "",
@@ -297,7 +302,7 @@ export function PortProvider({ children }: PropsWithChildren) {
       client: sync,
       devClient: sync,
       writeDeps,
-      readEvents: () => sync.listEvents(),
+      readEvents: () => sync.listEventsSync(),
       eventsVersion,
       bump,
       registry,

@@ -17,9 +17,17 @@ import type { Event } from "@pmp/contracts";
  *
  * Exit/payment atomicity (GATE-02 sequence 4.5: "writeExit() ... writes EXIT and PAYMENT in one
  * transaction (both events or neither)"; T-GATE-02-I1, T-GATE-04-I2/N3) needs a batch write on
- * the client. `writeTransaction` is the proposed IC-02 extension for it — the canonical
- * name/shape is Afzal's call (registered in open-questions-and-assumptions.md as OQ-37); the
+ * the client. `writeTransaction` is that IC-02 extension — canonical name/shape confirmed by
+ * Afzal (open-questions-and-assumptions.md OQ-37, Resolved, PR #67 review, 18 Nov 2026); the
  * gate must not hand-roll its own SQLite paths next to the sync package's (C.0 rule 1).
+ *
+ * OQ-37's resolution also confirms a committed-events read, `listEvents(): Promise<readonly
+ * Event[]>` (a local snapshot for the duplicate guards behind `WriteDeps.readEvents`, no network
+ * access) — not declared as a `SyncClient` member below because `FakeSync` and
+ * `SqliteOutboxStore` both sit below the full facade Afzal's package will eventually compose
+ * (`observeOccupancy`/`health` are confirmed follow-up, not part of this resolution). This
+ * comment is `listEvents`'s contract record until that composition exists and it can be added
+ * here directly.
  */
 
 /** SYNC-06 health metrics (member-01: "queueDepth, oldestUnsyncedAgeMs, lastSyncAt, online,
@@ -56,7 +64,8 @@ export interface SyncClient {
   writeEvent(event: Event): Promise<void>;
 
   /** All-or-nothing multi-event write backing `writeExit` (EXIT + PAYMENT [+ OVERRIDE on
-   * waiver]). PROPOSED IC-02 extension, canonical ownership Afzal (OQ-37). */
+   * waiver]). Confirmed IC-02 extension (OQ-37, Resolved): non-empty batch; resolves after the
+   * local commit; never waits for network sync. */
   writeTransaction(events: readonly Event[]): Promise<void>;
 
   /** SYNC-04: snapshot now, then re-deliver on local DB changes. Returns the unsubscribe fn. */
