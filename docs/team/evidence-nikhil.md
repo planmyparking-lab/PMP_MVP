@@ -438,3 +438,106 @@ need a second workstream owner's review" rule for that package — but `expo-sql
 `apps/gate/package.json`/`app.json` still needs Afzal's sign-off per OQ-59 before this should be
 treated as fully reviewed. Akanksha separately flagged that OQ-59 itself may collide with a
 private, not-yet-pushed follow-up on her side; unresolved as of this round.
+
+## Sixth round (18 Nov 2026): OQ-37 async events-read, plus the OQ-59 device-evidence checklist
+
+Scope: `apps/gate/src/data/fakeSync.ts`, `apps/gate/src/data/writeEvent.ts`,
+`apps/gate/src/ui/port.tsx`, `apps/gate/test/data.test.ts`, and the new
+`apps/gate/test/ic02GateContract.test.ts`. PR #67 (`feature/gate-oq37-async-events` → `main`),
+Afzal's review requested; not merged.
+
+**Change.** `FakeSync.listEvents()` is now `async` (`Promise<readonly Event[]>`), matching
+`SqliteOutboxStore.listEvents()`'s pre-existing contract. `WriteDeps.readEvents` follows suit;
+`writeExit`'s `ALREADY_EXITED`/`SECOND_PAYMENT` guards now `await` it. The dev-shell's render-time
+read (`PortRuntime.readEvents`, used by all nine gate screens) was deliberately left synchronous —
+it is a separate surface from the IC-02 contract, not something this feedback asked to change — and
+now delegates to a new `FakeSync.listEventsSync()` instead.
+
+**New: T-IC02-GATE-1**, the shared contract suite the sheets and `ic02.ts`/`sqliteOutboxStore.ts`
+have described since the first round but never implemented. `describe.each` runs three scenarios
+against both a `FakeSync`-backed and a `SqliteOutboxStore`-backed `WriteDeps`: rolled-back batch,
+already-exited guard, second-payment guard. `SqliteOutboxStore` only implements `OutboxStore`, not
+the full `SyncClient`, so the suite's test-only `clientFor()` adapter implements just
+`writeTransaction` (the one member `writeExit` calls) and throws if anything else is invoked.
+
+**Commands and results (run fresh this round):**
+
+| Command | Result |
+| --- | --- |
+| `pnpm --filter @pmp/gate typecheck` | **VERIFIED** — exit 0, clean |
+| `pnpm --filter @pmp/gate test` | **VERIFIED** — 298/298 passed (30 files; was 292, +6 new T-IC02-GATE-1 cases) |
+| `eslint` (5 changed/added files) | **VERIFIED** — exit 0, clean |
+| `prettier --check` (5 changed/added files) | **VERIFIED** — exit 0, clean |
+| `pnpm install --frozen-lockfile` then root `pnpm check` | **VERIFIED** — exit 0; fixed a stale `node_modules` in this environment (`zod`/`@supabase/*` were in the lockfile but not installed), no lockfile change |
+
+**Not run, not claimed**: any real-device/emulator test — same standing limitation as every prior
+round's `apps/gate` SQLite work.
+
+**OQ-37 status**: not closed. This round makes the gate's two local implementations
+(`FakeSync`, `SqliteOutboxStore`) consistent with each other under a Promise-based events-read; it
+does not invent new IC-02 surface or substitute for Afzal's confirmation of the canonical
+`writeTransaction`/events-read name and shape.
+
+### OQ-59 evidence checklist: native SQLite on a real device/emulator
+
+OQ-59 is still **PROPOSED (not approved)** — `expo-sqlite` has only ever been exercised against
+`node:sqlite` in this repo. The checklist below is what "approved" should require as evidence,
+scoped exactly to OQ-59's own three named risk areas for `writeEventsAndEnqueue`/`apply`. Nothing
+on it has been run; this is the plan, not a result.
+
+**0. Prerequisites (once, logged in the evidence that cites this checklist)**
+- [ ] Device/emulator model, OS/API level, available storage, and the exact `expo-sqlite` version
+  and Expo SDK version under test (must match `app.json`'s configured plugin version).
+- [ ] Confirm `PRAGMA foreign_keys` reads `1` on a fresh connection from this build (the
+  `node:sqlite` test double defaults it on; plain SQLite — what `expo-sqlite`'s native binding
+  uses — defaults it off, per `sqliteOutboxStore.ts`'s `ENABLE_FOREIGN_KEYS` comment. This is the
+  one assumption in the whole store that `node:sqlite` cannot itself prove, because it does not
+  reproduce SQLite's real default).
+
+**1. Restart recovery**
+- [ ] Write N events via `writeEventAndEnqueue`/`writeEventsAndEnqueue` (mix of single and batch),
+  force-kill the process (not a clean exit) immediately after a logged "local commit" event, before
+  any `apply()` call, and confirm on relaunch that `init()` reports the same N rows via
+  `listEvents()` with no duplicates and no missing rows.
+- [ ] Repeat, force-killing mid-batch (after the first event's `INSERT INTO gate_events` but before
+  the second's, reproducible by pausing in a debug build) — confirm on relaunch that **neither**
+  event of that batch is present (the all-or-nothing guarantee `writeEventsAndEnqueue` exists for,
+  verified so far only via the synchronous `node:sqlite` engine's own `BEGIN`/`COMMIT`/`ROLLBACK`,
+  never against a process that was actually killed mid-write).
+- [ ] Confirm `migrateDeviceTimeMs()`'s idempotent `ALTER TABLE`/backfill path: seed a database file
+  without the `device_time_ms` column (or reuse one from before this column existed), relaunch, and
+  confirm `init()` adds and backfills it without data loss, then confirm a second `init()` call is a
+  silent no-op.
+- [ ] Confirm `apply()`'s outbox-state updates (PENDING → SENT/QUARANTINED) survive the same
+  force-kill-and-relaunch pattern with no event row ever erased (`apply()` must never touch
+  `gate_events`).
+
+**2. Concurrent writes**
+- [ ] Fire two overlapping `writeEventsAndEnqueue` calls (e.g., from two screens or two rapid
+  taps) against the SAME live `expo-sqlite` connection and confirm the in-process `withWriteLock`
+  queue actually serializes them on-device — i.e., confirm `expo-sqlite`'s own documented warning
+  ("`withTransactionAsync` is not exclusive and can be interrupted by other async queries") is in
+  fact what `withWriteLock` is protecting against, not a risk already absent on this binding.
+  Record whether any interleaving was observed with the lock artificially disabled, as a control.
+- [ ] Confirm a `listEvents()`/`pending()`/`queueHealth()` read issued while a write is in flight
+  never observes a row from that write until it commits (the `withWriteLock`-covers-reads behavior,
+  PR #39's review finding) — on the real binding, not just the `node:sqlite` double.
+- [ ] Confirm two near-simultaneous writes sharing an event id (the double-tap / retry case) still
+  resolve per `insertEventRow`'s rule: identical content is a silent no-op, differing content raises
+  `OutboxCollisionError`, on-device.
+
+**3. Foreign-key enforcement**
+- [ ] With `PRAGMA foreign_keys = ON` confirmed per step 0, attempt to insert a `gate_outbox` row
+  whose `id` has no matching `gate_events` row (requires calling the insert path directly, bypassing
+  `writeEventsAndEnqueue`'s normal ordering, to prove the constraint — not just that normal code
+  never triggers it) and confirm the native binding actually rejects it, matching
+  `node:sqlite`'s behavior rather than silently accepting it the way plain SQLite would with the
+  pragma off.
+- [ ] Confirm the reverse is never attempted by this store's own code (every write path inserts
+  `gate_events` before the matching `gate_outbox` row within the same transaction) by code
+  inspection plus a passing run of the restart-recovery cases above, which would surface an orphan
+  otherwise.
+
+**Sign-off**: OQ-59 moves from PROPOSED to Resolved only on Afzal's review of this evidence (his
+row in OQ-59) once it exists — not on this checklist alone, which is deliberately all "not run" per
+the brief's "do not claim device/emulator testing unless actually performed."
