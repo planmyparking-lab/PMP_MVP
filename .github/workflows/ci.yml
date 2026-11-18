@@ -70,7 +70,16 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Install PostgreSQL 16 and pgTAP
+        # Installed from the PGDG apt repo, not the runner image's default Ubuntu repos: Ubuntu's own package set
+        # (and the versions it offers under postgresql-16/postgresql-16-pgtap) depends on the runner image's Ubuntu
+        # release and has silently broken this step before when the image moved to a newer release that dropped
+        # those exact package names. PGDG's repo always carries postgresql-16 regardless of the host OS release.
         run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends curl ca-certificates gnupg
+          sudo install -d /usr/share/postgresql-common/pgdg
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo tee /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc >/dev/null
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo "$VERSION_CODENAME")-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends postgresql-16 postgresql-16-pgtap
           sudo pg_ctlcluster 16 main start || true
