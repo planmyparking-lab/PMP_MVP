@@ -23,11 +23,10 @@ needs a second workstream owner's review and, if breaking, a `SCHEMA_VERSION` bu
 | `received_at`    | Server only (`default now()`); not part of the client contract.                                                                              |
 
 `recorded_at` is for `PAPER_BACKFILL` events: `device_time` carries the stay's claimed time, and
-`recorded_at` records when the guard actually keyed the paper record in; unset for `LIVE`. No SQL
-column on `main` yet: today's `ingest_events` (`0004`) accepts and silently drops `recorded_at`
-rather than rejecting it, since it has no unknown-key check either. The column and the unknown-key
-rejection come with `0013` (staged in `supabase/proposed-migrations/`, #30) once it is promoted —
-the migration number and promotion timing are OQ-52. (OQ-42)
+`recorded_at` records when the guard actually keyed the paper record in; unset for `LIVE`. The
+column and the envelope's unknown-key rejection are now live via `0011_ingest_events_payload_validation.sql`
+(promoted from the proposed `0013`, OQ-52). `ingest_events` (`0004`) itself is unchanged; `0011` is
+an additive follow-up. (OQ-42)
 
 Unknown keys are **rejected** in the envelope and in every payload (not stripped).
 
