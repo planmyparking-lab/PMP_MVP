@@ -53,7 +53,7 @@ function makeDeps(fake: FakeSync): WriteDeps {
   let minted = 0;
   return {
     client: fake,
-    readEvents: () => [...fake.listEvents()],
+    readEvents: () => fake.listEvents(),
     facilityId: FACILITY,
     staffId: STAFF,
     deviceId: DEVICE,
@@ -93,7 +93,7 @@ describe("writeEvent gate orchestration (T-GATE-01-I1/I2, N4)", () => {
       session_id: SESSION,
       payload: { ...ENTRY_PAYLOAD },
     });
-    expect(fake.listEvents().length).toBe(1);
+    expect((await fake.listEvents()).length).toBe(1);
     expect(stored.id).toBe(ENTRY_EVENT_ID);
     expect(stored.facility_id).toBe(FACILITY);
     expect(stored.staff_id).toBe(STAFF);
@@ -114,7 +114,7 @@ describe("writeEvent gate orchestration (T-GATE-01-I1/I2, N4)", () => {
       session_id: SESSION,
       payload: { ...ENTRY_PAYLOAD },
     });
-    const parsed = parseEvent(fake.listEvents()[0]);
+    const parsed = parseEvent((await fake.listEvents())[0]);
     expect(parsed.ok).toBe(true);
   });
 
@@ -128,7 +128,7 @@ describe("writeEvent gate orchestration (T-GATE-01-I1/I2, N4)", () => {
         payload: { mode: "CASH", amount_paise: -5, upi_attested: false },
       }),
     ).rejects.toThrow(/IC-01 validation failed/);
-    expect(fake.listEvents()).toHaveLength(0);
+    expect(await fake.listEvents()).toHaveLength(0);
   });
 
   it("persists a full ZONE_COUNT draft (session-less envelope, T-GATE-08 data path)", async () => {
@@ -137,7 +137,7 @@ describe("writeEvent gate orchestration (T-GATE-01-I1/I2, N4)", () => {
       type: "ZONE_COUNT",
       payload: { zone_id: ZONE_1, counted: 4, system_count_at_time: 3 },
     });
-    expect(fake.listEvents()).toHaveLength(1);
+    expect(await fake.listEvents()).toHaveLength(1);
     expect(stored.type).toBe("ZONE_COUNT");
     expect(stored.session_id).toBeNull();
     if (stored.type !== "ZONE_COUNT") throw new Error("expected ZONE_COUNT");
@@ -154,7 +154,7 @@ describe("writeEvent gate orchestration (T-GATE-01-I1/I2, N4)", () => {
         payload: { zone_id: "not-a-uuid", counted: -1, system_count_at_time: 0 },
       }),
     ).rejects.toThrow(/IC-01 validation failed/);
-    expect(fake.listEvents()).toHaveLength(0);
+    expect(await fake.listEvents()).toHaveLength(0);
   });
 
   it("a write failure leaves the store fully empty — no partial event (T-GATE-01-I1/N4)", async () => {
@@ -164,7 +164,7 @@ describe("writeEvent gate orchestration (T-GATE-01-I1/I2, N4)", () => {
     await expect(
       writeEvent(deps, { type: "ENTRY", session_id: SESSION, payload: { ...ENTRY_PAYLOAD } }),
     ).rejects.toThrow("disk died");
-    expect(fake.listEvents()).toHaveLength(0);
+    expect(await fake.listEvents()).toHaveLength(0);
   });
 });
 
@@ -280,8 +280,8 @@ describe("writeExit atomic bundle (T-GATE-02-I1, T-GATE-04-N3)", () => {
       payment: { mode: "CASH", amountPaise: 6000 },
     });
     expect(events.map((e) => e.type)).toEqual(["EXIT", "PAYMENT"]);
-    expect(fake.listEvents().length).toBe(2);
-    const [exit, payment] = fake.listEvents();
+    expect((await fake.listEvents()).length).toBe(2);
+    const [exit, payment] = await fake.listEvents();
     if (exit.type !== "EXIT") throw new Error("expected EXIT");
     expect(exit.session_id).toBe(SESS_A);
     expect(exit.payload.fare_paise).toBe(6000);
@@ -306,7 +306,7 @@ describe("writeExit atomic bundle (T-GATE-02-I1, T-GATE-04-N3)", () => {
         payment: { mode: "UPI", amountPaise: 6000 },
       }),
     ).rejects.toThrow("write died between events");
-    expect(fake.listEvents()).toHaveLength(0); // both or neither
+    expect(await fake.listEvents()).toHaveLength(0); // both or neither
   });
 
   it("UPI received saves the attestation (T-GATE-02-E2 semantics at event level)", async () => {
@@ -318,7 +318,7 @@ describe("writeExit atomic bundle (T-GATE-02-I1, T-GATE-04-N3)", () => {
       exitMethod: "SCAN",
       payment: { mode: "UPI", amountPaise: 6000 },
     });
-    const payment = fake.listEvents()[1];
+    const payment = (await fake.listEvents())[1];
     if (payment.type !== "PAYMENT") throw new Error("expected PAYMENT");
     expect(payment.payload.upi_attested).toBe(true);
     expect(payment.payload.mode).toBe("UPI");
@@ -335,7 +335,7 @@ describe("writeExit atomic bundle (T-GATE-02-I1, T-GATE-04-N3)", () => {
       tariffVersion: 2,
       payment: { mode: "CASH", amountPaise: 6000 },
     });
-    const exit = fake.listEvents()[0];
+    const exit = (await fake.listEvents())[0];
     if (exit.type !== "EXIT") throw new Error("expected EXIT");
     expect(exit.payload.tariff_id).toBe(TARIFF_ID);
     expect(exit.payload.tariff_version).toBe(2);
@@ -359,7 +359,7 @@ describe("writeExit atomic bundle (T-GATE-02-I1, T-GATE-04-N3)", () => {
         payment: { mode: "CASH", amountPaise: 6000 },
       }),
     ).rejects.toMatchObject({ reason: "ALREADY_EXITED" });
-    expect(fake.listEvents().length).toBe(2); // no new events
+    expect((await fake.listEvents()).length).toBe(2); // no new events
   });
 
   it("a second payment for the same session is refused locally (T-GATE-04-I1)", async () => {
@@ -375,7 +375,7 @@ describe("writeExit atomic bundle (T-GATE-02-I1, T-GATE-04-N3)", () => {
         payment: { mode: "CASH", amountPaise: 6000 },
       }),
     ).rejects.toMatchObject({ reason: "SECOND_PAYMENT" });
-    expect(fake.listEvents().length).toBe(1); // nothing new
+    expect((await fake.listEvents()).length).toBe(1); // nothing new
   });
 
   it("rejects a Cash payment whose amount differs from the fare (T-GATE-04-U2, rule 8)", async () => {
@@ -388,7 +388,7 @@ describe("writeExit atomic bundle (T-GATE-02-I1, T-GATE-04-N3)", () => {
         payment: { mode: "CASH", amountPaise: 4000 },
       }),
     ).rejects.toThrow(/AMOUNT_MISMATCH/);
-    expect(fake.listEvents()).toHaveLength(0);
+    expect(await fake.listEvents()).toHaveLength(0);
   });
 
   it("accepts a PASS payment: fare zero, no cash collected, no attestation (SYNC-01 modes)", async () => {
@@ -423,7 +423,7 @@ describe("waive path (T-GATE-04-I2/U3)", () => {
     );
     // writeExit composition order: EXIT, then the waiver OVERRIDE, then the zero PAYMENT.
     expect(events.map((e) => e.type)).toEqual(["EXIT", "OVERRIDE", "PAYMENT"]);
-    expect(fake.listEvents().length).toBe(3);
+    expect((await fake.listEvents()).length).toBe(3);
     const overrideEvent = events[1];
     if (overrideEvent.type !== "OVERRIDE") throw new Error("expected OVERRIDE");
     expect(overrideEvent.payload.reason_code).toBe("OWNER_WAIVER");
@@ -447,7 +447,7 @@ describe("waive path (T-GATE-04-I2/U3)", () => {
         }),
       ),
     ).rejects.toMatchObject({ reason: "OVERRIDE_RULES" });
-    expect(fake.listEvents()).toHaveLength(0);
+    expect(await fake.listEvents()).toHaveLength(0);
   });
 });
 
@@ -479,7 +479,7 @@ describe("writeOverride (T-GATE-07-I1)", () => {
         reasonCode: "MADE_UP_CODE" as never,
       }),
     ).rejects.toMatchObject({ reason: "OVERRIDE_RULES" });
-    expect(fake.listEvents()).toHaveLength(0);
+    expect(await fake.listEvents()).toHaveLength(0);
   });
 });
 
@@ -512,7 +512,7 @@ describe("shift event persistence boundary (T-GATE-06-I1)", () => {
         variance_upi_paise: 1000,
       },
     });
-    expect(fake.listEvents()).toHaveLength(1);
+    expect(await fake.listEvents()).toHaveLength(1);
     expect(close.session_id).toBeNull();
     if (close.type !== "SHIFT_CLOSE") throw new Error("expected SHIFT_CLOSE");
     expect(close.payload.counted_cash_paise).toBe(119500);
@@ -537,6 +537,6 @@ describe("shift event persistence boundary (T-GATE-06-I1)", () => {
         } as never,
       }),
     ).rejects.toThrow(); // variance_upi_paise missing → shape mismatch
-    expect(fake.listEvents()).toHaveLength(0);
+    expect(await fake.listEvents()).toHaveLength(0);
   });
 });

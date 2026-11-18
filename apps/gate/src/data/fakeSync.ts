@@ -121,7 +121,22 @@ export class FakeSync implements SyncClient {
     this.lastSyncAt = atIso ?? this.clock().toISOString();
   }
 
-  listEvents(): readonly Event[] {
+  /** Async IC-02 events-read (OQ-37 feedback: the gate's duplicate guards must not assume a
+   * synchronous store, because `SqliteOutboxStore.listEvents()` — the real on-device
+   * implementation this fake stands in for — is inherently async). Same Promise-based contract on
+   * both, so `WriteDeps.readEvents` binds to either without a call site change
+   * (T-IC02-GATE-1 runs the identical guard suite against both). */
+  async listEvents(): Promise<readonly Event[]> {
+    return this.listEventsSync();
+  }
+
+  /** Synchronous snapshot — NOT IC-02 surface (same category as `attachSessionZone` and
+   * `markAllSynced` above). `port.tsx` wires this to `PortRuntime.readEvents`, the dev shell's
+   * render-time accessor for screens that recompute a view on every `eventsVersion` bump; that
+   * surface predates, and is independent of, the async `listEvents()` contract above. Code that
+   * gates a write decision (duplicate guards, anything reached through `WriteDeps.readEvents`)
+   * must use `listEvents()`, not this. */
+  listEventsSync(): readonly Event[] {
     return [...this.events];
   }
 

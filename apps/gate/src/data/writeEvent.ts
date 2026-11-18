@@ -47,9 +47,12 @@ export { SCHEMA_VERSION };
 export type WriteDeps = {
   /** The IC-02 client (FakeSync in tests; Afzal's package in the app shell). */
   client: SyncClient;
-  /** Committed local events, for the exit/payment duplicate guards. IC-02 exposes no read API
-   * today (SYNC-03 gives open_sessions only); an events read is needed from Afzal (OQ-37 list). */
-  readEvents(): readonly Event[];
+  /** Committed local events, for the exit/payment duplicate guards. Promise-based (OQ-37
+   * feedback) so this binds unchanged to either `FakeSync.listEvents()` or the real on-device
+   * `SqliteOutboxStore.listEvents()` (inherently async) once Afzal's facade composes one — see
+   * `ic02.ts`'s `SyncClient` doc and `T-IC02-GATE-1`. Delegate to `listEvents()`; do not add a
+   * synchronous events read here. */
+  readEvents(): Promise<readonly Event[]>;
   /** Facility claim of the log-in (envelope facility_id; ingest rejects a different value). */
   facilityId: string;
   deviceId: string;
@@ -205,7 +208,7 @@ export type ExitBundle = {
  *                   zero for PASS/WAIVED.
  */
 export async function writeExit(deps: WriteDeps, bundle: ExitBundle): Promise<Event[]> {
-  const existing = deps.readEvents();
+  const existing = await deps.readEvents();
   const priorExit = exitEventForSession(existing, bundle.sessionId);
   if (priorExit) {
     throw new WriteRuleError(
