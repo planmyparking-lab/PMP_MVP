@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { selectFacility, signOut } from "../../app/actions";
 import type { ConsoleSession } from "../lib/data/types";
+import { isBareLayout } from "../lib/landingRoute";
 import { bindMenuEscape } from "../lib/menuEscape";
 import { Icon } from "./ui/Icon";
 import type { IconName } from "./ui/Icon";
@@ -201,7 +202,7 @@ export function AppShell({ children, session }: { children: ReactNode; session: 
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  if (path === "/login") return <>{children}</>;
+  if (isBareLayout(path, session.kind)) return <>{children}</>;
 
   return (
     <div className="shell">

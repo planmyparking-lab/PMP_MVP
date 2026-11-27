@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { readSupabaseEnv } from "./src/lib/supabase/env";
 import { sanitizeRedirect } from "./src/lib/safeRedirect";
+import { isLandingVisit } from "./src/lib/landingRoute";
 
 /** Paths reachable without a session. The report route has its own shared-secret check (CON-08). */
 const PUBLIC_PATHS = ["/login"];
@@ -43,6 +44,9 @@ export async function proxy(request: NextRequest) {
   } catch {
     signedIn = false;
   }
+
+  // The landing page at "/" is public for signed-out visitors; signed in, "/" is the Dashboard.
+  if (isLandingVisit(path, signedIn)) return response;
 
   const isPublic = PUBLIC_PATHS.includes(path);
   if (!signedIn && !isPublic) {
