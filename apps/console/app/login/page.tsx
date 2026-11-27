@@ -1,3 +1,5 @@
+import { redirect } from "next/navigation";
+import { signInUrl } from "../../src/lib/landingRoute";
 import { readSupabaseEnv } from "../../src/lib/supabase/env";
 import { sanitizeRedirect } from "../../src/lib/safeRedirect";
 import { LoginForm } from "../../src/components/LoginForm";
@@ -37,6 +39,9 @@ export default async function LoginPage({
   const params = await searchParams;
   const next = sanitizeRedirect(typeof params.next === "string" ? params.next : "/");
   const configured = readSupabaseEnv() !== null;
+  // Sign-in lives on the landing page now. This page stays only for the offline case, where it explains that
+  // Supabase is not set up on this computer.
+  if (configured) redirect(signInUrl(next));
 
   return (
     <div className="lg">
