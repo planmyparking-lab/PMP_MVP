@@ -2,8 +2,16 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { validatePin } from "../lib/pinPolicy";
-import { analyse, draftToJson, emptyDraft, exampleDraft, todayInIst } from "../lib/setupDraft";
+import {
+  VEHICLE_CLASSES,
+  analyse,
+  draftToJson,
+  emptyDraft,
+  exampleDraft,
+  todayInIst,
+} from "../lib/setupDraft";
 import type { SetupDraft } from "../lib/setupDraft";
+import { SaveSetup } from "./SaveSetup";
 import { TariffStep } from "./TariffStep";
 import { Icon } from "./ui/Icon";
 import { Modal } from "./ui/Modal";
@@ -27,11 +35,24 @@ const STEPS = [
   { title: "Review", sub: "Check everything" },
 ] as const;
 
-const CLASSES = ["Car", "Two-wheeler", "Bus", "Truck"];
+const CLASSES = VEHICLE_CLASSES;
 
-export function SetupWizard() {
+/** Where "Save to this facility" writes: the session's selected facility. Null when signed out or offline. */
+export interface SaveTarget {
+  facilityName: string;
+  /** The facility's current slot count; with the name it prefills step 1 so a save never changes them by accident. */
+  slotCount: number;
+  /** The role on this facility (owner of the organisation or of this facility; otherwise manager). */
+  role: "owner" | "manager";
+}
+
+/** Keeps the target facility's current name and slot count in a draft, so loading or clearing never retypes them. */
+const withFacility = (d: SetupDraft, target: SaveTarget | null): SetupDraft =>
+  target ? { ...d, name: target.facilityName, slotCount: String(target.slotCount) } : d;
+
+export function SetupWizard({ target = null }: { target?: SaveTarget | null }) {
   const [step, setStep] = useState(0);
-  const [draft, setDraft] = useState<SetupDraft>(emptyDraft);
+  const [draft, setDraft] = useState<SetupDraft>(() => withFacility(emptyDraft(), target));
   const [today, setToday] = useState("");
   const [visited, setVisited] = useState<number[]>([0]);
   const [pin, setPin] = useState("");
@@ -83,7 +104,7 @@ export function SetupWizard() {
             <Button
               icon="sparkle"
               onClick={() => {
-                setDraft(exampleDraft(today || todayInIst()));
+                setDraft(withFacility(exampleDraft(today || todayInIst()), target));
                 toast("Example values loaded. They are not a real facility.");
               }}
             >
@@ -95,11 +116,18 @@ export function SetupWizard() {
           </>
         }
       />
-      <Banner tone="info" icon="lock" title="Nothing is saved yet">
-        This wizard checks your inputs with the real rules, but saving and activation need the
-        database, which is not connected. Your entries stay in this browser tab and are lost when
-        you leave.
-      </Banner>
+      {target ? (
+        <Banner tone="info" icon="lock" title={`Saving goes to ${target.facilityName}`}>
+          Your entries stay in this browser tab until you save them on the Review step. Saving adds
+          zones and new tariff versions to this facility; it never deletes anything. A brand-new
+          facility cannot be created here yet.
+        </Banner>
+      ) : (
+        <Banner tone="info" icon="lock" title="Nothing is saved yet">
+          This wizard checks your inputs with the real rules. Sign in and choose a facility to save
+          them. Until then your entries stay in this browser tab and are lost when you leave.
+        </Banner>
+      )}
 
       <ol className="stepper" aria-label="Setup steps">
         {STEPS.map((s, i) => (
@@ -490,17 +518,27 @@ export function SetupWizard() {
                   <Button icon="download" onClick={download} disabled={totalErrors > 0}>
                     Download draft (JSON)
                   </Button>
-                  <UnavailableButton
-                    icon="rocket"
-                    variant="primary"
-                    reason="Saving and activating a facility needs the database, sign-in and the setup-draft table, which are not connected yet."
-                  >
-                    Save and activate
-                  </UnavailableButton>
+                  {target ? (
+                    <SaveSetup
+                      draft={draft}
+                      facilityName={target.facilityName}
+                      currentSlotCount={target.slotCount}
+                      isOwner={target.role === "owner"}
+                      disabled={a.stepErrors[1] + a.stepErrors[2] + a.stepErrors[3] > 0}
+                    />
+                  ) : (
+                    <UnavailableButton
+                      icon="check"
+                      variant="primary"
+                      reason="Sign in as an owner or manager and choose a facility to save."
+                    >
+                      Save to this facility
+                    </UnavailableButton>
+                  )}
                 </div>
                 <p className="small muted">
-                  The downloaded file is a local draft. It is not saved to any facility and contains
-                  no PIN.
+                  The downloaded file is a local copy and contains no PIN. The overstay threshold is
+                  checked here but not saved yet.
                 </p>
               </div>
             </Card>
@@ -515,7 +553,7 @@ export function SetupWizard() {
                 Continue <Icon name="arrowRight" size={16} />
               </Button>
             ) : (
-              <Tip text="Activation is unavailable until the backend is connected.">
+              <Tip text="Activation is not built yet: the database has no facility status.">
                 <Button
                   variant="primary"
                   aria-disabled="true"
@@ -567,7 +605,7 @@ export function SetupWizard() {
             <ol className="checklist small">
               <li>
                 <span className="n">1</span>
-                <span>Draft saved to the database (not connected)</span>
+                <span>Zones and tariffs saved to the selected facility</span>
               </li>
               <li>
                 <span className="n">2</span>
@@ -590,7 +628,7 @@ export function SetupWizard() {
           label: "Clear all",
           danger: true,
           onConfirm: () => {
-            setDraft(emptyDraft());
+            setDraft(withFacility(emptyDraft(), target));
             setPin("");
             setStep(0);
             setVisited([0]);
@@ -609,9 +647,9 @@ export function SetupWizard() {
         title="Activation unavailable"
       >
         <p>
-          Activating a facility would make it live for guard phones. That needs the database,
-          sign-in and the setup-draft table, which other team members are still building. Your
-          inputs are checked here, but nothing was or can be saved yet.
+          Activating a facility would make it live for guard phones. That needs a facility status in
+          the database, which does not exist yet. You can already save zones and tariffs with
+          &quot;Save to this facility&quot; on the Review step.
         </p>
       </Modal>
     </>

@@ -34,10 +34,11 @@ export const FEATURES: FeatureStatus[] = [
     href: "/setup",
     state: "partial",
     works:
-      "Tariffs are built in the real contract shape and checked with the shared schema. The try-a-fare panel runs the shared fare engine. Capacity, time-rule and PIN checks run live.",
+      'Tariffs are built in the real contract shape and checked with the shared schema. The try-a-fare panel runs the shared fare engine. Capacity, time-rule and PIN checks run live. "Save to this facility" adds zones and new tariff versions to the selected facility (owners also update its name and slot count).',
     needs: [
-      "facility_setup_drafts table to save drafts (Akanksha)",
-      "Facility insert and status columns, and shift and pass-type tables, for the save and activate flow (Akanksha)",
+      "facility_setup_drafts table to keep a half-finished draft between visits (Akanksha)",
+      "Facility insert and status columns, and shift and pass-type tables, to create and activate a new facility (Akanksha)",
+      "A settings table for the overstay threshold (CON-09, Akanksha)",
     ],
   },
   {

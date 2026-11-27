@@ -71,7 +71,7 @@ describe("setup wizard analysis", () => {
     const f = exampleDraft(TODAY);
     f.tariffs = f.tariffs.slice(0, 1);
     expect(analyse(f, TODAY).classProblems).toEqual([
-      "Zones allow Two-wheeler, but there is no tariff for it.",
+      "Zones allow Bike, but there is no tariff for it.",
     ]);
   });
 

@@ -75,6 +75,7 @@ describe("offlineReason", () => {
         role: "owner",
         facilities: [],
         facility: null,
+        facilityRole: null,
       }),
     ).toMatch(/CLD-03/);
   });

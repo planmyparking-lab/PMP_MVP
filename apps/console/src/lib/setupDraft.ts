@@ -64,6 +64,13 @@ export interface SetupDraft {
   overstay: string;
 }
 
+/**
+ * Vehicle classes offered by the wizard. They must be the exact strings the gate app records on ENTRY and looks up
+ * tariffs with (`apps/gate/src/data/appConfig.ts`: Car, Bike, Truck), or a saved tariff would never match a vehicle.
+ * The final list per partner is OQ-13.
+ */
+export const VEHICLE_CLASSES = ["Car", "Bike", "Truck"] as const;
+
 export const newTariff = (vehicleClass = "Car"): TariffDraft => ({
   vehicleClass,
   model: "HOURLY_SLABS",
@@ -96,7 +103,7 @@ export const exampleDraft = (today: string): SetupDraft => ({
   slotCount: "180",
   zones: [
     { name: "Basement A", capacity: "100", vehicleClass: "Car" },
-    { name: "Two-wheeler bay", capacity: "80", vehicleClass: "Two-wheeler" },
+    { name: "Two-wheeler bay", capacity: "80", vehicleClass: "Bike" },
   ],
   tariffs: [
     {
@@ -109,7 +116,7 @@ export const exampleDraft = (today: string): SetupDraft => ({
       repeatPrice: "20",
       dayCap: "300",
     },
-    { ...newTariff("Two-wheeler"), model: "FLAT", flat: "20" },
+    { ...newTariff("Bike"), model: "FLAT", flat: "20" },
   ],
   grace: "15",
   nightOn: true,
@@ -251,6 +258,10 @@ export function buildTariffs(d: SetupDraft): BuiltTariff[] {
   });
 }
 
+/** Slot counts and capacities are Postgres integer columns; a larger number would fail only when saving. */
+const MAX_COUNT = 2_147_483_647;
+const TOO_LARGE = "That number is too large.";
+
 export interface Analysis {
   facility: { name?: string; slotCount?: string };
   zones: { name?: string; capacity?: string; vehicleClass?: string }[];
@@ -281,12 +292,14 @@ export function analyse(d: SetupDraft, todayIst: string): Analysis {
   if (d.name.trim() === "") a.facility.name = "Give the facility a name.";
   const slots = whole(d.slotCount);
   if (slots === null) a.facility.slotCount = "Enter the number of parking slots (a whole number).";
+  else if (slots > MAX_COUNT) a.facility.slotCount = TOO_LARGE;
 
   d.zones.forEach((z, i) => {
     const err: Analysis["zones"][number] = {};
     if (z.name.trim() === "") err.name = "Name the zone.";
     if (!validateZoneCapacity(whole(z.capacity)))
       err.capacity = "Capacity must be a whole number of at least 1.";
+    else if ((whole(z.capacity) ?? 0) > MAX_COUNT) err.capacity = TOO_LARGE;
     if (z.vehicleClass.trim() === "") err.vehicleClass = "Choose a vehicle class.";
     a.zones[i] = err;
   });

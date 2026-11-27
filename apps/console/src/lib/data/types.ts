@@ -26,10 +26,13 @@ export type ConsoleSession =
       /** auth.users id of the signed-in user (attributes reviews; never taken from a request). */
       userId: string;
       email: string;
+      /** "owner" if the user owns anything. Display only; for permissions on a facility use `facilityRole`. */
       role: "owner" | "manager";
       facilities: FacilitySummary[];
       /** Null when memberships exist but no facility row is readable yet. */
       facility: FacilitySummary | null;
+      /** The user's role on `facility` (same rule as `is_member()` in 0010); null when `facility` is null. */
+      facilityRole: "owner" | "manager" | null;
     };
 
 export interface ZoneLive {
