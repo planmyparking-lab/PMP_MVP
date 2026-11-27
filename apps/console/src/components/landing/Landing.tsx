@@ -96,7 +96,17 @@ function Wordmark() {
   );
 }
 
-export function Landing({ signIn }: { signIn: ReactNode }) {
+/**
+ * `signIn` fills the card: the real LoginForm for a signed-out visitor, or a "go to the Dashboard" panel when
+ * `account` is set (a signed-in user who opened /welcome from the Console).
+ */
+export function Landing({
+  signIn,
+  account = null,
+}: {
+  signIn: ReactNode;
+  account?: { email: string } | null;
+}) {
   return (
     <div className="lp" id="top">
       {/* ---------- hero: full-bleed first screen; the skyline and road are visible on load ---------- */}
@@ -123,9 +133,15 @@ export function Landing({ signIn }: { signIn: ReactNode }) {
                 <a className="lp-btn lp-btn-ghost lp-help" href="#how">
                   Help
                 </a>
-                <a className="lp-btn lp-btn-lime" href="#signin">
-                  Login
-                </a>
+                {account ? (
+                  <a className="lp-btn lp-btn-lime" href="/">
+                    Dashboard
+                  </a>
+                ) : (
+                  <a className="lp-btn lp-btn-lime" href="#signin">
+                    Login
+                  </a>
+                )}
               </div>
             </nav>
 
@@ -139,8 +155,10 @@ export function Landing({ signIn }: { signIn: ReactNode }) {
                     <Icon name="lock" size={13} /> Owners and managers
                   </span>
                 </div>
-                <h2 id="signin-title">Sign in to the Console</h2>
-                <p className="lp-card-lead">See your facility, your gates and your shifts.</p>
+                <h2 id="signin-title">{account ? "You're signed in" : "Sign in to the Console"}</h2>
+                <p className={account ? "lp-card-lead lp-card-email" : "lp-card-lead"}>
+                  {account ? account.email : "See your facility, your gates and your shifts."}
+                </p>
                 {signIn}
                 <div className="lp-guard">
                   <Icon name="device" size={16} />
@@ -366,7 +384,7 @@ export function Landing({ signIn }: { signIn: ReactNode }) {
             <a href="#features">Features</a>
             <a href="#how">How it works</a>
             <a href="#contact">Contact</a>
-            <a href="/login">Console sign in</a>
+            <a href="#signin">Console sign in</a>
           </nav>
           <span>© {new Date().getFullYear()} PlanMyParking</span>
         </div>

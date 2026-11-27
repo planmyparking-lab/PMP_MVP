@@ -9,13 +9,26 @@ import {
   initialLot,
   nextLotStep,
 } from "../src/components/landing/LandingDemos";
-import { isBareLayout, isLandingVisit, showsLanding } from "../src/lib/landingRoute";
+import { isBareLayout, isLandingVisit, showsLanding, signInUrl } from "../src/lib/landingRoute";
 
 describe("landing route rules", () => {
-  it("a signed-out visitor may load / ; every other path still goes to /login", () => {
+  it("a signed-out visitor may load / ; every other protected path still needs a sign-in", () => {
     expect(isLandingVisit("/", false)).toBe(true);
     expect(isLandingVisit("/occupancy", false)).toBe(false);
     expect(isLandingVisit("/", true)).toBe(false);
+  });
+
+  it("/welcome is open to everyone, so a signed-in user can get back to the landing page", () => {
+    expect(isLandingVisit("/welcome", true)).toBe(true);
+    expect(isLandingVisit("/welcome", false)).toBe(true);
+    expect(isBareLayout("/welcome", "ok")).toBe(true);
+    expect(isBareLayout("/welcome", "signed-out")).toBe(true);
+  });
+
+  it("sign-in happens on the landing page and remembers the page that was asked for", () => {
+    expect(signInUrl("/")).toBe("/");
+    expect(signInUrl("/shifts")).toBe("/?next=%2Fshifts");
+    expect(signInUrl("/reports?type=daily")).toBe("/?next=%2Freports%3Ftype%3Ddaily");
   });
 
   it("only a signed-out session sees the landing page; offline keeps the dashboard preview", () => {
@@ -40,6 +53,17 @@ describe("landing page", () => {
   it("renders the sign-in slot it is given (the real LoginForm in app/page.tsx)", () => {
     expect(html).toContain('data-testid="real-login"');
     expect(html).toContain('id="signin"');
+    expect(html).toContain("Sign in to the Console");
+  });
+
+  it("for a signed-in user (/welcome): shows their email and a Dashboard button instead of Login", () => {
+    const signedIn = renderToStaticMarkup(
+      <Landing account={{ email: "owner@demo.pmp.test" }} signIn={<a data-testid="dash" />} />,
+    );
+    expect(signedIn).toContain("You&#x27;re signed in");
+    expect(signedIn).toContain("owner@demo.pmp.test");
+    expect(signedIn).toContain('href="/">Dashboard</a>');
+    expect(signedIn).not.toContain(">Login</a>");
   });
 
   it("shows the team's LinkedIn page and phone number", () => {

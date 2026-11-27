@@ -6,6 +6,7 @@ import { loadFacilityLive } from "../src/lib/data/facility";
 import { offlineReason } from "../src/lib/data/reason";
 import { getConsoleSession } from "../src/lib/data/session";
 import { showsLanding } from "../src/lib/landingRoute";
+import { sanitizeRedirect } from "../src/lib/safeRedirect";
 import "./landing.css";
 
 /** Landing title and description only for signed-out visitors; the Dashboard keeps the layout's title. */
@@ -20,10 +21,17 @@ export async function generateMetadata() {
 }
 
 /** Signed out: the public landing page with the real sign-in form. Signed in (or offline preview): the Dashboard. */
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const session = await getConsoleSession();
   if (showsLanding(session.kind)) {
-    return <Landing signIn={<LoginForm next="/" configured />} />;
+    // A visitor sent here from a protected page signs in and goes back to it.
+    const params = await searchParams;
+    const next = sanitizeRedirect(typeof params.next === "string" ? params.next : "/");
+    return <Landing signIn={<LoginForm next={next} configured />} />;
   }
 
   const live = await loadFacilityLive();

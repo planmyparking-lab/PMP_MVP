@@ -43,7 +43,8 @@ export async function signOut(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   if (supabase) await supabase.auth.signOut();
   (await cookies()).delete(FACILITY_COOKIE);
-  redirect("/login");
+  // Back to the landing page, which carries the sign-in form.
+  redirect("/");
 }
 
 /** CON-02 multi-site switcher. Only a facility the user may open is accepted. */
