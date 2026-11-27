@@ -23,10 +23,10 @@ import type { HealthSnapshot } from "./ic02";
  * call, so a crash or a thrown error mid-write leaves neither — never an orphaned outbox row with
  * no event, and never an event with no queue entry to retry it.
  *
- * `writeEventsAndEnqueue` is the batch form backing IC-02's proposed `writeTransaction` (OQ-37,
- * `apps/gate/src/data/ic02.ts`): EXIT+PAYMENT[+OVERRIDE] land in the SAME transaction, so a crash
- * mid-batch leaves none of them, never a subset. `writeEventAndEnqueue` is defined in terms of it
- * (a one-event batch), so the two can never drift apart.
+ * `writeEventsAndEnqueue` is the batch form backing IC-02's confirmed `writeTransaction` (OQ-37,
+ * Resolved, `apps/gate/src/data/ic02.ts`): EXIT+PAYMENT[+OVERRIDE] land in the SAME transaction,
+ * so a crash mid-batch leaves none of them, never a subset. `writeEventAndEnqueue` is defined in
+ * terms of it (a one-event batch), so the two can never drift apart.
  */
 
 export class OutboxValidationError extends Error {
@@ -208,15 +208,16 @@ export class SqliteOutboxStore implements OutboxStore {
     return this.writeEventsAndEnqueue([event]);
   }
 
-  /** Batch form backing IC-02's proposed `writeTransaction` (OQ-37): every event and its outbox
-   * row are inserted in ONE `withTransactionAsync` call, so a batch is stored whole or not at all —
-   * never a subset (the GATE-02/GATE-04 EXIT+PAYMENT[+OVERRIDE] requirement). An empty array is a
-   * safe no-op: nothing to validate, no transaction opened. Every event is IC-01-validated BEFORE
-   * the transaction opens (same ordering as the single-event path), so a bad event anywhere in the
-   * batch never touches the database. Duplicate ids follow `writeEventAndEnqueue`'s own rule,
-   * applied per event, including across two entries of the SAME batch that share an id (the second
-   * sees the first's not-yet-committed row within the same transaction): identical content is a
-   * silent no-op, differing content raises `OutboxCollisionError` and rolls back the whole batch. */
+  /** Batch form backing IC-02's confirmed `writeTransaction` (OQ-37, Resolved): every event and
+   * its outbox row are inserted in ONE `withTransactionAsync` call, so a batch is stored whole or
+   * not at all — never a subset (the GATE-02/GATE-04 EXIT+PAYMENT[+OVERRIDE] requirement). An
+   * empty array is a safe no-op: nothing to validate, no transaction opened. Every event is
+   * IC-01-validated BEFORE the transaction opens (same ordering as the single-event path), so a
+   * bad event anywhere in the batch never touches the database. Duplicate ids follow
+   * `writeEventAndEnqueue`'s own rule, applied per event, including across two entries of the
+   * SAME batch that share an id (the second sees the first's not-yet-committed row within the
+   * same transaction): identical content is a silent no-op, differing content raises
+   * `OutboxCollisionError` and rolls back the whole batch. */
   async writeEventsAndEnqueue(events: readonly Event[]): Promise<void> {
     if (events.length === 0) return;
     const stored: Event[] = [];
@@ -266,10 +267,10 @@ export class SqliteOutboxStore implements OutboxStore {
 
   /** All events ever locally written, oldest first by `device_time_ms` (see its doc comment on
    * `SCHEMA` for why not the `device_time` text column) — the gate's local event log for the
-   * exit/payment duplicate guards in `writeEvent.ts` (`WriteDeps.readEvents`, OQ-37's "events-read
-   * API"). Every row re-validates (events were IC-01-valid at write time; parity is checked here
-   * rather than assumed). Goes through `withWriteLock` so it never sees a row from an in-flight
-   * write that later rolls back. */
+   * exit/payment duplicate guards in `writeEvent.ts` (`WriteDeps.readEvents`, the confirmed
+   * OQ-37 "events-read API"). Every row re-validates (events were IC-01-valid at write time;
+   * parity is checked here rather than assumed). Goes through `withWriteLock` so it never sees a
+   * row from an in-flight write that later rolls back. */
   async listEvents(): Promise<Event[]> {
     const rows = await this.withWriteLock(() =>
       this.db.getAllAsync<EventRow>(

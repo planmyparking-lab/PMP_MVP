@@ -6,7 +6,7 @@ at `1cc9cc5` on 13 Nov 2026 after review.
 
 **Status: DRAFT. This is not legal advice and nothing here has had legal review.** The retention period, the consent text and
 the exact legal duties are open (OQ-12, owner: team with a mentor) and are deliberately **not** filled in below. The
-mechanisms in section 3 are the design in the member sheet; **none of them is implemented** (`0011`, `data_export`, the
+mechanisms in section 3 are the design in the member sheet; **none of them is implemented** (`retention_and_export`, `data_export`, the
 purge job and facility deletion do not exist). No hosted database exists yet either (`ops/known-limitations.md`, L1), so
 today no real personal data is stored anywhere by this system.
 
@@ -45,13 +45,13 @@ location; no photographs (none exist in the schema).
 
 From the member sheet, CLD-08. Names and paths are recommendations (R) unless the sheet marks them (H).
 
-| Need                         | Design                                                                                                                                                                                                                                                                                                     | Status             |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
-| Retention                    | `facilities.retention_days`; nightly `retention_purge` run as a dedicated role that alone may delete events; never purges the entries of sessions that have not exited; failure leaves data intact and alerts.                                                                                             | Not built (`0011`) |
-| Export (access, portability) | `data_export` Edge Function: owner of the organization only, one facility per call, a zip of CSVs for `events`, `facilities`, `zones`, `tariffs`, `passes`, `shifts`, `overrides`; all or nothing; reads a snapshot.                                                                                       | Not built          |
-| Deletion                     | Facility deletion function with two-step confirmation and an optional 7-day hold; deletes rows in dependency order and storage objects; keeps only the facility id and a timestamp in `audit_log`.                                                                                                         | Not built          |
-| Audit                        | Append-only `audit_log` entry for every export and deletion, holding no personal data.                                                                                                                                                                                                                     | Table not created  |
-| Correction                   | Not in the sheet. Since PR #34 merged (`0010_rls.sql`, 13 Nov 2026), the database allows an owner or manager to update a guard's name and phone in their facility, but the Console form for this edit has not been built yet. A wrong event is corrected by an `OVERRIDE` event, never by editing history. | Partly possible    |
+| Need                         | Design                                                                                                                                                                                                                                                                                                     | Status                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| Retention                    | `facilities.retention_days`; nightly `retention_purge` run as a dedicated role that alone may delete events; never purges the entries of sessions that have not exited; failure leaves data intact and alerts.                                                                                             | Not built (`retention_and_export`, OQ-64) |
+| Export (access, portability) | `data_export` Edge Function: owner of the organization only, one facility per call, a zip of CSVs for `events`, `facilities`, `zones`, `tariffs`, `passes`, `shifts`, `overrides`; all or nothing; reads a snapshot.                                                                                       | Not built                                 |
+| Deletion                     | Facility deletion function with two-step confirmation and an optional 7-day hold; deletes rows in dependency order and storage objects; keeps only the facility id and a timestamp in `audit_log`.                                                                                                         | Not built                                 |
+| Audit                        | Append-only `audit_log` entry for every export and deletion, holding no personal data.                                                                                                                                                                                                                     | Table not created                         |
+| Correction                   | Not in the sheet. Since PR #34 merged (`0010_rls.sql`, 13 Nov 2026), the database allows an owner or manager to update a guard's name and phone in their facility, but the Console form for this edit has not been built yet. A wrong event is corrected by an `OVERRIDE` event, never by editing history. | Partly possible                           |
 
 The CSV column names are a contract (the sheet says they must be stable and documented here). They cannot be fixed until
 `data_export` is written, so this file does **not** list them; add them when the function exists.
@@ -81,5 +81,5 @@ database holds real data, a request should follow these steps. Every step that d
 ## 5. What is needed to finish this document
 
 - Answers to D1 to D6 (legal review through the university or a mentor, OQ-12).
-- `0011` and `data_export` written, so section 3 can state real behaviour and section 3's CSV columns can be listed.
+- `retention_and_export` and `data_export` written, so section 3 can state real behaviour and section 3's CSV columns can be listed.
 - A test run for T-CLD-08-I1 to I3, N1 to N3 and X1 (sheet D.8), with the evidence linked here. None has been run.

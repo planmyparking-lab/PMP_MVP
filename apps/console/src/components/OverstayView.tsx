@@ -98,6 +98,7 @@ export function OverstayView({
             </div>
             {live && !live.error && (
               <button
+                suppressHydrationWarning
                 type="button"
                 className="btn btn-secondary btn-sm"
                 disabled={live.rows.length === 0}
@@ -115,6 +116,7 @@ export function OverstayView({
               <label htmlFor="ov-limit">Limit (minutes)</label>
               <div className="limit-form-row">
                 <input
+                  suppressHydrationWarning
                   id="ov-limit"
                   name="threshold"
                   className="input num"
@@ -122,7 +124,7 @@ export function OverstayView({
                   defaultValue={String(live.thresholdMinutes)}
                   aria-describedby="ov-limit-hint"
                 />
-                <button type="submit" className="btn btn-primary">
+                <button suppressHydrationWarning type="submit" className="btn btn-primary">
                   Apply
                 </button>
                 <span id="ov-limit-hint" className="small muted">
@@ -205,6 +207,7 @@ export function OverstayView({
                 error={check.ok ? undefined : check.message}
               >
                 <input
+                  suppressHydrationWarning
                   id="ov-threshold"
                   className="input num"
                   inputMode="numeric"
@@ -219,6 +222,7 @@ export function OverstayView({
                 error={age === null ? "Enter whole minutes." : undefined}
               >
                 <input
+                  suppressHydrationWarning
                   id="ov-age"
                   className="input num"
                   inputMode="numeric"

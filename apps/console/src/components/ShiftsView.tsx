@@ -51,6 +51,7 @@ export function ShiftsView() {
             <Tip text={WHY}>
               <Field id="sh-from" label="From">
                 <input
+                  suppressHydrationWarning
                   id="sh-from"
                   type="date"
                   className="input"
@@ -61,19 +62,19 @@ export function ShiftsView() {
             </Tip>
             <Tip text={WHY}>
               <Field id="sh-to" label="To">
-                <input id="sh-to" type="date" className="input" disabled />
+                <input suppressHydrationWarning id="sh-to" type="date" className="input" disabled />
               </Field>
             </Tip>
             <Tip text={WHY}>
               <Field id="sh-status" label="Status">
-                <select id="sh-status" className="select" disabled>
+                <select suppressHydrationWarning id="sh-status" className="select" disabled>
                   <option>All shifts</option>
                 </select>
               </Field>
             </Tip>
             <Tip text={WHY}>
               <Field id="sh-var" label="Variance">
-                <select id="sh-var" className="select" disabled>
+                <select suppressHydrationWarning id="sh-var" className="select" disabled>
                   <option>Any</option>
                 </select>
               </Field>

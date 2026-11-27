@@ -1262,3 +1262,39 @@ table.data tr.row-attention td {
   display: grid;
   gap: 2px;
 }
+
+/* ---------- row actions and notes (CON-02, CON-07) ---------- */
+.row-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+/* A dialog opened from a table cell is a descendant of that cell, so it must not inherit the cell's text layout
+   (nowrap and right alignment pushed the confirm dialog's text past its edge). */
+dialog.modal {
+  white-space: normal;
+  text-align: left;
+}
+.note-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+  max-height: 240px;
+  overflow: auto;
+}
+.note-list li {
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--off-bg);
+  border: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- physical count check on a zone card (CON-04, MET-01) ---------- */
+.zone-check {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line);
+  line-height: 1.6;
+}

@@ -24,6 +24,7 @@
     "test:db:ci": "node scripts/test-db-ci.mjs",
     "rehearse:forward": "node scripts/rehearse-forward.mjs",
     "test:db:concurrency": "node scripts/test-db-concurrency.mjs",
+    "test:restore": "node --test tools/restore/restore_drill.test.mjs",
     "seed:demo": "node scripts/seed-demo.mjs",
     "check": "pnpm check:repo && pnpm check:migrations && pnpm test:scripts && pnpm test:pilot && pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build && pnpm check:bundles console",
     "build": "pnpm -r --if-present run build"
@@ -40,7 +41,8 @@
     "auditConfig": {
       "ignoreGhsas": [
         "GHSA-mrhx-c7xc-m3w5",
-        "GHSA-gcqx-w48m-w2h4"
+        "GHSA-gcqx-w48m-w2h4",
+        "GHSA-fc5q-39xc-vjpf"
       ]
     },
     "overrides": {

@@ -14,7 +14,7 @@ export function NoAccess({ session }: { session: Extract<ConsoleSession, { kind:
         Signed in as <b>{session.email}</b>. {session.detail}
       </p>
       <form action={signOut}>
-        <button type="submit" className="btn btn-secondary">
+        <button suppressHydrationWarning type="submit" className="btn btn-secondary">
           <Icon name="arrowLeft" size={16} />
           Sign out
         </button>

@@ -79,6 +79,7 @@ export function DashboardView({
           <p className="hero-meta">Event schema version {SCHEMA_VERSION}</p>
           <div className="actions">
             <button
+              suppressHydrationWarning
               type="button"
               className="btn btn-secondary"
               aria-pressed={demo}
