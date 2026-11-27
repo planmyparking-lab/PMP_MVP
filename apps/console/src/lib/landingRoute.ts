@@ -20,6 +20,14 @@ export function showsLanding(kind: ConsoleSession["kind"]): boolean {
   return kind === "signed-out";
 }
 
+/** A signed-in session: an owner or manager ("ok"), or a user with an account but no readable membership ("denied").
+ * Offline and signed-out are not. One definition for every page that needs it (app/welcome/page.tsx), so it cannot
+ * drift from `showsLanding`. A type guard, so the caller can read `session.email` afterwards. */
+export type SignedInSession = Extract<ConsoleSession, { kind: "ok" | "denied" }>;
+export function isSignedIn(session: ConsoleSession): session is SignedInSession {
+  return session.kind === "ok" || session.kind === "denied";
+}
+
 /** AppShell: pages that render full-bleed, without the Console sidebar and top bar. */
 export function isBareLayout(path: string, kind: ConsoleSession["kind"]): boolean {
   return (

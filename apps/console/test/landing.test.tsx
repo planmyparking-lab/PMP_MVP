@@ -9,7 +9,14 @@ import {
   initialLot,
   nextLotStep,
 } from "../src/components/landing/LandingDemos";
-import { isBareLayout, isLandingVisit, showsLanding, signInUrl } from "../src/lib/landingRoute";
+import type { ConsoleSession } from "../src/lib/data/types";
+import {
+  isBareLayout,
+  isLandingVisit,
+  isSignedIn,
+  showsLanding,
+  signInUrl,
+} from "../src/lib/landingRoute";
 
 describe("landing route rules", () => {
   it("a signed-out visitor may load / ; every other protected path still needs a sign-in", () => {
@@ -36,6 +43,23 @@ describe("landing route rules", () => {
     expect(showsLanding("offline")).toBe(false);
     expect(showsLanding("ok")).toBe(false);
     expect(showsLanding("denied")).toBe(false);
+  });
+
+  it("isSignedIn: owners, managers and users without a membership are signed in; offline and signed-out are not", () => {
+    const ok = { kind: "ok", email: "a@b.test" } as unknown as ConsoleSession;
+    const denied: ConsoleSession = { kind: "denied", email: "a@b.test", detail: "no membership" };
+    expect(isSignedIn(ok)).toBe(true);
+    expect(isSignedIn(denied)).toBe(true);
+    expect(isSignedIn({ kind: "signed-out" })).toBe(false);
+    expect(isSignedIn({ kind: "offline" })).toBe(false);
+  });
+
+  it("every session is either shown the landing page, or signed in, or offline: the rules never overlap", () => {
+    const kinds = ["offline", "signed-out", "denied", "ok"] as const;
+    for (const kind of kinds) {
+      const session = { kind, email: "a@b.test", detail: "" } as unknown as ConsoleSession;
+      expect(Number(showsLanding(kind)) + Number(isSignedIn(session))).toBeLessThanOrEqual(1);
+    }
   });
 
   it("the landing page and /login render without the Console sidebar; the dashboard keeps it", () => {

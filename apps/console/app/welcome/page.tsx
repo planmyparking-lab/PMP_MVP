@@ -2,6 +2,7 @@ import { Landing } from "../../src/components/landing/Landing";
 import { LoginForm } from "../../src/components/LoginForm";
 import { Icon } from "../../src/components/ui/Icon";
 import { getConsoleSession } from "../../src/lib/data/session";
+import { isSignedIn } from "../../src/lib/landingRoute";
 import { readSupabaseEnv } from "../../src/lib/supabase/env";
 import { signOut } from "../actions";
 import "../landing.css";
@@ -18,9 +19,8 @@ export const metadata = {
  */
 export default async function Welcome() {
   const session = await getConsoleSession();
-  const signedIn = session.kind === "ok" || session.kind === "denied";
 
-  if (!signedIn) {
+  if (!isSignedIn(session)) {
     return <Landing signIn={<LoginForm next="/" configured={readSupabaseEnv() !== null} />} />;
   }
 
