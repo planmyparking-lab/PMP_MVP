@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { readSupabaseEnv } from "./src/lib/supabase/env";
 import { sanitizeRedirect } from "./src/lib/safeRedirect";
+import { isLandingVisit, signInUrl } from "./src/lib/landingRoute";
 
 /** Paths reachable without a session. The report route has its own shared-secret check (CON-08). */
 const PUBLIC_PATHS = ["/login"];
@@ -44,16 +45,18 @@ export async function proxy(request: NextRequest) {
     signedIn = false;
   }
 
+  // The landing page is public: "/" while signed out (signed in, "/" is the Dashboard), "/welcome" always.
+  if (isLandingVisit(path, signedIn)) return response;
+
   const isPublic = PUBLIC_PATHS.includes(path);
   if (!signedIn && !isPublic) {
     if (path.startsWith("/api/")) {
       return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
     }
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.search = "";
-    url.searchParams.set("next", sanitizeRedirect(path + request.nextUrl.search));
-    return NextResponse.redirect(url);
+    // Sign in happens on the landing page, which keeps the requested page in ?next=.
+    return NextResponse.redirect(
+      new URL(signInUrl(sanitizeRedirect(path + request.nextUrl.search)), request.url),
+    );
   }
   if (signedIn && isPublic) {
     const target = sanitizeRedirect(request.nextUrl.searchParams.get("next"));
