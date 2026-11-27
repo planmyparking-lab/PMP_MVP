@@ -6,6 +6,11 @@ name: Create release tag
 # `release-approval` environment's required reviewers (Afzal, Akanksha — named individually, which Environments
 # support even though Rulesets don't). The v* ruleset blocks every direct tag push so this is also the only way
 # a v* tag can be created at all, not just the recommended one.
+#
+# OQ-71: the tag push below authenticates with the release-approval environment's own RELEASE_TAG_PAT, not the
+# default GITHUB_TOKEN. GitHub does not re-trigger other workflows for a push authored by GITHUB_TOKEN (its own
+# anti-recursion rule, confirmed 27 Nov 2026: deploy-prod.yml never ran after this workflow pushed v0.0.0-test with
+# the default token), so deploy-prod.yml's `on: push: tags: ["v*"]` would otherwise never fire from here at all.
 on:
   workflow_dispatch:
     inputs:
@@ -46,10 +51,17 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: RELEASE_TAG_PAT must be set
+        if: ${{ secrets.RELEASE_TAG_PAT == '' }}
+        run: |
+          echo "::error::release-approval environment secret RELEASE_TAG_PAT is not set, so a pushed tag would never trigger deploy-prod.yml (OQ-71). Fine-grained PAT, Contents: Read and write, scoped to only this repository."
+          exit 1
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
           fetch-depth: 1
+          # A PAT, not the default GITHUB_TOKEN: see the OQ-71 note above the `on:` trigger.
+          token: ${{ secrets.RELEASE_TAG_PAT }}
       - name: Tag must not already exist
         env:
           TAG: ${{ inputs.tag }}
