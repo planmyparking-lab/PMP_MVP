@@ -62,7 +62,7 @@ const FEATURES: { icon: IconName; title: string; body: string; where: string; wi
   {
     icon: "file",
     title: "Owner reports",
-    body: "Daily, weekly and monthly reports: vehicles, revenue by payment mode and overrides, as Excel or PDF.",
+    body: "Daily, weekly and monthly report templates: vehicles, revenue by payment mode and overrides, with Excel output.",
     where: "Console",
     wide: true,
   },

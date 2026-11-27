@@ -1,0 +1,68 @@
+name: Create release tag
+
+# D6 / OQ-68: GitHub Rulesets on this personal-account repository can only restrict tag creation by role or team,
+# never by named individual (no Teams exist here, and no assignable role sits between Write and Admin). This
+# workflow is the actual substitute: the only sanctioned way to create a v* tag is through here, gated by the
+# `release-approval` environment's required reviewers (Afzal, Akanksha — named individually, which Environments
+# support even though Rulesets don't). The v* ruleset blocks every direct tag push so this is also the only way
+# a v* tag can be created at all, not just the recommended one.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create (vMAJOR.MINOR.PATCH[-pre]), e.g. v1.2.3"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  # Runs with no approval and no secrets: a malformed request is rejected before anyone is asked to approve it.
+  validate:
+    name: validate-tag
+    runs-on: ubuntu-latest
+    steps:
+      - name: Must be requested against main
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo "::error::Run this from main, not ${{ github.ref }} — a release tag is always the tip of main (docs/release.md)."
+          exit 1
+      - name: Tag must match vMAJOR.MINOR.PATCH[-pre]
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          echo "$TAG" | grep -Eq '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z][0-9A-Za-z.-]*)?$' || {
+            echo "::error::'$TAG' does not match vMAJOR.MINOR.PATCH[-pre] (scripts/deploy-preflight.mjs isReleaseTag)."
+            exit 1
+          }
+
+  # The approval gate: pauses here for one of release-approval's named reviewers before anything below runs.
+  create-tag:
+    name: create-tag
+    needs: validate
+    environment: release-approval
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: main
+          fetch-depth: 1
+      - name: Tag must not already exist
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "::error::$TAG already exists on origin."
+            exit 1
+          fi
+      - name: Create and push the tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG, approved via release-approval environment (run ${{ github.run_id }})"
+          git push origin "refs/tags/$TAG"
