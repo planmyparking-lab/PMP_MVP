@@ -1,5 +1,5 @@
 import { parseEvent, type Event } from "@pmp/contracts";
-import type { OutboxRow, OutboxStore, RowUpdate } from "@pmp/sync-rules";
+import type { OutboxRow, OutboxStore, QuarantinedRow, RowUpdate } from "@pmp/sync-rules";
 
 import type { GateSqliteDb } from "./gateSqliteDb";
 import { formatEventIssues } from "./eventIssues";
@@ -95,6 +95,29 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
+/** `type` field of a quarantined row's stored JSON, for `quarantined()`'s display list — never
+ * throws, so one corrupt `event_json` row can never take down the whole listing (the row's
+ * id/attempts/code/createdAt all come from separate SQL columns and stay intact either way). A
+ * row whose JSON cannot be parsed, or parses to a shape with no string `type`, is still returned
+ * labelled `UNPARSEABLE_EVENT` rather than dropped — dropping it would hide a real, already-
+ * quarantined row from the operator who needs to see it. Can never collide with a real IC-01
+ * event type (`ENTRY`/`EXIT`/`PAYMENT`/`OVERRIDE`/`ZONE_COUNT`/`SHIFT_OPEN`/`SHIFT_CLOSE`). */
+function quarantinedRowType(eventJson: string): string {
+  try {
+    const parsed: unknown = JSON.parse(eventJson);
+    if (
+      parsed !== null &&
+      typeof parsed === "object" &&
+      typeof (parsed as { type?: unknown }).type === "string"
+    ) {
+      return (parsed as { type: string }).type;
+    }
+    return "UNPARSEABLE_EVENT";
+  } catch {
+    return "UNPARSEABLE_EVENT";
+  }
+}
+
 interface EventRow {
   id: string;
   event_json: string;
@@ -110,6 +133,13 @@ interface QueueHealthRow {
   pending_count: number | null;
   quarantined_count: number | null;
   oldest_pending_device_time_ms: number | null;
+}
+interface QuarantinedJoinRow {
+  id: string;
+  event_json: string;
+  device_time: string;
+  attempts: number;
+  code: string | null;
 }
 interface DeviceTimeMsMigrationRow {
   id: string;
@@ -309,6 +339,38 @@ export class SqliteOutboxStore implements OutboxStore {
       event: JSON.parse(row.event_json) as unknown,
       attempts: row.attempts,
       deviceTime: row.device_time,
+    }));
+  }
+
+  /** `OutboxStore.quarantined` (SYNC-06, OQ-66): up to `limit` QUARANTINED rows, newest first by
+   * `device_time_ms` then id — a long-quarantined backlog doesn't bury what just failed. Mirrors
+   * `pending()`'s shape (same join, same `withWriteLock` reasoning: a row this returns is always
+   * already committed) with the opposite sort direction and state filter. `type` is read directly
+   * from the stored event's own JSON via `quarantinedRowType` (never re-validated here;
+   * `listEvents()` already does that for callers who need it) — this is a display list, not a
+   * payload reader, so the raw `type` field is all it takes without parsing the rest. A row whose
+   * `event_json` cannot be parsed is still listed (`UNPARSEABLE_EVENT`), never dropped and never
+   * failing the whole call — the DB columns backing `id`/`attempts`/`code`/`createdAt` are
+   * independent of the JSON blob's health. `code` defaults to `""` for the SQL schema's nullable
+   * column, though `Uploader.run()` always sets one when it quarantines a row. */
+  async quarantined(limit: number): Promise<QuarantinedRow[]> {
+    const rows = await this.withWriteLock(() =>
+      this.db.getAllAsync<QuarantinedJoinRow>(
+        `SELECT e.id as id, e.event_json as event_json, e.device_time as device_time,
+                o.attempts as attempts, o.code as code
+       FROM gate_outbox o JOIN gate_events e ON e.id = o.id
+       WHERE o.state = 'QUARANTINED'
+       ORDER BY e.device_time_ms DESC, e.id DESC
+       LIMIT ?`,
+        [limit],
+      ),
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      type: quarantinedRowType(row.event_json),
+      attempts: row.attempts,
+      code: row.code ?? "",
+      createdAt: row.device_time,
     }));
   }
 
