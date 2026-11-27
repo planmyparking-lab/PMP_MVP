@@ -2,10 +2,12 @@ name: Create release tag
 
 # D6 / OQ-68: GitHub Rulesets on this personal-account repository can only restrict tag creation by role or team,
 # never by named individual (no Teams exist here, and no assignable role sits between Write and Admin). This
-# workflow is the actual substitute: the only sanctioned way to create a v* tag is through here, gated by the
-# `release-approval` environment's required reviewers (Afzal, Akanksha — named individually, which Environments
-# support even though Rulesets don't). The v* ruleset blocks every direct tag push so this is also the only way
-# a v* tag can be created at all, not just the recommended one.
+# workflow is the recommended way to create a v* tag, gated by the `release-approval` environment's required
+# reviewers (Afzal, Akanksha — named individually, which Environments support even though Rulesets don't). OQ-68
+# is still open: no ruleset actually blocks a direct `git push origin v1.2.3` by anyone with write access (the
+# Integration-bypass approach needed to build one was rejected by the API — an Organization-only feature), so this
+# is a team-discipline norm, not an enforced one. The PAT below (OQ-71) needs only ordinary write access for the
+# same reason; it does not need to belong to a bypass actor, because there is no such ruleset to bypass.
 #
 # OQ-71: the tag push below authenticates with the release-approval environment's own RELEASE_TAG_PAT, not the
 # default GITHUB_TOKEN. GitHub does not re-trigger other workflows for a push authored by GITHUB_TOKEN (its own
@@ -52,10 +54,15 @@ jobs:
       contents: write
     steps:
       - name: RELEASE_TAG_PAT must be set
-        if: ${{ secrets.RELEASE_TAG_PAT == '' }}
+        env:
+          # The secrets context cannot be used directly in a step `if:` (GitHub Actions rejects the whole workflow
+          # file as invalid if it is); map it through env and check in the script instead.
+          PAT: ${{ secrets.RELEASE_TAG_PAT }}
         run: |
-          echo "::error::release-approval environment secret RELEASE_TAG_PAT is not set, so a pushed tag would never trigger deploy-prod.yml (OQ-71). Fine-grained PAT, Contents: Read and write, scoped to only this repository."
-          exit 1
+          if [ -z "$PAT" ]; then
+            echo "::error::release-approval environment secret RELEASE_TAG_PAT is not set, so a pushed tag would never trigger deploy-prod.yml (OQ-71). Fine-grained PAT, Contents: Read and write, scoped to only this repository."
+            exit 1
+          fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           ref: main
