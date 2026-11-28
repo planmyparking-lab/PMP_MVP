@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { selectFacility, signOut } from "../../app/actions";
 import type { ConsoleSession } from "../lib/data/types";
+import { isBareLayout, WELCOME_PATH } from "../lib/landingRoute";
 import { bindMenuEscape } from "../lib/menuEscape";
 import { Icon } from "./ui/Icon";
 import type { IconName } from "./ui/Icon";
@@ -33,6 +34,8 @@ const MANAGE: NavItem[] = [
   { href: "/reports", label: "Reports", icon: "file", state: "logic" },
 ];
 const ALL = [...OVERVIEW, ...OPERATIONS, ...MANAGE];
+/** The public landing page, reachable while signed in (it renders without this shell, so it is not in ALL). */
+const WEBSITE: NavItem[] = [{ href: WELCOME_PATH, label: "Home page", icon: "sparkle" }];
 
 const STATE_LABEL = {
   live: "Reads live data",
@@ -201,7 +204,7 @@ export function AppShell({ children, session }: { children: ReactNode; session: 
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  if (path === "/login") return <>{children}</>;
+  if (isBareLayout(path, session.kind)) return <>{children}</>;
 
   return (
     <div className="shell">
@@ -223,6 +226,7 @@ export function AppShell({ children, session }: { children: ReactNode; session: 
           <NavGroup items={OVERVIEW} path={path} />
           <NavGroup label="Operations" items={OPERATIONS} path={path} />
           <NavGroup label="Manage" items={MANAGE} path={path} />
+          <NavGroup label="Website" items={WEBSITE} path={path} />
         </nav>
         <div className="sidebar-foot">
           {session.kind === "ok" && session.facility ? (
