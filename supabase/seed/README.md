@@ -21,7 +21,7 @@ Demo staff PINs are in `generate.mjs` (`STAFF_PINS`) and nowhere else. Never reu
 
 **Before `pnpm test:db`**, reset the database (`npx supabase@2.122.0 db reset`, then re-enable pgTAP). Some SQL tests count rows on an empty database.
 
-**Console pages stay empty for now.** No migration on main has RLS read policies yet, so a signed-in user reads no rows (OQ-61).
+**Console pages and RLS.** `0010_rls.sql` (PR #34) gives owners and managers read access through the anon key, so with this seed loaded the demo owner sees data on Dashboard, Occupancy, Conflicts, Devices, Overstay, Shifts, Activity and Facility. Setup does not read the database for display. Reports read through `report_data()` (`0013`), which also needs the report route's secret hash inserted first (OQ-72). Whether OQ-61 is closed is Akanksha's call.
 
 ## What is in it
 
