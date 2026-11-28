@@ -33,15 +33,26 @@ test("the token is read-only at workflow level", () => {
 });
 
 test("secrets are only mapped into env, by the names the preflight checks, never interpolated into a script", () => {
+  // CONSOLE_URL (staging only, CLD-10 post-deploy health check) is the one addition beyond the three deploy
+  // secrets/vars every workflow needs: it is not a secret, and the check it drives reads no data (health.ts).
+  const expected = {
+    "deploy-staging.yml": [
+      "secrets.SUPABASE_ACCESS_TOKEN",
+      "secrets.SUPABASE_DB_PASSWORD",
+      "vars.CONSOLE_URL",
+      "vars.SUPABASE_PROJECT_REF",
+    ],
+    "deploy-prod.yml": [
+      "secrets.SUPABASE_ACCESS_TOKEN",
+      "secrets.SUPABASE_DB_PASSWORD",
+      "vars.SUPABASE_PROJECT_REF",
+    ],
+  };
   for (const [name, text] of both) {
     const refs = [...text.matchAll(/\$\{\{\s*(secrets|vars)\.(\w+)\s*\}\}/g)].map(
       (m) => `${m[1]}.${m[2]}`,
     );
-    assert.deepEqual([...new Set(refs)].sort(), [
-      "secrets.SUPABASE_ACCESS_TOKEN",
-      "secrets.SUPABASE_DB_PASSWORD",
-      "vars.SUPABASE_PROJECT_REF",
-    ]);
+    assert.deepEqual([...new Set(refs)].sort(), expected[name], name);
     for (const line of text.split("\n").filter((l) => l.includes("secrets."))) {
       assert.match(line, /^\s+(SUPABASE_\w+): \$\{\{ secrets\.\1 \}\}$/, `${name}: ${line.trim()}`);
     }
