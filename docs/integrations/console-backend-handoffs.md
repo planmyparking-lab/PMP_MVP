@@ -210,7 +210,7 @@ The report route (`apps/console/app/api/reports/[type]/route.ts`) is called by t
 2. the scheduler (database side) reading the views itself and passing the figures to the route; or
 3. an explicit, documented exception allowing the service-role key in the report route only.
 
-Until one is chosen the route keeps answering 501 for real data (OQ-40). Owners: Anamika with Akanksha and Afzal.
+**Decided 28 Nov 2026 (OQ-72): option 1.** Migration `0013_report_data.sql` adds `report_data(p_secret, p_facility_id, p_from, p_to)`. Because the route reaches the database with the public anon key, the function checks the shared secret itself (against a stored SHA-256), not only the route. It is not yet applied or verified against a database; see OQ-72. Owners: Anamika with Akanksha and Afzal.
 
 ## 7. No ingest change requested
 
