@@ -22,7 +22,7 @@ jobs:
     permissions:
       contents: read
       checks: read
-      deployments: read
+      statuses: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -48,7 +48,13 @@ jobs:
       - name: This commit already deployed to staging (REL-01)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/verify-staging-deploy.mjs --sha "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY"
+        run: |
+          set -o pipefail
+          # The "staging-deploy" commit status deploy-staging.yml posts against the exact commit it deployed — not
+          # the automatic Deployment record GitHub creates for a job that uses the `environment:` key, which for a
+          # workflow_run-triggered job is recorded against the wrong SHA when two merges queue close together (see
+          # the script's own comment).
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/statuses" --jq '.[]' | node scripts/verify-staging-deploy.mjs
 
   deploy:
     name: deploy-production

@@ -24,9 +24,12 @@ Safety rules built in (and asserted by `scripts/deploy-workflows.test.mjs`, whic
 - Secrets reach a job only through its `env:` mapping, by the names in `ops/secrets-inventory.md`
   (`SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD` as secrets; `SUPABASE_PROJECT_REF`, and `CONSOLE_URL` on staging
   only, as variables). No script interpolates a secret.
-- A release tag can only reach `deploy-production` once this exact commit already has a successful `staging`
-  deployment (`scripts/verify-staging-deploy.mjs`, reading the Deployment GitHub itself records for
-  `deploy-staging.yml`'s `environment: staging` job — no separate bookkeeping to drift out of sync).
+- A release tag can only reach `deploy-production` once this exact commit already has a successful `staging-deploy`
+  commit status (`scripts/verify-staging-deploy.mjs`), posted by `deploy-staging.yml`'s own last step against
+  `github.event.workflow_run.head_sha`. Not the Deployment GitHub creates automatically for the job's `environment:
+staging` key: for a `workflow_run`-triggered job, that Deployment is recorded against `GITHUB_SHA`, which is
+  `main`'s tip when `deploy-staging.yml` itself runs, not the commit CI actually tested — the two can differ when two
+  merges queue close together (found in review, PR #79).
 - `scripts/deploy-preflight.mjs` runs before anything touches a hosted project and fails with the **names** of missing
   settings, never their values (CLD-09 step 10).
 - One deploy per environment at a time; a queued deploy waits instead of cancelling one in progress.
