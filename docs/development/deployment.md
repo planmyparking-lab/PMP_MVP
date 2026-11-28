@@ -57,4 +57,10 @@ Safety rules built in (and asserted by `scripts/deploy-workflows.test.mjs`, whic
 2. Apply items D1 to D6 of [github-repository-settings.md](github-repository-settings.md).
 3. Set `DEPLOY_ENABLED` to `true` (item D7).
 4. Merge a trivial change to `main` and confirm `deploy-staging` runs after CI and lists the migrations.
-5. Push a pre-release tag such as `v0.0.0-test` on a commit of `main`; confirm the run waits for approval (T-CLD-09-I3).
+5. Create the `release-approval` environment's `RELEASE_TAG_PAT` secret (OQ-71; `.github/workflows/create-release-tag.yml`
+   fails fast, naming it, until this exists) — a fine-grained PAT, Contents: Read and write, scoped to only this
+   repository.
+6. Run `create-release-tag.yml` with a pre-release tag such as `v0.0.0-test`; confirm the run waits for approval
+   (T-CLD-09-I3), and — this is the part a `GITHUB_TOKEN`-authored push would silently skip (OQ-71) — confirm
+   `deploy-prod.yml` itself then runs for that tag. Delete the test tag and its `production` environment deployment
+   record afterward.
