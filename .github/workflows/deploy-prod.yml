@@ -22,6 +22,7 @@ jobs:
     permissions:
       contents: read
       checks: read
+      deployments: read
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -44,6 +45,10 @@ jobs:
           # satisfy the gate (select on app.slug). If the slug ever differs the filter yields nothing and the gate fails closed.
           gh api --paginate "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/check-runs?filter=latest&per_page=100" \
             --jq '.check_runs[] | select(.app.slug == "github-actions")' | node scripts/verify-ci-checks.mjs --require check --require db-tests
+      - name: This commit already deployed to staging (REL-01)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/verify-staging-deploy.mjs --sha "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY"
 
   deploy:
     name: deploy-production

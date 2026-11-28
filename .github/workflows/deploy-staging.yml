@@ -64,3 +64,17 @@ jobs:
             npx --yes supabase@2.122.0 migration list || echo "migration list unavailable"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Post-deploy health check (public, data-free — CLD-10)
+        if: vars.CONSOLE_URL != ''
+        env:
+          CONSOLE_URL: ${{ vars.CONSOLE_URL }}
+        run: |
+          # /api/health answers only {"status": "ok"|"unconfigured"|"unavailable"} with no data (apps/console/src/lib/health.ts).
+          # This only confirms the Console that's already live can still reach its database after this deploy's
+          # migrations; it never gates whether the migrations themselves were applied (the steps above already did that).
+          code=$(curl -s -o /tmp/health.json -w '%{http_code}' "$CONSOLE_URL/api/health")
+          cat /tmp/health.json
+          if [ "$code" != "200" ]; then
+            echo "::error::Console health check returned HTTP $code after this deploy ($CONSOLE_URL/api/health)"
+            exit 1
+          fi
