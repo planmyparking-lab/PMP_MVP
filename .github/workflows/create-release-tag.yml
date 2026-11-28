@@ -51,7 +51,9 @@ jobs:
     environment: release-approval
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      # The push below authenticates with RELEASE_TAG_PAT, not this job's own GITHUB_TOKEN, so the
+      # token this block actually governs never needs write access.
+      contents: read
     steps:
       - name: RELEASE_TAG_PAT must be set
         env:
@@ -65,6 +67,8 @@ jobs:
           fi
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          # Whatever commit is the tip of main at the moment a reviewer approves this run, not when it was
+          # requested — the two can differ if main moves while this job waits at the approval gate.
           ref: main
           fetch-depth: 1
           # A PAT, not the default GITHUB_TOKEN: see the OQ-71 note above the `on:` trigger.
